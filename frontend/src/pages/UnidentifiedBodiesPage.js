@@ -27,8 +27,14 @@ function groupRecords(records) {
   const map = new Map();
   for (const r of records) {
     const key = `${r.station}||${r.reported_date}||${r.description}`;
+    const incomingUrls = Array.isArray(r.media_urls) && r.media_urls.length
+      ? r.media_urls
+      : (r.image_url ? [r.image_url] : []);
     if (!map.has(key)) map.set(key, { ...r, mediaUrls: [] });
-    if (r.image_url) map.get(key).mediaUrls.push(r.image_url);
+    const grouped = map.get(key);
+    incomingUrls.forEach((url) => {
+      if (url && !grouped.mediaUrls.includes(url)) grouped.mediaUrls.push(url);
+    });
   }
   return Array.from(map.values());
 }

@@ -8,6 +8,7 @@ Includes admin, officer, station, public user, complaint, and unidentified body 
 Usage:
     python seed_all.py
 """
+import json
 import os
 import re
 import uuid
@@ -47,6 +48,69 @@ def _id() -> str:
 
 def _now():
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _parse_media_field(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    raw = str(value).strip()
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    except Exception:
+        pass
+    return [raw]
+
+
+def _encode_media_field(items):
+    cleaned = [str(item).strip() for item in items if str(item).strip()]
+    if not cleaned:
+        return ""
+    return json.dumps(cleaned) if len(cleaned) > 1 else cleaned[0]
+
+
+def _merge_unidentified_body_duplicates(cur):
+    cur.execute(
+        """
+        SELECT id, station, reported_date, description, image_url, image_file_name
+        FROM unidentified_bodies
+        ORDER BY created_at ASC NULLS LAST, id ASC
+        """
+    )
+    rows = cur.fetchall()
+    grouped = {}
+    removed = 0
+
+    for row_id, station, reported_date, description, image_url, image_file_name in rows:
+        key = (station, reported_date, (description or "").strip())
+        urls = _parse_media_field(image_url)
+        files = _parse_media_field(image_file_name)
+
+        if key not in grouped:
+            grouped[key] = {"keep_id": row_id, "urls": urls[:], "files": files[:]}
+            continue
+
+        grouped[key]["urls"].extend(urls)
+        grouped[key]["files"].extend(files)
+        cur.execute("DELETE FROM unidentified_bodies WHERE id = %s", (row_id,))
+        removed += 1
+
+    for data in grouped.values():
+        cur.execute(
+            "UPDATE unidentified_bodies SET image_url = %s, image_file_name = %s WHERE id = %s",
+            (
+                _encode_media_field(data["urls"]),
+                _encode_media_field(data["files"]),
+                data["keep_id"],
+            ),
+        )
+
+    return removed
 
 
 def _insert_if_missing(
@@ -347,25 +411,20 @@ UNIDENTIFIED_BODY_RECORDS = [
     },
     {
         "id": "59ba000b-c6dc-4b57-867e-0b065b0179f0",
-        "image_url": "/unidentified_uploads/c09fcdc3c8244a46a7cc5a317790477f.jpg",
-        "image_file_name": "c09fcdc3c8244a46a7cc5a317790477f.jpg",
+        "image_url": json.dumps([
+            "/unidentified_uploads/c09fcdc3c8244a46a7cc5a317790477f.jpg",
+            "/unidentified_uploads/d3a8b6526b134b2d91409b3992e08a88.jpg",
+        ]),
+        "image_file_name": json.dumps([
+            "c09fcdc3c8244a46a7cc5a317790477f.jpg",
+            "d3a8b6526b134b2d91409b3992e08a88.jpg",
+        ]),
         "station": "Adoni RPS",
         "district": None,
         "reported_date": "2026-04-13",
         "description": "hkvjhfvuyktcdykttykyhtfvyhtgut",
         "uploaded_by": "Adoni RPS",
         "created_at": datetime.datetime(2026, 4, 13, 12, 59, 28, 664427, tzinfo=datetime.timezone.utc),
-    },
-    {
-        "id": "87cd80c1-6c19-4b40-a21c-8d2e1f0a4677",
-        "image_url": "/unidentified_uploads/d3a8b6526b134b2d91409b3992e08a88.jpg",
-        "image_file_name": "d3a8b6526b134b2d91409b3992e08a88.jpg",
-        "station": "Adoni RPS",
-        "district": None,
-        "reported_date": "2026-04-13",
-        "description": "hkvjhfvuyktcdykttykyhtfvyhtgut",
-        "uploaded_by": "Adoni RPS",
-        "created_at": datetime.datetime(2026, 4, 13, 12, 59, 28, 701680, tzinfo=datetime.timezone.utc),
     },
 ]
 
@@ -415,6 +474,9 @@ def main():
     total_inserted += i
 
     print("\n=== UNIDENTIFIED BODIES ===")
+    merged = _merge_unidentified_body_duplicates(cur)
+    if merged:
+        print(f"  CLEAN  [unidentified_bodies]: merged {merged} duplicate media row(s)")
     i, s = _insert_if_missing(cur, "unidentified_bodies", UNIDENTIFIED_BODY_RECORDS, id_field="id", alt_fields=["image_file_name"])
     total_inserted += i
 

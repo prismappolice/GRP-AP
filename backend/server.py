@@ -250,6 +250,55 @@ def _normalize_media_url(value: Any) -> str:
     return cleaned
 
 
+def _decode_media_field(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    raw = str(value).strip()
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    except Exception:
+        pass
+    return [raw]
+
+
+def _encode_media_field(items: List[str]) -> str:
+    cleaned = [str(item).strip() for item in items if str(item).strip()]
+    if not cleaned:
+        return ""
+    return json.dumps(cleaned) if len(cleaned) > 1 else cleaned[0]
+
+
+def _merge_unidentified_body_dicts(records: List[dict]) -> List[dict]:
+    grouped: dict[str, dict] = {}
+    for record in records:
+        key = f"{record.get('station', '')}||{record.get('reported_date', '')}||{(record.get('description', '') or '').strip()}"
+        if key not in grouped:
+            grouped[key] = {**record, "media_urls": [], "ids": []}
+
+        target = grouped[key]
+        media_urls = record.get("media_urls") or ([record.get("image_url")] if record.get("image_url") else [])
+        for media_url in media_urls:
+            normalized = _normalize_media_url(media_url)
+            if normalized and normalized not in target["media_urls"]:
+                target["media_urls"].append(normalized)
+
+        record_ids = record.get("ids") or ([record.get("id")] if record.get("id") else [])
+        for record_id in record_ids:
+            if record_id and record_id not in target["ids"]:
+                target["ids"].append(record_id)
+
+        if target["media_urls"]:
+            target["image_url"] = target["media_urls"][0]
+
+    return list(grouped.values())
+
+
 def _normalize_news_item(item: Any) -> Any:
     if not isinstance(item, dict):
         return item
@@ -495,6 +544,8 @@ class UnidentifiedBodyRecord(BaseModel):
     id: str
     image_url: str
     image_file_name: str
+    media_urls: List[str] = Field(default_factory=list)
+    ids: List[str] = Field(default_factory=list)
     station: str
     district: Optional[str] = None
     reported_date: str
@@ -1574,10 +1625,14 @@ async def get_station_lost_items(
 
 
 def _ub_orm_to_dict(r: UnidentifiedBodyORM) -> dict:
+    media_urls = [_normalize_media_url(item) for item in _decode_media_field(r.image_url)]
+    file_names = _decode_media_field(r.image_file_name)
     return {
         "id": r.id,
-        "image_url": _normalize_media_url(r.image_url),
-        "image_file_name": r.image_file_name,
+        "image_url": media_urls[0] if media_urls else "",
+        "image_file_name": file_names[0] if file_names else "",
+        "media_urls": media_urls,
+        "ids": [r.id],
         "station": r.station,
         "district": r.district,
         "reported_date": r.reported_date,
@@ -1594,12 +1649,14 @@ async def get_all_unidentified_bodies(
     result = await session.execute(
         select(UnidentifiedBodyORM).order_by(UnidentifiedBodyORM.created_at.desc())
     )
-    return JSONResponse(content=[_ub_orm_to_dict(r) for r in result.scalars().all()])
+    payload = _merge_unidentified_body_dicts([_ub_orm_to_dict(r) for r in result.scalars().all()])
+    return JSONResponse(content=payload)
 
 
 @api_router.post("/unidentified-bodies")
 async def create_unidentified_body(
-    file: UploadFile = File(...),
+    files: Optional[List[UploadFile]] = File(None),
+    file: Optional[UploadFile] = File(None),
     reported_date: str = Form(...),
     description: str = Form(...),
     current_user: User = Depends(get_current_user),
@@ -1614,29 +1671,42 @@ async def create_unidentified_body(
         or _managed_station_names_for_srp(current_user)
     ):
         raise HTTPException(status_code=403, detail="Station access only")
+
+    upload_files: List[UploadFile] = list(files or [])
+    if file is not None:
+        upload_files.append(file)
+    if not upload_files:
+        raise HTTPException(status_code=400, detail="Select at least one image or video file")
+
     allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/avif",
                      "video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo"}
-    if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="Only image or video files are allowed")
-    ext = Path(file.filename).suffix if file.filename else ".jpg"
-    file_name = f"{uuid.uuid4().hex}{ext}"
     upload_dir = ROOT_DIR / "unidentified_uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
-    dest = upload_dir / file_name
-    content = await file.read()
-    with open(dest, "wb") as f:
-        f.write(content)
-    image_url = f"/unidentified_uploads/{file_name}"
+
+    file_names: List[str] = []
+    image_urls: List[str] = []
+    for upload in upload_files:
+        if upload.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="Only image or video files are allowed")
+        ext = Path(upload.filename).suffix if upload.filename else ".jpg"
+        file_name = f"{uuid.uuid4().hex}{ext}"
+        dest = upload_dir / file_name
+        content = await upload.read()
+        with open(dest, "wb") as f:
+            f.write(content)
+        file_names.append(file_name)
+        image_urls.append(f"/unidentified_uploads/{file_name}")
+
     station_row = await _resolve_station_for_user(session, current_user)
     station_name = str(station_row.name) if station_row else str(current_user.name)
     new_record = UnidentifiedBodyORM(
         id=str(uuid.uuid4()),
-        image_url=image_url,
-        image_file_name=file_name,
+        image_url=_encode_media_field(image_urls),
+        image_file_name=_encode_media_field(file_names),
         station=station_name,
         district=None,
         reported_date=reported_date,
-        description=description,
+        description=description.strip(),
         uploaded_by=str(current_user.name),
         created_at=datetime.now(timezone.utc),
     )
@@ -1671,8 +1741,8 @@ async def delete_unidentified_body(
     station_name = str(station_row.name) if station_row else str(current_user.name)
     if target.station != station_name:
         raise HTTPException(status_code=403, detail="Cannot delete another station's record")
-    if target.image_file_name:
-        file_path = ROOT_DIR / "unidentified_uploads" / target.image_file_name
+    for stored_file_name in _decode_media_field(target.image_file_name):
+        file_path = ROOT_DIR / "unidentified_uploads" / stored_file_name
         if file_path.exists():
             file_path.unlink()
     await session.delete(target)
@@ -1703,7 +1773,7 @@ async def get_station_unidentified_bodies(
         .where(UnidentifiedBodyORM.station == station_name)
         .order_by(UnidentifiedBodyORM.created_at.desc())
     )
-    return [UnidentifiedBodyRecord(**_ub_orm_to_dict(r)) for r in result.scalars().all()]
+    return [UnidentifiedBodyRecord(**r) for r in _merge_unidentified_body_dicts([_ub_orm_to_dict(item) for item in result.scalars().all()])]
 
 
 @api_router.get("/irp/unidentified-bodies", response_model=List[UnidentifiedBodyRecord])
@@ -1721,7 +1791,7 @@ async def get_irp_unidentified_bodies(
         .where(UnidentifiedBodyORM.station.in_(managed))
         .order_by(UnidentifiedBodyORM.created_at.desc())
     )
-    return [UnidentifiedBodyRecord(**_ub_orm_to_dict(r)) for r in result.scalars().all()]
+    return [UnidentifiedBodyRecord(**r) for r in _merge_unidentified_body_dicts([_ub_orm_to_dict(item) for item in result.scalars().all()])]
 
 
 @api_router.get("/dsrp/unidentified-bodies", response_model=List[UnidentifiedBodyRecord])
@@ -1739,7 +1809,7 @@ async def get_dsrp_unidentified_bodies(
         .where(UnidentifiedBodyORM.station.in_(managed))
         .order_by(UnidentifiedBodyORM.created_at.desc())
     )
-    return [UnidentifiedBodyRecord(**_ub_orm_to_dict(r)) for r in result.scalars().all()]
+    return [UnidentifiedBodyRecord(**r) for r in _merge_unidentified_body_dicts([_ub_orm_to_dict(item) for item in result.scalars().all()])]
 
 
 @api_router.get("/srp/unidentified-bodies", response_model=List[UnidentifiedBodyRecord])
@@ -1757,7 +1827,7 @@ async def get_srp_unidentified_bodies(
         .where(UnidentifiedBodyORM.station.in_(managed))
         .order_by(UnidentifiedBodyORM.created_at.desc())
     )
-    return [UnidentifiedBodyRecord(**_ub_orm_to_dict(r)) for r in result.scalars().all()]
+    return [UnidentifiedBodyRecord(**r) for r in _merge_unidentified_body_dicts([_ub_orm_to_dict(item) for item in result.scalars().all()])]
 
 
 @api_router.get("/dgp/unidentified-bodies", response_model=List[UnidentifiedBodyRecord])
@@ -1770,7 +1840,7 @@ async def get_dgp_unidentified_bodies(
     result = await session.execute(
         select(UnidentifiedBodyORM).order_by(UnidentifiedBodyORM.created_at.desc())
     )
-    return [UnidentifiedBodyRecord(**_ub_orm_to_dict(r)) for r in result.scalars().all()]
+    return [UnidentifiedBodyRecord(**r) for r in _merge_unidentified_body_dicts([_ub_orm_to_dict(item) for item in result.scalars().all()])]
 
 
 @api_router.get("/irp/complaints", response_model=List[Complaint])

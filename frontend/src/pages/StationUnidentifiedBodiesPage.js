@@ -40,9 +40,22 @@ function groupRecords(records) {
   const map = new Map();
   for (const r of records) {
     const key = `${r.station}||${r.reported_date}||${r.description}`;
+    const incomingUrls = Array.isArray(r.media_urls) && r.media_urls.length
+      ? r.media_urls
+      : (r.image_url ? [r.image_url] : []);
+    const incomingIds = Array.isArray(r.ids) && r.ids.length
+      ? r.ids
+      : (r.id ? [r.id] : []);
+
     if (!map.has(key)) map.set(key, { ...r, mediaUrls: [], ids: [] });
-    if (r.image_url) map.get(key).mediaUrls.push(r.image_url);
-    map.get(key).ids.push(r.id);
+    const grouped = map.get(key);
+
+    incomingUrls.forEach((url) => {
+      if (url && !grouped.mediaUrls.includes(url)) grouped.mediaUrls.push(url);
+    });
+    incomingIds.forEach((id) => {
+      if (id && !grouped.ids.includes(id)) grouped.ids.push(id);
+    });
   }
   return Array.from(map.values());
 }
@@ -148,16 +161,12 @@ const StationUnidentifiedBodiesPage = () => {
     try {
       setSubmitting(true);
       setError('');
-      const newRecords = [];
-      for (const file of form.files) {
-        const payload = new FormData();
-        payload.append('file', file);
-        payload.append('reported_date', form.reportedDate);
-        payload.append('description', form.description.trim());
-        const response = await unidentifiedBodiesAPI.create(payload);
-        newRecords.push(response.data);
-      }
-      setRecords((prev) => [...newRecords.reverse(), ...prev]);
+      const payload = new FormData();
+      form.files.forEach((selectedFile) => payload.append('files', selectedFile));
+      payload.append('reported_date', form.reportedDate);
+      payload.append('description', form.description.trim());
+      const response = await unidentifiedBodiesAPI.create(payload);
+      setRecords((prev) => [response.data, ...prev]);
       resetForm();
     } catch (uploadError) {
       setError(uploadError?.response?.data?.detail || 'Upload failed. Please try again.');
