@@ -223,8 +223,17 @@ class UnidentifiedBodyORM(Base):
 
 @app.on_event("startup")
 async def ensure_database_tables() -> None:
+    core_tables = [
+        UserORM.__table__,
+        ComplaintORM.__table__,
+        AlertORM.__table__,
+        StationORM.__table__,
+        CrimeDataORM.__table__,
+        HelpRequestORM.__table__,
+        UnidentifiedBodyORM.__table__,
+    ]
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, tables=core_tables))
         await conn.run_sync(AdminModelBase.metadata.create_all)
 
 
