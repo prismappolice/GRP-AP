@@ -4,8 +4,11 @@ export const latestNewsAPI = {
 };
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const configuredBackendUrl = (process.env.REACT_APP_BACKEND_URL || '').trim().replace(/\/$/, '');
+const runtimeOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+const shouldUseSameOrigin = typeof window !== 'undefined' && !/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+const baseUrl = shouldUseSameOrigin ? runtimeOrigin : (configuredBackendUrl || runtimeOrigin);
+const API = baseUrl ? `${baseUrl}/api` : '/api';
 
 let authToken = null;
 

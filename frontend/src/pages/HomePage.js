@@ -28,6 +28,15 @@ export const HomePage = () => {
   const [alerts, setAlerts] = useState([]);
   const [latestNews, setLatestNews] = useState([]);
   const [gallery, setGallery] = useState([]);
+  const fallbackLatestNews = [{
+    id: 'fallback-news',
+    heading: 'DAILY NEWS UPDATE',
+    image: '/Appolice.png',
+    newsTitle: 'GRP Andhra Pradesh service update',
+    newsSummary: 'Public safety announcements and railway security updates will appear here once the backend feed sync is available.',
+    date: 'LIVE UPDATE',
+    source: 'GRP Andhra Pradesh',
+  }];
   const videoRefs = useRef(new Map());
   const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -116,12 +125,13 @@ export const HomePage = () => {
       try {
         const response = await api.get('/news-items');
         const items = Array.isArray(response.data) ? response.data : [];
-        setLatestNews(items.map((item) => ({
+        const normalizedItems = items.map((item) => ({
           ...item,
           image: normalizeMediaUrl(item?.image),
-        })));
+        }));
+        setLatestNews(normalizedItems.length > 0 ? normalizedItems : fallbackLatestNews);
       } catch (error) {
-        setLatestNews([]);
+        setLatestNews(fallbackLatestNews);
       }
     };
     loadAlerts();
