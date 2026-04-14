@@ -15,7 +15,7 @@ import {
   Bell
 } from 'lucide-react';
 
-import api, { alertsAPI, normalizeMediaUrl } from '@/lib/api';
+import api, { alertsAPI, latestNewsAPI, normalizeMediaUrl } from '@/lib/api';
 
 import { useStaticPageContent } from '@/lib/staticPageContent';
 import NewsCard from '@/components/ui/NewsCard';
@@ -109,13 +109,29 @@ export const HomePage = () => {
       }
     };
     const loadLatestNews = async () => {
+      const normalizeNewsItem = (item) => ({
+        ...item,
+        image: normalizeMediaUrl(item?.image),
+      });
+
       try {
+        const latestResponse = await latestNewsAPI.get();
+        const latestPayload = latestResponse?.data;
+
+        if (Array.isArray(latestPayload)) {
+          const normalizedItems = latestPayload.map(normalizeNewsItem).filter((item) => item?.newsTitle || item?.heading);
+          setLatestNews(normalizedItems.length > 0 ? normalizedItems : fallbackLatestNews);
+          return;
+        }
+
+        if (latestPayload && typeof latestPayload === 'object' && (latestPayload.newsTitle || latestPayload.heading)) {
+          setLatestNews([normalizeNewsItem(latestPayload)]);
+          return;
+        }
+
         const response = await api.get('/news-items');
         const items = Array.isArray(response.data) ? response.data : [];
-        const normalizedItems = items.map((item) => ({
-          ...item,
-          image: normalizeMediaUrl(item?.image),
-        }));
+        const normalizedItems = items.map(normalizeNewsItem).filter((item) => item?.newsTitle || item?.heading);
         setLatestNews(normalizedItems.length > 0 ? normalizedItems : fallbackLatestNews);
       } catch (error) {
         setLatestNews(fallbackLatestNews);

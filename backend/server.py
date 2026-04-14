@@ -999,6 +999,8 @@ async def get_latest_news() -> Any:
     try:
         with open(news_path, "r", encoding="utf-8") as f:
             news = json.load(f)
+        if isinstance(news, list):
+            news = news[0] if news else {}
         return JSONResponse(content=_normalize_news_item(news))
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to load latest news: {e}"}, status_code=500)
@@ -1023,7 +1025,9 @@ async def get_news_items() -> Any:
     try:
         with open(items_path, "r", encoding="utf-8") as f:
             items = json.load(f)
-        if not items:
+        if isinstance(items, dict):
+            items = [items]
+        if not isinstance(items, list) or not items:
             raise FileNotFoundError
         return JSONResponse(content=[_normalize_news_item(item) for item in items])
     except (FileNotFoundError, json.JSONDecodeError):
@@ -1039,7 +1043,7 @@ async def get_news_items() -> Any:
                 seeded = [existing]
                 with open(items_path, "w", encoding="utf-8") as f:
                     json.dump(seeded, f, ensure_ascii=False, indent=2)
-                return JSONResponse(content=seeded)
+                return JSONResponse(content=[_normalize_news_item(item) for item in seeded])
         except Exception:
             pass
         return JSONResponse(content=[])
