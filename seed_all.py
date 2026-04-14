@@ -227,6 +227,7 @@ SRP_RECORDS = [
         "name": name,
         "phone": phone,
         "password": _hash(f"#Srp@{name.replace('SRP ', '')}$"),
+        "role": "srp",
         "created_at": _now(),
     }
     for name, phone, email in _SRP_RAW
@@ -251,6 +252,7 @@ DSRP_RECORDS = [
         "name": name,
         "phone": phone,
         "password": _hash(f"#Dsrp@{name.replace('DSRP ', '')}$"),
+        "role": "dsrp",
         "created_at": _now(),
     }
     for name, phone, email in _DSRP_RAW
@@ -285,6 +287,7 @@ IRP_RECORDS = [
         "name": name,
         "phone": phone,
         "password": _hash(f"#Irp@{name.replace('IRP ', '').replace(' ', '')}$"),
+        "role": "irp",
         "created_at": _now(),
     }
     for name, phone, email in _IRP_RAW
@@ -382,6 +385,7 @@ STATION_RECORDS = [
         "name": name,
         "phone": phone,
         "password": _hash(_station_pw(name)),
+        "role": "station",
         "created_at": _now(),
     }
     for name, phone in _STATIONS_RAW
