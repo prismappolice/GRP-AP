@@ -1,21 +1,40 @@
 """
-Seed all credential tables: admin, dgp, srp, dsrp, irp, stations.
-- Existing records (matched by email) are SKIPPED.
-- Missing records are INSERTED.
+Seed the required GRP data tables for deployment.
+Includes admin, officer, station, public user, complaint, and unidentified body data.
+- Existing records are skipped.
+- Missing records are inserted.
 - Safe to run multiple times.
 
 Usage:
     python seed_all.py
 """
+import os
 import re
 import uuid
 import datetime
+from pathlib import Path
+
 import psycopg2
+from dotenv import load_dotenv
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-DB_URL = "postgresql://postgres:password@localhost/grp_db"
+ROOT_DIR = Path(__file__).resolve().parent
+load_dotenv(ROOT_DIR / "backend" / ".env")
+load_dotenv(ROOT_DIR / ".env")
+
+
+def _resolve_db_url() -> str:
+    url = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_URL")
+        or "postgresql://postgres:password@localhost/grp_db"
+    )
+    return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+
+DB_URL = _resolve_db_url()
 
 
 def _hash(plain: str) -> str:
@@ -30,14 +49,32 @@ def _now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
-def _insert_if_missing(cur, table: str, records: list[dict], id_field: str = "email"):
-    """Insert records not already present (matched by id_field)."""
-    cur.execute(f"SELECT {id_field} FROM {table}")
-    existing = {row[0] for row in cur.fetchall()}
+def _insert_if_missing(
+    cur,
+    table: str,
+    records: list[dict],
+    id_field: str = "email",
+    alt_fields: list[str] | None = None,
+):
+    """Insert records not already present (matched by id_field or alt_fields)."""
+    match_fields = [id_field, *(alt_fields or [])]
+    existing_by_field: dict[str, set] = {}
+
+    for field in match_fields:
+        cur.execute(f"SELECT {field} FROM {table} WHERE {field} IS NOT NULL")
+        existing_by_field[field] = {row[0] for row in cur.fetchall()}
+
     inserted = skipped = 0
     for r in records:
-        key = r[id_field]
-        if key in existing:
+        matched = False
+        for field in match_fields:
+            value = r.get(field)
+            if value is not None and value in existing_by_field[field]:
+                matched = True
+                break
+
+        key = r.get(id_field) or r.get("name") or r.get("id")
+        if matched:
             print(f"  SKIP  [{table}]: {r.get('name', key)}")
             skipped += 1
         else:
@@ -47,7 +84,10 @@ def _insert_if_missing(cur, table: str, records: list[dict], id_field: str = "em
                 f"INSERT INTO {table} ({cols}) VALUES ({placeholders})",
                 list(r.values()),
             )
-            existing.add(key)
+            for field in match_fields:
+                value = r.get(field)
+                if value is not None:
+                    existing_by_field[field].add(value)
             print(f"  INSERT [{table}]: {r.get('name', key)}")
             inserted += 1
     return inserted, skipped
@@ -236,6 +276,12 @@ _STATIONS_RAW = [
 
 STOPWORDS = {"rps", "rpop", "rs", "port"}
 
+
+def _delete_rpop_station_credentials(cur) -> int:
+    cur.execute("DELETE FROM stations WHERE UPPER(name) LIKE '%RPOP%'")
+    return cur.rowcount or 0
+
+
 def _station_email(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", ".", name.lower().strip()).strip(".")
     return f"{slug}@grp.local"
@@ -254,6 +300,73 @@ STATION_RECORDS = [
         "created_at": _now(),
     }
     for name, phone in _STATIONS_RAW
+    if "RPOP" not in name.upper()
+]
+
+PUBLIC_USER_RECORDS = [
+    {
+        "id": "05c27f84-4ad9-4733-9a56-3eb6b17037d1",
+        "email": "battiniraju29@gmail.com",
+        "name": "Battini Raju",
+        "phone": "9553655688",
+        "role": "public",
+        "created_at": datetime.datetime(2026, 4, 13, 6, 57, 2, 514537, tzinfo=datetime.timezone.utc),
+        "password": "$2b$12$eQSw2k46KV582l3EdqQKk.EGknFpeSMvM9aN8Dn8grjkKN7CA.n.O",
+    },
+]
+
+COMPLAINT_RECORDS = [
+    {
+        "id": "bba2b246-db00-44a2-ab66-0179af293c15",
+        "user_id": "ee492f9a-b9e6-4c09-a243-3dea364d3646",
+        "complaint_type": "harassment",
+        "description": "Hi Sir, I am bindhu from Hyderbad , i am traveeling from hyderabad to ongole but i have harressed by some gand at Guntur railway station during train stoped at coach no d3....they misbehaved with me rudely please take necessary action im sending the video potage of the incident. My contact number is 9797979797",
+        "location": "Platfrom 2, Pole No 23, Guntur Railwaystation..",
+        "station": "Guntur RPS",
+        "incident_date": "2026-04-02",
+        "evidence_urls": "",
+        "status": "pending",
+        "tracking_number": "GRP21C30A52",
+        "created_at": datetime.datetime(2026, 4, 2, 9, 41, 54, 161651, tzinfo=datetime.timezone.utc),
+        "updated_at": datetime.datetime(2026, 4, 2, 9, 41, 54, 161655, tzinfo=datetime.timezone.utc),
+        "rejection_reason": None,
+    },
+]
+
+UNIDENTIFIED_BODY_RECORDS = [
+    {
+        "id": "8f8b3af7-41ef-44e1-a638-fbae07a2310d",
+        "image_url": "/unidentified_uploads/29fc58227ca047689b450fa411767311.png",
+        "image_file_name": "29fc58227ca047689b450fa411767311.png",
+        "station": "Adoni RPS",
+        "district": None,
+        "reported_date": "2026-04-13",
+        "description": "ghjkasbdijabJHKCKJabjcxbkANMNASMNXB JNASBXJABJHBAsJHBJASBX",
+        "uploaded_by": "Adoni RPS",
+        "created_at": datetime.datetime(2026, 4, 13, 11, 7, 19, 736883, tzinfo=datetime.timezone.utc),
+    },
+    {
+        "id": "59ba000b-c6dc-4b57-867e-0b065b0179f0",
+        "image_url": "/unidentified_uploads/c09fcdc3c8244a46a7cc5a317790477f.jpg",
+        "image_file_name": "c09fcdc3c8244a46a7cc5a317790477f.jpg",
+        "station": "Adoni RPS",
+        "district": None,
+        "reported_date": "2026-04-13",
+        "description": "hkvjhfvuyktcdykttykyhtfvyhtgut",
+        "uploaded_by": "Adoni RPS",
+        "created_at": datetime.datetime(2026, 4, 13, 12, 59, 28, 664427, tzinfo=datetime.timezone.utc),
+    },
+    {
+        "id": "87cd80c1-6c19-4b40-a21c-8d2e1f0a4677",
+        "image_url": "/unidentified_uploads/d3a8b6526b134b2d91409b3992e08a88.jpg",
+        "image_file_name": "d3a8b6526b134b2d91409b3992e08a88.jpg",
+        "station": "Adoni RPS",
+        "district": None,
+        "reported_date": "2026-04-13",
+        "description": "hkvjhfvuyktcdykttykyhtfvyhtgut",
+        "uploaded_by": "Adoni RPS",
+        "created_at": datetime.datetime(2026, 4, 13, 12, 59, 28, 701680, tzinfo=datetime.timezone.utc),
+    },
 ]
 
 
@@ -271,23 +384,38 @@ def main():
     total_inserted += i
 
     print("\n=== DGP ===")
-    i, s = _insert_if_missing(cur, "dgp", DGP_RECORDS)
+    i, s = _insert_if_missing(cur, "dgp", DGP_RECORDS, alt_fields=["name"])
     total_inserted += i
 
     print("\n=== SRP ===")
-    i, s = _insert_if_missing(cur, "srp", SRP_RECORDS)
+    i, s = _insert_if_missing(cur, "srp", SRP_RECORDS, alt_fields=["name"])
     total_inserted += i
 
     print("\n=== DSRP ===")
-    i, s = _insert_if_missing(cur, "dsrp", DSRP_RECORDS)
+    i, s = _insert_if_missing(cur, "dsrp", DSRP_RECORDS, alt_fields=["name"])
     total_inserted += i
 
     print("\n=== IRP ===")
-    i, s = _insert_if_missing(cur, "irp", IRP_RECORDS)
+    i, s = _insert_if_missing(cur, "irp", IRP_RECORDS, alt_fields=["name"])
     total_inserted += i
 
     print("\n=== STATIONS ===")
-    i, s = _insert_if_missing(cur, "stations", STATION_RECORDS)
+    deleted = _delete_rpop_station_credentials(cur)
+    if deleted:
+        print(f"  DELETE [stations]: removed {deleted} RPOP station logins")
+    i, s = _insert_if_missing(cur, "stations", STATION_RECORDS, alt_fields=["name"])
+    total_inserted += i
+
+    print("\n=== PUBLIC USERS ===")
+    i, s = _insert_if_missing(cur, "public_users", PUBLIC_USER_RECORDS)
+    total_inserted += i
+
+    print("\n=== COMPLAINTS ===")
+    i, s = _insert_if_missing(cur, "complaints", COMPLAINT_RECORDS, id_field="id", alt_fields=["tracking_number"])
+    total_inserted += i
+
+    print("\n=== UNIDENTIFIED BODIES ===")
+    i, s = _insert_if_missing(cur, "unidentified_bodies", UNIDENTIFIED_BODY_RECORDS, id_field="id", alt_fields=["image_file_name"])
     total_inserted += i
 
     conn.commit()
