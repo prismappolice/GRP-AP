@@ -31,28 +31,27 @@ export const HomePage = () => {
   const videoRefs = useRef(new Map());
   const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
 
+  const normalizeMediaUrl = (inputUrl) => {
+    if (!inputUrl) return '';
+    if (inputUrl.startsWith(backendUrl)) return inputUrl;
+    if (inputUrl.startsWith('/gallery_uploads/') || inputUrl.startsWith('/unidentified_uploads/')) {
+      return backendUrl ? `${backendUrl}${inputUrl}` : inputUrl;
+    }
+    const match = inputUrl.match(/\/(gallery_uploads|unidentified_uploads)\/.+/);
+    if (match && backendUrl) return `${backendUrl}${match[0]}`;
+    return inputUrl;
+  };
+
   const normalizeGalleryItem = (item, idx) => {
     const name = item?.name || item?.imageName || item?.heading || `gallery-item-${idx + 1}`;
     const heading = item?.heading || name;
     const content = item?.content || item?.description || '';
-    // Always use backendUrl from .env for gallery images
-    const getGalleryUrl = (inputUrl) => {
-      if (!inputUrl) return '';
-      // If already absolute and matches backendUrl, return as is
-      if (inputUrl.startsWith(backendUrl)) return inputUrl;
-      // If starts with /gallery_uploads/, prepend backendUrl
-      if (inputUrl.startsWith('/gallery_uploads/')) return `${backendUrl}${inputUrl}`;
-      // If hardcoded with wrong port, replace with backendUrl
-      const match = inputUrl.match(/\/gallery_uploads\/.+/);
-      if (match) return `${backendUrl}${match[0]}`;
-      return inputUrl;
-    };
     const rawUrl = item?.url || item?.imageUrl || '';
-    const url = getGalleryUrl(rawUrl);
+    const url = normalizeMediaUrl(rawUrl);
     const images = Array.isArray(item?.images) && item.images.length > 0
       ? item.images.map((image) => {
           const imageRawUrl = image?.url || '';
-          const imageUrl = getGalleryUrl(imageRawUrl);
+          const imageUrl = normalizeMediaUrl(imageRawUrl);
           return {
             ...image,
             url: imageUrl,
@@ -86,6 +85,14 @@ export const HomePage = () => {
     }];
   });
 
+  const effectiveGalleryMedia = galleryMedia.length > 0
+    ? galleryMedia
+    : [
+        { id: 'fallback-1', kind: 'image', url: '/Appolice.png', alt: 'AP Police' },
+        { id: 'fallback-2', kind: 'image', url: '/Vijayawada.png', alt: 'GRP Andhra Pradesh' },
+        { id: 'fallback-3', kind: 'image', url: '/dgp-Sir.jpeg', alt: 'DGP' },
+      ];
+
   useEffect(() => {
     const loadAlerts = async () => {
       try {
@@ -108,7 +115,11 @@ export const HomePage = () => {
     const loadLatestNews = async () => {
       try {
         const response = await api.get('/news-items');
-        setLatestNews(Array.isArray(response.data) ? response.data : []);
+        const items = Array.isArray(response.data) ? response.data : [];
+        setLatestNews(items.map((item) => ({
+          ...item,
+          image: normalizeMediaUrl(item?.image),
+        })));
       } catch (error) {
         setLatestNews([]);
       }
@@ -261,7 +272,7 @@ export const HomePage = () => {
             <div className="text-center">
               <div className="w-40 h-40 rounded-full border-4 border-[#475569] bg-white p-1 shadow-md overflow-hidden">
                 <img
-                  src="/dgp-photo.jpeg"
+                  src="/dgp-Photo.jpeg"
                   alt="Director General of Police"
                   className="w-full h-full rounded-full object-cover object-top"
                 />
@@ -280,10 +291,10 @@ export const HomePage = () => {
               Gallery
             </h2>
           </div>
-          {galleryMedia.length > 0 ? (
+          {effectiveGalleryMedia.length > 0 ? (
             <div className="overflow-hidden rounded-lg border-2 border-black bg-white p-3">
               <div className="flex w-max gap-4 px-2 animate-marquee">
-                {[...galleryMedia, ...galleryMedia].map((media, idx) => (
+                {[...effectiveGalleryMedia, ...effectiveGalleryMedia].map((media, idx) => (
                   <div
                     key={`${media.id}-${idx}`}
                     className="h-[300px] sm:h-[300px] min-w-[280px] sm:min-w-[320px] px-3 py-2 overflow-hidden rounded-lg border-2 border-gray-500 bg-white flex items-center justify-center flex-shrink-0"

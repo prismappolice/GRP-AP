@@ -2,6 +2,10 @@ import React from 'react';
 import { Card } from './card';
 
 const isVideoUrl = (url) => /\.(mp4|webm|ogg|mov|avi|mkv)(\?.*)?$/i.test(url || '');
+const handleImageError = (event) => {
+  event.currentTarget.onerror = null;
+  event.currentTarget.src = '/Appolice.png';
+};
 
 export default function NewsCard({
   heading = 'DAILY NEWS UPDATE',
@@ -31,6 +35,7 @@ export default function NewsCard({
               alt={newsTitle}
               className="object-cover w-full h-full rounded-b-none rounded-t-none"
               style={{ maxHeight: '144px' }}
+              onError={handleImageError}
             />
           )}
         </div>
