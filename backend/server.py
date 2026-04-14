@@ -33,6 +33,11 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import text
 
+try:
+    from .admin_model import Base as AdminModelBase
+except ImportError:
+    from admin_model import Base as AdminModelBase  # type: ignore
+
 # ==================== CONFIGURATION ====================
 ROOT_DIR = Path(__file__).parent
 _raw_database_url = (
@@ -220,6 +225,7 @@ class UnidentifiedBodyORM(Base):
 async def ensure_database_tables() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(AdminModelBase.metadata.create_all)
 
 
 def _normalize_media_url(value: Any) -> str:
