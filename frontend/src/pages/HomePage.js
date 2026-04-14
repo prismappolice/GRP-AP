@@ -27,15 +27,7 @@ export const HomePage = () => {
   const [alerts, setAlerts] = useState([]);
   const [latestNews, setLatestNews] = useState([]);
   const [gallery, setGallery] = useState([]);
-  const fallbackLatestNews = [{
-    id: 'fallback-news',
-    heading: 'DAILY NEWS UPDATE',
-    image: '/Appolice.png',
-    newsTitle: 'GRP Andhra Pradesh service update',
-    newsSummary: 'Public safety announcements and railway security updates will appear here once the backend feed sync is available.',
-    date: 'LIVE UPDATE',
-    source: 'GRP Andhra Pradesh',
-  }];
+  const fallbackLatestNews = [];
   const videoRefs = useRef(new Map());
 
   const normalizeGalleryItem = (item, idx) => {
@@ -81,13 +73,7 @@ export const HomePage = () => {
     }];
   });
 
-  const effectiveGalleryMedia = galleryMedia.length > 0
-    ? galleryMedia
-    : [
-        { id: 'fallback-1', kind: 'image', url: '/Appolice.png', alt: 'AP Police' },
-        { id: 'fallback-2', kind: 'image', url: '/Vijayawada.png', alt: 'GRP Andhra Pradesh' },
-        { id: 'fallback-3', kind: 'image', url: '/dgp-Sir.jpeg', alt: 'DGP' },
-      ];
+  const effectiveGalleryMedia = galleryMedia;
 
   useEffect(() => {
     const loadAlerts = async () => {
@@ -109,10 +95,14 @@ export const HomePage = () => {
       }
     };
     const loadLatestNews = async () => {
-      const normalizeNewsItem = (item) => ({
-        ...item,
-        image: normalizeMediaUrl(item?.image),
-      });
+      const normalizeNewsItem = (item) => {
+        const normalizedImage = normalizeMediaUrl(item?.image);
+        const usesUploadedNewsMedia = !normalizedImage || normalizedImage.startsWith('/news_uploads/');
+        return {
+          ...item,
+          image: usesUploadedNewsMedia ? normalizedImage : '',
+        };
+      };
 
       try {
         const latestResponse = await latestNewsAPI.get();

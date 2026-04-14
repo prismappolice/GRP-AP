@@ -4,7 +4,12 @@ import { Card } from './card';
 const isVideoUrl = (url) => /\.(mp4|webm|ogg|mov|avi|mkv)(\?.*)?$/i.test(url || '');
 const handleImageError = (event) => {
   event.currentTarget.onerror = null;
-  event.currentTarget.src = '/Appolice.png';
+  const wrapper = event.currentTarget.closest('[data-news-media]');
+  if (wrapper) {
+    wrapper.style.display = 'none';
+  } else {
+    event.currentTarget.style.display = 'none';
+  }
 };
 
 export default function NewsCard({
@@ -21,7 +26,7 @@ export default function NewsCard({
         <span className="text-white font-bold tracking-widest text-lg">{heading}</span>
       </div>
       {image && (
-        <div className="w-full h-36 bg-gray-100 flex items-center justify-center border-b">
+        <div data-news-media className="w-full h-36 bg-gray-100 flex items-center justify-center border-b">
           {isVideoUrl(image) ? (
             <video
               src={image}

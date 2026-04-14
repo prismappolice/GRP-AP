@@ -83,12 +83,14 @@ logger = logging.getLogger(__name__)
 # ==================== STATIC FILES ====================
 # Ensure upload directories exist before mounting
 (ROOT_DIR / "gallery_uploads").mkdir(parents=True, exist_ok=True)
+(ROOT_DIR / "news_uploads").mkdir(parents=True, exist_ok=True)
 (ROOT_DIR / "unidentified_uploads").mkdir(parents=True, exist_ok=True)
 _ub_json = ROOT_DIR / "unidentified_uploads" / "unidentified_bodies.json"
 if not _ub_json.exists():
     _ub_json.write_text("[]", encoding="utf-8")
 
 app.mount("/gallery_uploads", StaticFiles(directory=str(ROOT_DIR / "gallery_uploads")), name="gallery_uploads")
+app.mount("/news_uploads", StaticFiles(directory=str(ROOT_DIR / "news_uploads")), name="news_uploads")
 app.mount("/unidentified_uploads", StaticFiles(directory=str(ROOT_DIR / "unidentified_uploads")), name="unidentified_uploads")
 
 # ==================== ROUTER ====================
@@ -224,7 +226,10 @@ def _normalize_media_url(value: Any) -> str:
     if value is None:
         return ""
     cleaned = str(value).strip().strip('"').strip("'")
-    match = re.search(r"/(gallery_uploads|unidentified_uploads)/.+$", cleaned, re.IGNORECASE)
+    legacy_news_match = re.search(r"/gallery_uploads/news/(.+)$", cleaned, re.IGNORECASE)
+    if legacy_news_match:
+        return f"/news_uploads/{legacy_news_match.group(1)}"
+    match = re.search(r"/(gallery_uploads|news_uploads|unidentified_uploads)/.+$", cleaned, re.IGNORECASE)
     if match:
         return match.group(0)
     return cleaned
@@ -256,6 +261,51 @@ def _normalize_gallery_item(item: Any) -> Any:
             for image in normalized["images"]
         ]
     return normalized
+
+
+def _gallery_items_from_upload_dir() -> List[dict]:
+    uploads_dir = ROOT_DIR / "gallery_uploads"
+    gallery_items: List[dict] = []
+    for file_path in sorted(uploads_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".mp4", ".webm", ".ogg", ".mov", ".avi"}:
+            continue
+        gallery_items.append({
+            "id": file_path.stem,
+            "heading": f"Gallery Upload - {datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc).isoformat()}",
+            "content": "",
+            "images": [{
+                "url": f"/gallery_uploads/{file_path.name}",
+                "name": file_path.name,
+                "storedFileName": file_path.name,
+            }],
+            "created_at": datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc).isoformat(),
+        })
+    return gallery_items
+
+
+def _news_items_from_upload_dir() -> List[dict]:
+    news_dir = ROOT_DIR / "news_uploads"
+    if not news_dir.exists():
+        return []
+    news_items: List[dict] = []
+    for file_path in sorted(news_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".mp4", ".webm", ".ogg", ".mov", ".avi"}:
+            continue
+        news_items.append({
+            "id": file_path.stem,
+            "heading": "DAILY NEWS UPDATE",
+            "image": f"/news_uploads/{file_path.name}",
+            "newsTitle": file_path.stem.replace("_", " ").replace("-", " ").title(),
+            "newsSummary": "Latest uploaded news media",
+            "date": datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc).strftime("%d %b %Y"),
+            "source": "GRP Andhra Pradesh",
+            "created_at": datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc).isoformat(),
+        })
+    return news_items
 
 
 # ==================== PYDANTIC MODELS ====================
@@ -995,13 +1045,31 @@ async def get_current_user(
 # ==================== NEWS & GALLERY ROUTES ====================
 @api_router.get("/latest-news")
 async def get_latest_news() -> Any:
+    items_path = ROOT_DIR / "gallery_uploads" / "news_items.json"
     news_path = ROOT_DIR / "gallery_uploads" / "latest_news.json"
     try:
+        try:
+            with open(items_path, "r", encoding="utf-8") as f:
+                items = json.load(f)
+            if isinstance(items, dict):
+                items = [items]
+            if isinstance(items, list) and items:
+                first_item = _normalize_news_item(items[0])
+                if str(first_item.get("image") or "").startswith("/news_uploads/") or not first_item.get("image"):
+                    return JSONResponse(content=first_item)
+        except Exception:
+            pass
+
         with open(news_path, "r", encoding="utf-8") as f:
             news = json.load(f)
         if isinstance(news, list):
             news = news[0] if news else {}
-        return JSONResponse(content=_normalize_news_item(news))
+        news = _normalize_news_item(news)
+        if str(news.get("image") or "").startswith("/news_uploads/") or not news.get("image"):
+            return JSONResponse(content=news)
+
+        derived_items = _news_items_from_upload_dir()
+        return JSONResponse(content=derived_items[0] if derived_items else {})
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to load latest news: {e}"}, status_code=500)
 
@@ -1029,13 +1097,25 @@ async def get_news_items() -> Any:
             items = [items]
         if not isinstance(items, list) or not items:
             raise FileNotFoundError
-        return JSONResponse(content=[_normalize_news_item(item) for item in items])
+        normalized_items = [_normalize_news_item(item) for item in items]
+        local_items = [item for item in normalized_items if str(item.get("image") or "").startswith("/news_uploads/") or not item.get("image")]
+        if local_items:
+            return JSONResponse(content=local_items)
+        derived_items = _news_items_from_upload_dir()
+        if derived_items:
+            return JSONResponse(content=derived_items)
+        raise FileNotFoundError
     except (FileNotFoundError, json.JSONDecodeError):
-        # Seed from latest_news.json if it has data
+        derived_items = _news_items_from_upload_dir()
+        if derived_items:
+            return JSONResponse(content=derived_items)
         try:
             with open(news_path, "r", encoding="utf-8") as f:
                 existing = json.load(f)
-            if existing and existing.get("newsTitle"):
+            if isinstance(existing, list):
+                existing = existing[0] if existing else {}
+            existing = _normalize_news_item(existing)
+            if existing and (existing.get("newsTitle") or existing.get("heading")) and (str(existing.get("image") or "").startswith("/news_uploads/") or not existing.get("image")):
                 if "id" not in existing:
                     existing["id"] = uuid.uuid4().hex
                 if "created_at" not in existing:
@@ -1043,7 +1123,7 @@ async def get_news_items() -> Any:
                 seeded = [existing]
                 with open(items_path, "w", encoding="utf-8") as f:
                     json.dump(seeded, f, ensure_ascii=False, indent=2)
-                return JSONResponse(content=[_normalize_news_item(item) for item in seeded])
+                return JSONResponse(content=seeded)
         except Exception:
             pass
         return JSONResponse(content=[])
@@ -1091,9 +1171,8 @@ async def admin_delete_news_item(item_id: str, current_user: User = Depends(get_
         target = next((i for i in items if i.get("id") == item_id), None)
         if target and target.get("image"):
             image_url = target["image"]
-            # Extract filename from URL and delete from gallery_uploads/news/
             file_name = image_url.split("/")[-1].split("?")[0]
-            news_file = ROOT_DIR / "gallery_uploads" / "news" / file_name
+            news_file = ROOT_DIR / "news_uploads" / file_name
             if news_file.exists():
                 news_file.unlink()
         items = [i for i in items if i.get("id") != item_id]
@@ -1114,10 +1193,13 @@ async def get_gallery_items() -> Any:
     try:
         with open(items_path, "r", encoding="utf-8") as f:
             items = json.load(f)
-        normalized_items = [_normalize_gallery_item(item) for item in items]
-        return JSONResponse(content=normalized_items)
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to load gallery items: {e}"}, status_code=500)
+        if isinstance(items, dict):
+            items = [items]
+        normalized_items = [_normalize_gallery_item(item) for item in items if isinstance(item, dict)]
+        has_uploaded_media = any(any(image.get("url") for image in (item.get("images") or []) if isinstance(image, dict)) or item.get("url") for item in normalized_items)
+        return JSONResponse(content=normalized_items if has_uploaded_media else _gallery_items_from_upload_dir())
+    except Exception:
+        return JSONResponse(content=_gallery_items_from_upload_dir())
 
 
 # ==================== AUTH ROUTES ====================
@@ -2185,13 +2267,13 @@ async def admin_upload_news_media(file: UploadFile = File(...), current_user: Us
         raise HTTPException(status_code=400, detail="Only image or video files are allowed")
     ext = Path(file.filename).suffix if file.filename else ""
     file_name = f"{uuid.uuid4().hex}{ext}"
-    news_dir = ROOT_DIR / "gallery_uploads" / "news"
+    news_dir = ROOT_DIR / "news_uploads"
     news_dir.mkdir(parents=True, exist_ok=True)
     dest = news_dir / file_name
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
-    file_url = f"/gallery_uploads/news/{file_name}"
+    file_url = f"/news_uploads/{file_name}"
     media_type = "video" if file.content_type in allowed_video else "image"
     return {"file_url": file_url, "file_name": file_name, "media_type": media_type}
 
