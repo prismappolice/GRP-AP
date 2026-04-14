@@ -113,6 +113,27 @@ def _merge_unidentified_body_duplicates(cur):
     return removed
 
 
+def _cleanup_canonical_named_records(
+    cur,
+    table: str,
+    records: list[dict],
+    name_field: str = "name",
+    canonical_field: str = "email",
+):
+    removed = 0
+    for record in records:
+        name = record.get(name_field)
+        canonical_value = record.get(canonical_field)
+        if not name or canonical_value is None:
+            continue
+        cur.execute(
+            f"DELETE FROM {table} WHERE {name_field} = %s AND {canonical_field} <> %s",
+            (name, canonical_value),
+        )
+        removed += cur.rowcount or 0
+    return removed
+
+
 def _insert_if_missing(
     cur,
     table: str,
@@ -443,6 +464,9 @@ def main():
     total_inserted += i
 
     print("\n=== DGP ===")
+    removed = _cleanup_canonical_named_records(cur, "dgp", DGP_RECORDS)
+    if removed:
+        print(f"  CLEAN  [dgp]: removed {removed} duplicate/legacy row(s)")
     i, s = _insert_if_missing(cur, "dgp", DGP_RECORDS, alt_fields=["name"])
     total_inserted += i
 
