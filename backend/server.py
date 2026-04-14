@@ -1045,8 +1045,8 @@ async def get_current_user(
 # ==================== NEWS & GALLERY ROUTES ====================
 @api_router.get("/latest-news")
 async def get_latest_news() -> Any:
-    items_path = ROOT_DIR / "gallery_uploads" / "news_items.json"
-    news_path = ROOT_DIR / "gallery_uploads" / "latest_news.json"
+    items_path = ROOT_DIR / "news_uploads" / "news_items.json"
+    news_path = ROOT_DIR / "news_uploads" / "latest_news.json"
     try:
         try:
             with open(items_path, "r", encoding="utf-8") as f:
@@ -1076,7 +1076,7 @@ async def get_latest_news() -> Any:
 
 @api_router.post("/latest-news")
 async def update_latest_news(request: Request) -> Any:
-    news_path = ROOT_DIR / "gallery_uploads" / "latest_news.json"
+    news_path = ROOT_DIR / "news_uploads" / "latest_news.json"
     try:
         data = await request.json()
         with open(news_path, "w", encoding="utf-8") as f:
@@ -1088,8 +1088,8 @@ async def update_latest_news(request: Request) -> Any:
 
 @api_router.get("/news-items")
 async def get_news_items() -> Any:
-    items_path = ROOT_DIR / "gallery_uploads" / "news_items.json"
-    news_path = ROOT_DIR / "gallery_uploads" / "latest_news.json"
+    items_path = ROOT_DIR / "news_uploads" / "news_items.json"
+    news_path = ROOT_DIR / "news_uploads" / "latest_news.json"
     try:
         with open(items_path, "r", encoding="utf-8") as f:
             items = json.load(f)
@@ -1135,8 +1135,8 @@ async def get_news_items() -> Any:
 async def admin_add_news_item(request: Request, current_user: User = Depends(get_current_user)) -> Any:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admins only")
-    items_path = ROOT_DIR / "gallery_uploads" / "news_items.json"
-    news_path = ROOT_DIR / "gallery_uploads" / "latest_news.json"
+    items_path = ROOT_DIR / "news_uploads" / "news_items.json"
+    news_path = ROOT_DIR / "news_uploads" / "latest_news.json"
     try:
         data = await request.json()
         data["id"] = uuid.uuid4().hex
@@ -1162,8 +1162,8 @@ async def admin_add_news_item(request: Request, current_user: User = Depends(get
 async def admin_delete_news_item(item_id: str, current_user: User = Depends(get_current_user)) -> Any:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admins only")
-    items_path = ROOT_DIR / "gallery_uploads" / "news_items.json"
-    news_path = ROOT_DIR / "gallery_uploads" / "latest_news.json"
+    items_path = ROOT_DIR / "news_uploads" / "news_items.json"
+    news_path = ROOT_DIR / "news_uploads" / "latest_news.json"
     try:
         with open(items_path, "r", encoding="utf-8") as f:
             items = json.load(f)
