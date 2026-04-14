@@ -35,7 +35,14 @@ from sqlalchemy.sql import text
 
 # ==================== CONFIGURATION ====================
 ROOT_DIR = Path(__file__).parent
-POSTGRES_URL = os.environ.get("POSTGRES_URL", "postgresql+asyncpg://postgres:password@localhost/grp_db")
+_raw_database_url = (
+    os.environ.get("POSTGRES_URL")
+    or os.environ.get("DATABASE_URL")
+    or "postgresql+asyncpg://postgres:password@localhost/grp_db"
+)
+POSTGRES_URL = _raw_database_url.strip().strip('"').strip("'")
+if POSTGRES_URL.startswith("postgresql://") and "+asyncpg" not in POSTGRES_URL:
+    POSTGRES_URL = POSTGRES_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 SECRET_KEY: str = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
@@ -205,6 +212,50 @@ class UnidentifiedBodyORM(Base):
     description = Column(String, nullable=False)
     uploaded_by = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+@app.on_event("startup")
+async def ensure_database_tables() -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+def _normalize_media_url(value: Any) -> str:
+    if value is None:
+        return ""
+    cleaned = str(value).strip().strip('"').strip("'")
+    match = re.search(r"/(gallery_uploads|unidentified_uploads)/.+$", cleaned, re.IGNORECASE)
+    if match:
+        return match.group(0)
+    return cleaned
+
+
+def _normalize_news_item(item: Any) -> Any:
+    if not isinstance(item, dict):
+        return item
+    normalized = dict(item)
+    if normalized.get("image"):
+        normalized["image"] = _normalize_media_url(normalized.get("image"))
+    return normalized
+
+
+def _normalize_gallery_item(item: Any) -> Any:
+    if not isinstance(item, dict):
+        return item
+    normalized = dict(item)
+    if normalized.get("url"):
+        normalized["url"] = _normalize_media_url(normalized.get("url"))
+    if isinstance(normalized.get("images"), list):
+        normalized["images"] = [
+            {
+                **image,
+                "url": _normalize_media_url(image.get("url")),
+            }
+            if isinstance(image, dict)
+            else image
+            for image in normalized["images"]
+        ]
+    return normalized
 
 
 # ==================== PYDANTIC MODELS ====================
@@ -948,7 +999,7 @@ async def get_latest_news() -> Any:
     try:
         with open(news_path, "r", encoding="utf-8") as f:
             news = json.load(f)
-        return JSONResponse(content=news)
+        return JSONResponse(content=_normalize_news_item(news))
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to load latest news: {e}"}, status_code=500)
 
@@ -974,7 +1025,7 @@ async def get_news_items() -> Any:
             items = json.load(f)
         if not items:
             raise FileNotFoundError
-        return JSONResponse(content=items)
+        return JSONResponse(content=[_normalize_news_item(item) for item in items])
     except (FileNotFoundError, json.JSONDecodeError):
         # Seed from latest_news.json if it has data
         try:
@@ -1059,7 +1110,8 @@ async def get_gallery_items() -> Any:
     try:
         with open(items_path, "r", encoding="utf-8") as f:
             items = json.load(f)
-        return JSONResponse(content=items)
+        normalized_items = [_normalize_gallery_item(item) for item in items]
+        return JSONResponse(content=normalized_items)
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to load gallery items: {e}"}, status_code=500)
 
@@ -1423,7 +1475,7 @@ async def get_station_lost_items(
 def _ub_orm_to_dict(r: UnidentifiedBodyORM) -> dict:
     return {
         "id": r.id,
-        "image_url": r.image_url,
+        "image_url": _normalize_media_url(r.image_url),
         "image_file_name": r.image_file_name,
         "station": r.station,
         "district": r.district,
@@ -1473,8 +1525,7 @@ async def create_unidentified_body(
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
-    backend_url = os.environ.get("BACKEND_URL", "http://127.0.0.1:8001")
-    image_url = f"{backend_url}/unidentified_uploads/{file_name}"
+    image_url = f"/unidentified_uploads/{file_name}"
     station_row = await _resolve_station_for_user(session, current_user)
     station_name = str(station_row.name) if station_row else str(current_user.name)
     new_record = UnidentifiedBodyORM(
@@ -2136,7 +2187,7 @@ async def admin_upload_news_media(file: UploadFile = File(...), current_user: Us
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
-    file_url = f"{os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000')}/gallery_uploads/news/{file_name}"
+    file_url = f"/gallery_uploads/news/{file_name}"
     media_type = "video" if file.content_type in allowed_video else "image"
     return {"file_url": file_url, "file_name": file_name, "media_type": media_type}
 
@@ -2192,7 +2243,7 @@ async def admin_upload_gallery_media(file: UploadFile = File(...), current_user:
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
-    file_url = f"{os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000')}/gallery_uploads/{file_name}"
+    file_url = f"/gallery_uploads/{file_name}"
     return {"file_url": file_url, "file_name": file_name}
 
 

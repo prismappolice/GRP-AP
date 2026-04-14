@@ -10,6 +10,17 @@ const shouldUseSameOrigin = typeof window !== 'undefined' && !/^(localhost|127\.
 const baseUrl = shouldUseSameOrigin ? runtimeOrigin : (configuredBackendUrl || runtimeOrigin);
 const API = baseUrl ? `${baseUrl}/api` : '/api';
 
+export const normalizeMediaUrl = (inputUrl) => {
+  if (!inputUrl) return '';
+  const cleanedUrl = String(inputUrl).trim();
+  if (/^(blob:|data:)/i.test(cleanedUrl)) return cleanedUrl;
+  const match = cleanedUrl.match(/\/(gallery_uploads|unidentified_uploads)\/.+$/i);
+  if (match) {
+    return match[0];
+  }
+  return cleanedUrl;
+};
+
 let authToken = null;
 
 export const setAuthToken = (token) => {

@@ -15,8 +15,7 @@ import {
   Bell
 } from 'lucide-react';
 
-import { alertsAPI } from '@/lib/api';
-import api from '@/lib/api';
+import api, { alertsAPI, normalizeMediaUrl } from '@/lib/api';
 
 import { useStaticPageContent } from '@/lib/staticPageContent';
 import NewsCard from '@/components/ui/NewsCard';
@@ -38,18 +37,6 @@ export const HomePage = () => {
     source: 'GRP Andhra Pradesh',
   }];
   const videoRefs = useRef(new Map());
-  const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
-
-  const normalizeMediaUrl = (inputUrl) => {
-    if (!inputUrl) return '';
-    if (inputUrl.startsWith(backendUrl)) return inputUrl;
-    if (inputUrl.startsWith('/gallery_uploads/') || inputUrl.startsWith('/unidentified_uploads/')) {
-      return backendUrl ? `${backendUrl}${inputUrl}` : inputUrl;
-    }
-    const match = inputUrl.match(/\/(gallery_uploads|unidentified_uploads)\/.+/);
-    if (match && backendUrl) return `${backendUrl}${match[0]}`;
-    return inputUrl;
-  };
 
   const normalizeGalleryItem = (item, idx) => {
     const name = item?.name || item?.imageName || item?.heading || `gallery-item-${idx + 1}`;
