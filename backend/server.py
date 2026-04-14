@@ -46,17 +46,20 @@ app = FastAPI()
 security = HTTPBearer()
 Base = declarative_base()
 
-raw_cors_origins = os.environ.get(
-    "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
-)
+raw_cors_origins = os.environ.get("CORS_ORIGINS", "")
 allowed_cors_origins = [o.strip().strip('"').strip("'") for o in raw_cors_origins.split(",") if o.strip()]
+allow_origin_regex = os.environ.get(
+    "CORS_ORIGIN_REGEX",
+    r"https?://(localhost|127\.0\.0\.1|[0-9.]+)(:\d+)?$",
+)
 if "*" in allowed_cors_origins:
-    allowed_cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    allowed_cors_origins = []
+    allow_origin_regex = r"https?://.*"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_cors_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -2133,7 +2136,7 @@ async def admin_upload_news_media(file: UploadFile = File(...), current_user: Us
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
-    file_url = f"{os.environ.get('BACKEND_URL', 'http://127.0.0.1:8001')}/gallery_uploads/news/{file_name}"
+    file_url = f"{os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000')}/gallery_uploads/news/{file_name}"
     media_type = "video" if file.content_type in allowed_video else "image"
     return {"file_url": file_url, "file_name": file_name, "media_type": media_type}
 
@@ -2189,7 +2192,7 @@ async def admin_upload_gallery_media(file: UploadFile = File(...), current_user:
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
-    file_url = f"{os.environ.get('BACKEND_URL', 'http://127.0.0.1:8001')}/gallery_uploads/{file_name}"
+    file_url = f"{os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000')}/gallery_uploads/{file_name}"
     return {"file_url": file_url, "file_name": file_name}
 
 
