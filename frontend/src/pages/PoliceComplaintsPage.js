@@ -1,0 +1,230 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ArrowLeft, Building2, FileText, Search } from 'lucide-react';
+import { irpAPI, dsrpAPI, srpAPI, dgpAPI } from '@/lib/api';
+import { getOfficerScope, getStationHierarchy } from '@/lib/policeScope';
+
+const scopeLabel = {
+  irp: 'IRP',
+  dsrp: 'DSRP',
+  srp: 'SRP',
+  dgp: 'DGP',
+};
+
+const apiByScope = {
+  irp: irpAPI.getComplaints,
+  dsrp: dsrpAPI.getComplaints,
+  srp: srpAPI.getComplaints,
+  dgp: dgpAPI.getComplaints,
+};
+
+export const PoliceComplaintsPage = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { scope, dashboardPath } = getOfficerScope(user);
+
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [searchText, setSearchText] = useState('');
+  const [stationFilter, setStationFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
+  useEffect(() => {
+    if (!['irp', 'dsrp', 'srp', 'dgp'].includes(scope)) {
+      navigate(dashboardPath || '/dashboard', { replace: true });
+      return;
+    }
+
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const fetcher = apiByScope[scope];
+        const response = await fetcher();
+        setRows(response.data || []);
+      } catch (err) {
+        setError(err?.response?.data?.detail || 'Unable to load complaints data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [scope, dashboardPath, navigate]);
+
+  const enhancedRows = useMemo(() => {
+    return rows.map((row) => ({
+      ...row,
+      hierarchy: getStationHierarchy(row.station),
+    }));
+  }, [rows]);
+
+  const stationOptions = useMemo(() => {
+    return Array.from(new Set(enhancedRows.map((row) => row.station).filter(Boolean)));
+  }, [enhancedRows]);
+
+  const filteredRows = enhancedRows.filter((row) => {
+    const matchesSearch = [
+      row.tracking_number,
+      row.station,
+      row.complaint_type,
+      row.description,
+      row.location,
+      row.status,
+      row.hierarchy.division,
+      row.hierarchy.subdivision,
+      row.hierarchy.circle,
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(searchText.toLowerCase());
+
+    const matchesStation = !stationFilter || row.station === stationFilter;
+    const matchesDate = !dateFilter || row.incident_date === dateFilter;
+    const matchesStatus = !statusFilter || row.status === statusFilter;
+
+    return matchesSearch && matchesStation && matchesDate && matchesStatus;
+  });
+
+  const complaintStatusVariant = (status) => {
+    if (status === 'resolved') return 'default';
+    if (status === 'investigating') return 'secondary';
+    return 'outline';
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-24 px-4 bg-[#F8FAFC]">
+        <div className="max-w-7xl mx-auto py-12 text-center text-[#475569]">Loading complaints...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen pt-24 px-4 pb-10 bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate(dashboardPath)}
+            className="border-[#CBD5E1]"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
+          <div className="flex items-center gap-3">
+            <Building2 className="w-7 h-7 text-[#2563EB]" />
+            <div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-[#0F172A] heading-font">
+                {scopeLabel[scope]} Complaints
+              </h1>
+              <p className="text-sm text-[#64748B]">Filtered operational complaints view for superior officers.</p>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <Card className="mb-6 p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>
+        )}
+
+        <Card className="mb-6 p-4 border border-[#E2E8F0] bg-white">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+            <div className="relative xl:col-span-2">
+              <Search className="w-4 h-4 text-[#94A3B8] absolute left-2 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search complaints"
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+              />
+            </div>
+            <select
+              value={stationFilter}
+              onChange={(e) => setStationFilter(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+            >
+              <option value="">All stations</option>
+              {stationOptions.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+            />
+          </div>
+          <div className="mt-2 w-full md:w-56">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="investigating">Investigating</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+        </Card>
+
+        <Card className="p-0 border border-[#E2E8F0] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-white flex items-center gap-2 text-[#0F172A] font-semibold">
+            <FileText className="w-4 h-4" />
+            Complaints ({filteredRows.length})
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-[#EFF6FF]">
+                  <TableHead>Tracking</TableHead>
+                  <TableHead>Division</TableHead>
+                  <TableHead>Sub Division</TableHead>
+                  <TableHead>Circle</TableHead>
+                  <TableHead>Station</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-[#94A3B8] py-8">No complaints found</TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-mono text-xs text-[#2563EB]">{row.tracking_number}</TableCell>
+                      <TableCell className="text-sm">{row.hierarchy.division || '-'}</TableCell>
+                      <TableCell className="text-sm">{row.hierarchy.subdivision || '-'}</TableCell>
+                      <TableCell className="text-sm">{row.hierarchy.circle || '-'}</TableCell>
+                      <TableCell className="text-sm">{row.station || '-'}</TableCell>
+                      <TableCell className="text-sm">{row.incident_date || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={complaintStatusVariant(row.status)} className="capitalize">{row.status || '-'}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default PoliceComplaintsPage;

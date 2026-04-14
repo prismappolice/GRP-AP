@@ -1,0 +1,46 @@
+[
+  {
+    "id": "05286fd0-e89c-4dc7-95df-f5ec8074f0da",
+    "heading": "Gallery Upload - 4/2/2026, 4:28:53 PM",
+    "content": "",
+    "images": [
+      {
+        "url": "http://127.0.0.1:8001/gallery_uploads/dd367b767d7b4075afaba785e69ec200.avif",
+        "name": "abstract-digital-grid-black-background.avif",
+        "storedFileName": "dd367b767d7b4075afaba785e69ec200.avif"
+      }
+    ],
+    "created_at": "2026-04-02T10:58:53.839994+00:00"
+  },
+  {
+    "id": "7c0ecdd4-965a-4a7f-b8d0-003ff932ba98",
+    "heading": "Gallery Upload - 4/2/2026, 11:24:06 AM",
+    "content": "",
+    "images": [
+      {
+        "url": "http://127.0.0.1:8001/gallery_uploads/9dfb54f55845442d97f81dd4b87a76fc.webp",
+        "name": "bacground_image.webp",
+        "storedFileName": "9dfb54f55845442d97f81dd4b87a76fc.webp"
+      }
+    ],
+    "created_at": "2026-04-02T05:54:06.222289+00:00"
+  },
+  {
+    "id": "4910e91a-479e-457a-bdda-b5712f6d81cc",
+    "heading": "AP Police launched Officially PRISM Website...",
+    "content": "The Andhra Pradesh Police Department has officially launched the PRISM Wing to build a safer, smarter, and more responsive policing ecosystem for citizens.",
+    "images": [
+      {
+        "url": "http://127.0.0.1:8001/gallery_uploads/14cac5e57d9941c8ad9d314c90d62322.png",
+        "name": "Appolice-Logo.png",
+        "storedFileName": "14cac5e57d9941c8ad9d314c90d62322.png"
+      },
+      {
+        "url": "http://127.0.0.1:8001/gallery_uploads/12f7f4d57f954fdd81e45f98de1d51f7.jpeg",
+        "name": "Prism-Logo.jpeg",
+        "storedFileName": "12f7f4d57f954fdd81e45f98de1d51f7.jpeg"
+      }
+    ],
+    "created_at": "2026-04-01T12:50:35.617585+00:00"
+  }
+]

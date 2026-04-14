@@ -1,0 +1,424 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { stationAPI, unidentifiedBodiesAPI } from '@/lib/api';
+import { stations } from '@/data/stations';
+import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+
+function getStationPhone(stationName) {
+  for (const div of stations) {
+    for (const sub of div.subdivisions || []) {
+      for (const circle of sub.circles || []) {
+        for (const st of circle.stations || []) {
+          if (st.name === stationName) return st.phone || '-';
+        }
+      }
+    }
+  }
+  return '-';
+}
+
+const initialForm = {
+  reportedDate: '',
+  description: '',
+  files: [],
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-IN');
+};
+
+function groupRecords(records) {
+  const map = new Map();
+  for (const r of records) {
+    const key = `${r.station}||${r.reported_date}||${r.description}`;
+    if (!map.has(key)) map.set(key, { ...r, mediaUrls: [], ids: [] });
+    if (r.image_url) map.get(key).mediaUrls.push(r.image_url);
+    map.get(key).ids.push(r.id);
+  }
+  return Array.from(map.values());
+}
+
+const StationUnidentifiedBodiesPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [records, setRecords] = useState([]);
+  const [searchText, setSearchText] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [form, setForm] = useState(initialForm);
+  const [previewUrls, setPreviewUrls] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [viewGroup, setViewGroup] = useState(null);
+  const [mediaIndex, setMediaIndex] = useState(0);
+
+  const fetchRecords = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await stationAPI.getUnidentifiedBodies();
+      setRecords(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setError('Failed to load unidentified body records. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecords();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach(u => URL.revokeObjectURL(u));
+    };
+  }, [previewUrls]);
+
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleFileChange = (event) => {
+    const newFiles = Array.from(event.target.files || []);
+    setForm((prev) => {
+      const merged = [...prev.files, ...newFiles];
+      previewUrls.forEach(u => URL.revokeObjectURL(u));
+      setPreviewUrls(merged.map(f => URL.createObjectURL(f)));
+      return { ...prev, files: merged };
+    });
+    // reset input so same files can be re-selected
+    event.target.value = '';
+  };
+
+  const resetForm = () => {
+    previewUrls.forEach(u => URL.revokeObjectURL(u));
+    setForm(initialForm);
+    setPreviewUrls([]);
+  };
+
+  const filtered = useMemo(() => {
+    return records.filter(r => {
+      const matchSearch = !searchText ||
+        [r.description, r.station].join(' ').toLowerCase().includes(searchText.toLowerCase());
+      const matchFrom = !dateFrom || r.reported_date >= dateFrom;
+      const matchTo = !dateTo || r.reported_date <= dateTo;
+      return matchSearch && matchFrom && matchTo;
+    });
+  }, [records, searchText, dateFrom, dateTo]);
+
+  const filteredGrouped = useMemo(() => groupRecords(filtered), [filtered]);
+
+  const clearFilters = () => { setSearchText(''); setDateFrom(''); setDateTo(''); };
+
+  const handleDeleteGroup = async (group) => {
+    if (!window.confirm(`Delete this record (${group.ids.length} file${group.ids.length > 1 ? 's' : ''}) from ${group.station}? This cannot be undone.`)) return;
+    try {
+      for (const id of group.ids) {
+        await unidentifiedBodiesAPI.delete(id);
+      }
+      setRecords((prev) => prev.filter((r) => !group.ids.includes(r.id)));
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Delete failed.');
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!form.files.length || !form.reportedDate || !form.description.trim()) {
+      setError('Please fill date, description, and select at least one image or video before uploading.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError('');
+      const newRecords = [];
+      for (const file of form.files) {
+        const payload = new FormData();
+        payload.append('file', file);
+        payload.append('reported_date', form.reportedDate);
+        payload.append('description', form.description.trim());
+        const response = await unidentifiedBodiesAPI.create(payload);
+        newRecords.push(response.data);
+      }
+      setRecords((prev) => [...newRecords.reverse(), ...prev]);
+      resetForm();
+    } catch (uploadError) {
+      setError(uploadError?.response?.data?.detail || 'Upload failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pt-24 pb-12 px-4">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Page Header */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <Button type="button" variant="outline" onClick={() => navigate('/station-dashboard')} className="border-[#CBD5E1]">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+          </Button>
+          <div className="flex items-center gap-3">
+            <Building2 className="w-7 h-7 text-[#2563EB]" />
+            <div>
+              <h1 className="text-2xl font-extrabold text-[#0F172A] heading-font">Unidentified Deadbodies</h1>
+              <p className="text-sm text-[#64748B]">Welcome, <span className="font-semibold text-[#2563EB]">{user?.name}</span></p>
+            </div>
+          </div>
+        </div>
+
+        {/* Records Table */}
+        <Card className="overflow-hidden border border-[#E2E8F0] shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-6 py-4 flex-wrap gap-2">
+            <div>
+              <h2 className="text-xl font-bold text-[#0F172A]">Uploaded Records</h2>
+              <p className="text-sm text-[#64748B]">Latest unidentified deadbody entries uploaded by stations are listed below.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={fetchRecords} disabled={loading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button type="button" size="sm" onClick={() => setUploadOpen(prev => !prev)} className="bg-[#2563EB] text-white hover:bg-[#1D4ED8] flex items-center gap-1.5">
+                {uploadOpen ? <ChevronUp className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {uploadOpen ? 'Cancel Upload' : 'Upload New Record'}
+              </Button>
+            </div>
+          </div>
+
+          {/* Upload Form — collapsible */}
+          {uploadOpen && (
+            <div className="border-b border-[#E2E8F0] bg-[#F8FAFC] px-6 py-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Upload className="h-4 w-4 text-[#2563EB]" />
+                <span className="text-sm font-semibold text-[#0F172A]">Upload New Record</span>
+              </div>
+              <div className="mb-4 rounded-xl border border-[#DBEAFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+                Uploading automatically under station account: <span className="font-semibold">{user?.name || 'Current station'}</span>
+              </div>
+              <form onSubmit={async (e) => { await handleSubmit(e); setUploadOpen(false); }} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-[#0F172A]">Reported Date</label>
+                    <Input name="reportedDate" type="date" value={form.reportedDate} onChange={handleInputChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-[#0F172A]">Image / Video <span className="text-[#64748B] font-normal">(multiple allowed)</span></label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="flex cursor-pointer items-center gap-2 rounded-md border border-[#2563EB] bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1D4ED8] transition-colors">
+                        <Upload className="h-4 w-4" />
+                        {form.files.length ? `${form.files.length} file${form.files.length > 1 ? 's' : ''} selected` : 'Choose Files'}
+                        <input type="file" accept="image/*,video/*" multiple onChange={handleFileChange} className="hidden" />
+                      </label>
+                      {form.files.length > 0 && (
+                        <button type="button" onClick={() => { previewUrls.forEach(u => URL.revokeObjectURL(u)); setForm(p => ({ ...p, files: [] })); setPreviewUrls([]); }} className="text-xs text-red-500 hover:underline">
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-[#0F172A]">Description</label>
+                  <Textarea
+                    name="description"
+                    value={form.description}
+                    onChange={handleInputChange}
+                    placeholder="Enter identifying details, clothing, found location context, or other notes"
+                    className="min-h-[120px]"
+                  />
+                </div>
+                {previewUrls.length > 0 && (
+                  <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-white p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {previewUrls.map((url, i) => (
+                        form.files[i]?.type?.startsWith('video/') ? (
+                          <video key={i} src={url} controls className="w-full h-24 rounded-lg object-cover" />
+                        ) : (
+                          <img key={i} src={url} alt={`Preview ${i + 1}`} className="w-full h-24 rounded-lg object-cover" />
+                        )
+                      ))}
+                    </div>
+                    <p className="text-xs text-[#64748B] mt-2">{previewUrls.length} file{previewUrls.length > 1 ? 's' : ''} selected — all files will be grouped as one case in the table.</p>
+                  </div>
+                )}
+                {error ? <p className="text-sm text-red-600">{error}</p> : null}
+                <Button type="submit" disabled={submitting} className="bg-[#2563EB] text-white hover:bg-[#1D4ED8]">
+                  {submitting ? 'Uploading...' : 'Upload Record'}
+                </Button>
+              </form>
+            </div>
+          )}
+
+
+          {/* Filter Bar */}
+          <div className="border-b border-[#E2E8F0] bg-white px-6 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-4 h-4 text-[#94A3B8] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  placeholder="Search by description or station..."
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-[#64748B] font-medium whitespace-nowrap">From</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-[#64748B] font-medium whitespace-nowrap">To</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+                />
+              </div>
+              {(searchText || dateFrom || dateTo) && (
+                <Button type="button" size="sm" variant="ghost" onClick={clearFilters} className="flex items-center gap-1 text-[#64748B]">
+                  <X className="w-3.5 h-3.5" /> Clear
+                </Button>
+              )}
+              <span className="ml-auto text-xs text-[#94A3B8]">{filteredGrouped.length} record{filteredGrouped.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF]">
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">S.No</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Reported Date</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Description</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Station</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Contact No</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Images/Videos</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10 text-center text-[#64748B]">Loading records...</TableCell>
+                </TableRow>
+              ) : filteredGrouped.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10 text-center text-[#64748B]">
+                    {records.length === 0 ? 'No unidentified deadbody records found.' : 'No records match your filters.'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredGrouped.map((group, index) => (
+                  <TableRow key={`${group.station}-${group.reported_date}-${index}`}>
+                    <TableCell className="px-4 py-3 font-semibold text-[#0F172A]">{index + 1}</TableCell>
+                    <TableCell className="px-4 py-3">{group.reported_date}</TableCell>
+                    <TableCell className="max-w-[320px] px-4 py-3 whitespace-normal break-words">{group.description}</TableCell>
+                    <TableCell className="px-4 py-3">{group.station}</TableCell>
+                    <TableCell className="px-4 py-3">{getStationPhone(group.station)}</TableCell>
+                    <TableCell className="px-4 py-3">
+                      <Button type="button" size="sm" variant="outline" className="flex items-center gap-1 w-24 justify-center border-[#2563EB] text-[#2563EB] hover:bg-[#EFF6FF]" onClick={() => { setViewGroup(group); setMediaIndex(0); }}>
+                        <Eye className="h-4 w-4" /> View
+                        <span className="ml-1 bg-[#DBEAFE] text-[#1D4ED8] text-xs font-bold px-1.5 rounded-full">{group.mediaUrls.length}</span>
+                      </Button>
+                    </TableCell>
+                    <TableCell className="px-4 py-3">
+                      <Button type="button" size="sm" variant="outline" className="flex items-center gap-1 border-red-600 text-red-600 hover:bg-red-50" onClick={() => handleDeleteGroup(group)}>
+                        <Trash2 className="h-4 w-4" /> Remove
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </Card>
+      </div>
+
+      {/* View Media Dialog */}
+      <Dialog open={!!viewGroup} onOpenChange={(open) => { if (!open) { setViewGroup(null); setMediaIndex(0); } }}>
+        <DialogContent className="max-w-2xl pb-4 !top-[58%]">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-[#0F172A]">
+              {viewGroup?.station}
+              {viewGroup?.mediaUrls?.length > 1 && (
+                <span className="ml-2 text-sm font-normal text-[#64748B]">— {mediaIndex + 1} / {viewGroup.mediaUrls.length}</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="relative rounded-xl overflow-hidden bg-[#F1F5F9] flex items-center justify-center" style={{height: '240px', width: '100%'}}>
+              {viewGroup?.mediaUrls?.length > 0 ? (
+                /\.(mp4|webm|ogg|mov|avi)$/i.test(viewGroup.mediaUrls[mediaIndex]) ? (
+                  <video key={viewGroup.mediaUrls[mediaIndex]} src={viewGroup.mediaUrls[mediaIndex]} controls className="w-full h-full object-contain" />
+                ) : (
+                  <img key={viewGroup.mediaUrls[mediaIndex]} src={viewGroup.mediaUrls[mediaIndex]} alt={`media-${mediaIndex + 1}`} className="w-full h-full object-contain" />
+                )
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-[#94A3B8] py-10">
+                  <ImageIcon className="h-10 w-10" />
+                  <span className="text-sm">No media available</span>
+                </div>
+              )}
+              {viewGroup?.mediaUrls?.length > 1 && (
+                <>
+                  <button onClick={() => setMediaIndex((i) => (i - 1 + viewGroup.mediaUrls.length) % viewGroup.mediaUrls.length)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors">
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setMediaIndex((i) => (i + 1) % viewGroup.mediaUrls.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors">
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </div>
+            {viewGroup?.mediaUrls?.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {viewGroup.mediaUrls.map((url, i) => (
+                  <button key={i} onClick={() => setMediaIndex(i)}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
+                      i === mediaIndex ? 'border-[#2563EB]' : 'border-[#E2E8F0] hover:border-[#93C5FD]'
+                    }`}>
+                    {/\.(mp4|webm|ogg|mov|avi)$/i.test(url) ? (
+                      <div className="w-full h-full bg-[#E2E8F0] flex items-center justify-center">
+                        <span className="text-xs font-bold text-[#64748B]">▶</span>
+                      </div>
+                    ) : (
+                      <img src={url} alt={`thumb-${i}`} className="w-full h-full object-cover" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default StationUnidentifiedBodiesPage;
