@@ -41,7 +41,6 @@ class ChunkErrorBoundary extends React.Component {
 // Lazy load heavy pages
 const ComplaintPage = React.lazy(() => import('@/pages/ComplaintPage').then(m => ({ default: m.ComplaintPage })));
 const UsersDashboardPage = React.lazy(() => import('@/pages/UsersDashboardPage').then(m => ({ default: m.UsersDashboardPage })));
-const LostFoundPage = React.lazy(() => import('@/pages/LostFoundPage').then(m => ({ default: m.LostFoundPage })));
 const WomenSafetyPage = React.lazy(() => import('@/pages/WomenSafetyPage').then(m => ({ default: m.WomenSafetyPage })));
 const HelpDeskPage = React.lazy(() => import('@/pages/HelpDeskPage').then(m => ({ default: m.HelpDeskPage })));
 const StationsPage = React.lazy(() => import('@/pages/StationsPage').then(m => ({ default: m.StationsPage })));
@@ -212,7 +211,6 @@ const AppContent = () => {
           <Route path="/police-complaints" element={<PoliceRoute><PoliceComplaintsPage /></PoliceRoute>} />
           <Route path="/station-complaints" element={<PoliceRoute><StationComplaintsPage /></PoliceRoute>} />
           <Route path="/police-report-items" element={<PoliceRoute><PoliceReportItemsPage /></PoliceRoute>} />
-          <Route path="/lost-found" element={<LostFoundPage />} />
           <Route path="/women-safety" element={<WomenSafetyPage />} />
           <Route path="/help-desk" element={<HelpDeskPage />} />
           <Route path="/stations" element={<StationsPage />} />
