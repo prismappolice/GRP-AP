@@ -1,9 +1,12 @@
 from logging.config import fileConfig
+from pathlib import Path
+import os
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
+from dotenv import load_dotenv
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -18,9 +21,29 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # Import Base from backend.server for autogenerate
 import sys
-import os
+ROOT_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT_DIR / "backend" / ".env")
+load_dotenv(ROOT_DIR / ".env")
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
 from server import Base
+
+def _resolve_db_url() -> str:
+    url = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_URL")
+        or config.get_main_option("sqlalchemy.url")
+    )
+    if url and url.startswith('"') and url.endswith('"'):
+        url = url[1:-1]
+    if url and url.startswith("postgresql+asyncpg://"):
+        url = url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    return url
+
+resolved_db_url = _resolve_db_url()
+if resolved_db_url:
+    config.set_main_option("sqlalchemy.url", resolved_db_url)
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
