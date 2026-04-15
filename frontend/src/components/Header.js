@@ -36,12 +36,12 @@ export const Header = () => {
     `text-sm font-semibold transition-colors px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
 
   const publicLinks = [
+    { to: '/', label: 'Home', testId: 'home-link' },
     { to: '/about', label: 'About', testId: 'about-link' },
     { to: '/history', label: 'History', testId: 'history-link' },
     { to: '/organization', label: 'Organization', testId: 'organization-link' },
     { to: '/awareness', label: 'Awareness', testId: 'awareness-link' },
     { to: '/services', label: 'Services', testId: 'services-link' },
-
   ];
 
   const userLinks = [
