@@ -1,5 +1,4 @@
 import React from 'react';
-import { Card } from './card';
 
 const isVideoUrl = (url) => /\.(mp4|webm|ogg|mov|avi|mkv)(\?.*)?$/i.test(url || '');
 const handleImageError = (event) => {
@@ -21,36 +20,46 @@ export default function NewsCard({
   source = '',
 }) {
   return (
-    <Card className="w-[400px] mx-auto p-0 rounded-xl shadow-lg border bg-white overflow-hidden flex flex-col h-[480px]">
-      {/* Heading */}
-      <div className="bg-[#183153] rounded-t-xl px-6 py-3 flex items-center justify-center flex-shrink-0">
-        <span className="text-white font-bold tracking-widest text-lg">{heading}</span>
+    <div className="w-[400px] flex-shrink-0 rounded-xl shadow-lg border border-gray-200 bg-white overflow-hidden flex flex-col" style={{height: '460px'}}>
+
+      {/* Section 1 — Heading */}
+      <div className="bg-[#183153] px-5 py-3 flex items-center justify-center" style={{minHeight: '52px'}}>
+        <span className="text-white font-bold tracking-widest text-base text-center">{heading}</span>
       </div>
-      {/* Image */}
-      <div data-news-media className="w-full h-[220px] flex-shrink-0 bg-gray-100 overflow-hidden">
+
+      {/* Section 2 — Image */}
+      <div className="w-full bg-gray-100" style={{height: '210px', overflow: 'hidden', flexShrink: 0}}>
         {image ? (
           isVideoUrl(image) ? (
-            <video src={image} controls className="w-full h-full object-cover" />
+            <video src={image} controls style={{width: '100%', height: '100%', objectFit: 'cover'}} />
           ) : (
             <img
               src={image}
               alt={newsTitle}
-              className="w-full h-full object-cover"
+              style={{width: '100%', height: '100%', objectFit: 'cover', display: 'block'}}
               onError={handleImageError}
             />
           )
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No Image</div>
+          <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: '14px'}}>No Image</div>
         )}
       </div>
-      {/* Content */}
-      <div className="px-5 py-4 flex flex-col flex-1 overflow-hidden">
-        <h2 className="font-bold text-base mb-2 text-[#1a2236] line-clamp-2">{newsTitle}</h2>
-        <p className="text-gray-700 text-sm leading-relaxed flex-1 overflow-hidden line-clamp-4">{newsSummary}</p>
-        <div className="flex justify-between items-center text-xs text-gray-500 border-t pt-2 mt-2 flex-shrink-0">
-          <span>{date}</span>
-        </div>
+
+      {/* Section 3 — News Title + Summary */}
+      <div className="px-4 pt-3 pb-2 flex flex-col" style={{flex: 1, overflow: 'hidden'}}>
+        <h2 className="font-bold text-[15px] text-[#1a2236] mb-1" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
+          {newsTitle}
+        </h2>
+        <p className="text-gray-600 text-sm leading-relaxed" style={{display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1}}>
+          {newsSummary}
+        </p>
       </div>
-    </Card>
+
+      {/* Section 4 — Date */}
+      <div className="px-4 py-2 border-t border-gray-200 flex items-center" style={{minHeight: '36px', flexShrink: 0}}>
+        <span className="text-xs text-gray-500">{date}</span>
+      </div>
+
+    </div>
   );
 }
