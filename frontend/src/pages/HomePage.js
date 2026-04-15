@@ -96,8 +96,9 @@ export const HomePage = () => {
     };
     const loadLatestNews = async () => {
       const normalizeNewsItem = (item) => {
-        const normalizedImage = normalizeMediaUrl(item?.image);
-        const usesUploadedNewsMedia = !normalizedImage || normalizedImage.startsWith('/news_uploads/');
+        const rawImage = item?.image || '';
+        const normalizedImage = normalizeMediaUrl(rawImage);
+        const usesUploadedNewsMedia = !rawImage || rawImage.includes('news_uploads');
         return {
           ...item,
           image: usesUploadedNewsMedia ? normalizedImage : '',
