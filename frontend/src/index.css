@@ -95,7 +95,7 @@ code {
 }
 
 .animate-marquee-news {
-  animation: marquee-left 25s linear infinite;
+  animation: marquee-left 18s linear infinite;
 }
 
 .animate-marquee:hover,

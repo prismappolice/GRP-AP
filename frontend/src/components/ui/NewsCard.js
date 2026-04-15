@@ -21,7 +21,7 @@ export default function NewsCard({
   source = '',
 }) {
   return (
-    <Card className="w-[360px] mx-auto p-0 rounded-xl shadow-lg border bg-white overflow-hidden">
+    <Card className="w-[400px] mx-auto p-0 rounded-xl shadow-lg border bg-white overflow-hidden">
       <div className="bg-[#183153] rounded-t-xl px-6 py-3 flex items-center justify-center">
         <span className="text-white font-bold tracking-widest text-lg">{heading}</span>
       </div>
