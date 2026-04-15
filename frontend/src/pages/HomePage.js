@@ -267,21 +267,40 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Message from DPG Section */}
-      <section className="py-12 bg-[#F1F5F9]">
-        <div className="max-w-7xl min-h-[200px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-6 md:flex-row md:items-center md:gap-8 rounded-lg shadow-lg bg-white border border-gray-200 py-8">
-          <div className="flex-shrink-0 text-center order-first">
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-[#475569] bg-white p-1 shadow-md overflow-hidden mx-auto">
-              <img
-                src="/dgp-Photo.jpeg"
-                alt="Director General of Police"
-                className="w-full h-full rounded-full object-cover object-top"
-              />
-            </div>
+      {/* Message from DGP Section */}
+      <section className="py-14 bg-[#F1F5F9]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6 text-center">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-1">LEADERSHIP</p>
           </div>
-          <div className="flex-1 text-center md:text-left">
-            <p className="text-sm sm:text-lg font-bold text-[#475569] mb-2">&quot;{pageContent.dgpQuote}&quot;</p>
-            <p className="text-xs sm:text-sm text-red-700 font-semibold">-{pageContent.dgpSignature}</p>
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-lg px-6 py-8 sm:px-10 flex flex-col md:flex-row items-center gap-8">
+            {/* Photo */}
+            <div className="flex-shrink-0 flex flex-col items-center gap-3">
+              <div className="w-36 h-36 md:w-44 md:h-44 rounded-full border-4 border-[#1E3A5F] bg-white p-1 shadow-md overflow-hidden">
+                <img
+                  src="/dgp-Sir.jpeg"
+                  alt="Director General of Police"
+                  className="w-full h-full rounded-full object-cover object-top"
+                />
+              </div>
+            </div>
+            {/* Quote */}
+            <div className="flex-1 flex flex-col gap-4">
+              <span className="text-6xl leading-none text-[#BFDBFE] font-serif select-none">&ldquo;</span>
+              <p className="text-base sm:text-lg md:text-xl font-semibold text-[#1E3A5F] leading-relaxed -mt-4">
+                {pageContent.dgpQuote}
+              </p>
+              <p className="text-sm sm:text-base text-[#475569]">
+                The Andhra Pradesh Government Railway Police remains steadfast in its mission to protect passengers, prevent crime, and ensure swift justice. Our officers work round the clock across all railway zones to maintain law, order, and public safety.
+              </p>
+              <div className="border-t border-[#E2E8F0] pt-3">
+                <p className="text-sm font-bold text-red-700 text-center sm:text-right leading-snug">
+                  &mdash;&nbsp;
+                  <span className="sm:hidden">{pageContent.dgpSignature.replace('Andhra Pradesh', 'AP.')}</span>
+                  <span className="hidden sm:inline">{pageContent.dgpSignature}</span>
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

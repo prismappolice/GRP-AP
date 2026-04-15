@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { unidentifiedBodiesAPI } from '@/lib/api';
+import { unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
 import { stations } from '@/data/stations';
 import { RefreshCw, Image as ImageIcon, Eye, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -186,7 +186,7 @@ const UnidentifiedBodiesPage = () => {
 
       {/* View Media Dialog */}
       <Dialog open={!!viewGroup} onOpenChange={(open) => { if (!open) closeView(); }}>
-        <DialogContent className="max-w-2xl pb-4 !top-[58%]">
+        <DialogContent className="max-w-3xl pb-4 !top-[58%]">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-[#0F172A]">
               {viewGroup?.station}
@@ -200,13 +200,13 @@ const UnidentifiedBodiesPage = () => {
 
           <div className="flex flex-col gap-4">
             {/* Media viewer */}
-            <div className="relative rounded-xl overflow-hidden bg-[#F1F5F9] flex items-center justify-center" style={{height: '240px', width: '100%'}}>
+            <div className="relative rounded-xl overflow-hidden bg-[#F1F5F9] flex items-center justify-center" style={{height: '420px', width: '100%'}}>
               {viewGroup?.mediaUrls?.length > 0 ? (
                 isVideo(viewGroup.mediaUrls[mediaIndex]) ? (
-                  <video key={viewGroup.mediaUrls[mediaIndex]} src={viewGroup.mediaUrls[mediaIndex]}
+                  <video key={viewGroup.mediaUrls[mediaIndex]} src={normalizeMediaUrl(viewGroup.mediaUrls[mediaIndex])}
                     controls className="w-full h-full object-contain" />
                 ) : (
-                  <img key={viewGroup.mediaUrls[mediaIndex]} src={viewGroup.mediaUrls[mediaIndex]}
+                  <img key={viewGroup.mediaUrls[mediaIndex]} src={normalizeMediaUrl(viewGroup.mediaUrls[mediaIndex])}
                     alt={`media-${mediaIndex + 1}`}
                     className="w-full h-full object-contain" />
                 )
@@ -245,7 +245,7 @@ const UnidentifiedBodiesPage = () => {
                         <span className="text-xs font-bold text-[#64748B]">▶</span>
                       </div>
                     ) : (
-                      <img src={url} alt={`thumb-${i}`} className="w-full h-full object-cover" />
+                      <img src={normalizeMediaUrl(url)} alt={`thumb-${i}`} className="w-full h-full object-cover" />
                     )}
                   </button>
                 ))}

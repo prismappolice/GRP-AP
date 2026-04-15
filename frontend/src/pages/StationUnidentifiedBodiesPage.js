@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { stationAPI, unidentifiedBodiesAPI } from '@/lib/api';
+import { stationAPI, unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
 import { stations } from '@/data/stations';
 import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -371,7 +371,7 @@ const StationUnidentifiedBodiesPage = () => {
 
       {/* View Media Dialog */}
       <Dialog open={!!viewGroup} onOpenChange={(open) => { if (!open) { setViewGroup(null); setMediaIndex(0); } }}>
-        <DialogContent className="max-w-2xl pb-4 !top-[58%]">
+        <DialogContent className="max-w-3xl pb-4 !top-[58%]">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-[#0F172A]">
               {viewGroup?.station}
@@ -381,12 +381,12 @@ const StationUnidentifiedBodiesPage = () => {
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4">
-            <div className="relative rounded-xl overflow-hidden bg-[#F1F5F9] flex items-center justify-center" style={{height: '240px', width: '100%'}}>
+            <div className="relative rounded-xl overflow-hidden bg-[#F1F5F9] flex items-center justify-center" style={{height: '420px', width: '100%'}}>
               {viewGroup?.mediaUrls?.length > 0 ? (
                 /\.(mp4|webm|ogg|mov|avi)$/i.test(viewGroup.mediaUrls[mediaIndex]) ? (
-                  <video key={viewGroup.mediaUrls[mediaIndex]} src={viewGroup.mediaUrls[mediaIndex]} controls className="w-full h-full object-contain" />
+                  <video key={viewGroup.mediaUrls[mediaIndex]} src={normalizeMediaUrl(viewGroup.mediaUrls[mediaIndex])} controls className="w-full h-full object-contain" />
                 ) : (
-                  <img key={viewGroup.mediaUrls[mediaIndex]} src={viewGroup.mediaUrls[mediaIndex]} alt={`media-${mediaIndex + 1}`} className="w-full h-full object-contain" />
+                  <img key={viewGroup.mediaUrls[mediaIndex]} src={normalizeMediaUrl(viewGroup.mediaUrls[mediaIndex])} alt={`media-${mediaIndex + 1}`} className="w-full h-full object-contain" />
                 )
               ) : (
                 <div className="flex flex-col items-center gap-2 text-[#94A3B8] py-10">
@@ -419,7 +419,7 @@ const StationUnidentifiedBodiesPage = () => {
                         <span className="text-xs font-bold text-[#64748B]">▶</span>
                       </div>
                     ) : (
-                      <img src={url} alt={`thumb-${i}`} className="w-full h-full object-cover" />
+                      <img src={normalizeMediaUrl(url)} alt={`thumb-${i}`} className="w-full h-full object-cover" />
                     )}
                   </button>
                 ))}

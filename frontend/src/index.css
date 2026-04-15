@@ -91,7 +91,7 @@ code {
 }
 
 .animate-marquee {
-  animation: marquee-left 35s linear infinite;
+  animation: marquee-left 60s linear infinite;
 }
 
 .animate-marquee:hover {

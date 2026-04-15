@@ -14,13 +14,14 @@ export const normalizeMediaUrl = (inputUrl) => {
   if (!inputUrl) return '';
   const cleanedUrl = String(inputUrl).trim();
   if (/^(blob:|data:)/i.test(cleanedUrl)) return cleanedUrl;
+  if (/^https?:\/\//i.test(cleanedUrl)) return cleanedUrl;
   const legacyNewsMatch = cleanedUrl.match(/\/gallery_uploads\/news\/(.+)$/i);
   if (legacyNewsMatch) {
-    return `/news_uploads/${legacyNewsMatch[1]}`;
+    return `${baseUrl}/news_uploads/${legacyNewsMatch[1]}`;
   }
   const match = cleanedUrl.match(/\/(gallery_uploads|news_uploads|unidentified_uploads)\/.+$/i);
   if (match) {
-    return match[0];
+    return `${baseUrl}${match[0]}`;
   }
   return cleanedUrl;
 };
