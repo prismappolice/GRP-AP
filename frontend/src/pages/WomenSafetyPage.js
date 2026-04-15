@@ -6,7 +6,7 @@ import { ShakthiAppBanner } from '@/components/ShakthiAppBanner';
 
 export const WomenSafetyPage = () => {
   return (
-    <div className="min-h-screen pt-24 bg-[#F8FAFC] py-12">
+    <div className="min-h-screen pt-4 bg-[#F8FAFC] py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <Heart className="w-12 h-12 text-[#DC2626] mb-4" />

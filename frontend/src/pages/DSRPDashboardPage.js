@@ -106,15 +106,15 @@ export const DSRPDashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-24 px-4 bg-[#F8FAFC]">
-        <div className="max-w-6xl mx-auto py-12 text-center text-[#475569]">Loading DSRP dashboard...</div>
+      <div className="min-h-screen pt-4 px-4 bg-[#F8FAFC]">
+        <div className="max-w-7xl mx-auto py-12 text-center text-[#475569]">Loading DSRP dashboard...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pt-24 px-4 pb-10 bg-[#F8FAFC]">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen pt-4 px-4 pb-10 bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-3 mb-2">

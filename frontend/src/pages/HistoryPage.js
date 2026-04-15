@@ -15,7 +15,7 @@ export const HistoryPage = () => {
   ];
 
   return (
-    <div className="min-h-screen pt-20">
+    <div className="min-h-screen">
       <section 
         className="relative z-0 h-[450px] flex items-center justify-center overflow-hidden"
         style={{

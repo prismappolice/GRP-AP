@@ -102,14 +102,14 @@ export const PoliceComplaintsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-24 px-4 bg-[#F8FAFC]">
+      <div className="min-h-screen pt-4 px-4 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto py-12 text-center text-[#475569]">Loading complaints...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pt-24 px-4 pb-10 bg-[#F8FAFC]">
+    <div className="min-h-screen pt-4 px-4 pb-10 bg-[#F8FAFC]">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <Button

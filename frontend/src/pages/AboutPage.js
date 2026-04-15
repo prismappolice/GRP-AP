@@ -8,7 +8,7 @@ export const AboutPage = () => {
   const dutyIcons = [Shield, Users, Target, Award];
 
   return (
-    <div className="min-h-screen pt-16">
+    <div className="min-h-screen">
       <section className="py-20 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-12">

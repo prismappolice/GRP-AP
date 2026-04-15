@@ -14,7 +14,7 @@ export const ServicesPage = () => {
   ];
 
   return (
-    <div className="min-h-screen pt-28 bg-[#F8FAFC] py-12">
+    <div className="min-h-screen pt-4 bg-[#F8FAFC] py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-center">
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">OUR SERVICES</p>

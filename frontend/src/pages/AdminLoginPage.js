@@ -115,7 +115,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen pt-28 flex items-center justify-center bg-[#F8FAFC] pb-12">
+    <div className="min-h-screen pt-4 flex items-center justify-center bg-[#F8FAFC] pb-12">
       <div className="max-w-md w-full mx-4">
         <div className="text-center mb-8">
           <img src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png" alt="AP Police Logo" className="w-20 h-20 mx-auto mb-4 object-contain" />

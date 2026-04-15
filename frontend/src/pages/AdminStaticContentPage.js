@@ -270,7 +270,7 @@ const AdminStaticContentPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-28 pb-12">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>

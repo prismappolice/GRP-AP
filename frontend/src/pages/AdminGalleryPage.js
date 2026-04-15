@@ -207,7 +207,7 @@ const AdminGalleryPage = () => {
   };
 
   return (
-    <div className="min-h-screen pt-28 pb-12 bg-[#F8FAFC]">
+    <div className="min-h-screen pt-4 pb-12 bg-[#F8FAFC]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <AdminPageHero
           title="Gallery"
@@ -312,6 +312,7 @@ const AdminGalleryPage = () => {
               {gallery.length === 0 ? (
                 <p className="text-gray-400">No gallery items yet.</p>
               ) : (
+                <div className="overflow-x-auto">
                 <Table className="w-full border border-[#CBD5E1]">
                   <TableHeader>
                     <TableRow className="border-b border-[#CBD5E1] bg-[#F8FAFC]">
@@ -339,6 +340,7 @@ const AdminGalleryPage = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </Card>
           </>
@@ -463,6 +465,7 @@ const AdminGalleryPage = () => {
             {newsItems.length === 0 ? (
               <p className="text-gray-400">No news items yet.</p>
             ) : (
+              <div className="overflow-x-auto">
               <Table className="w-full border border-[#CBD5E1]">
                 <TableHeader>
                   <TableRow className="border-b border-[#CBD5E1] bg-[#F8FAFC]">
@@ -492,6 +495,7 @@ const AdminGalleryPage = () => {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </Card>
           </>

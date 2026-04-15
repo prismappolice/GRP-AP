@@ -105,7 +105,7 @@ const AdminDashboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen pt-28 bg-[#F8FAFC] pb-12">
+    <div className="min-h-screen pt-4 bg-[#F8FAFC] pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-center gap-4">
           <div className="text-center sm:text-center mb-4 sm:mb-0">

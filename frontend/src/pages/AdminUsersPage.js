@@ -30,13 +30,13 @@ const AdminUsersPage = () => {
     if (isAdmin) fetchUsers();
   }, [isAdmin, token]);
 
-  if (!isAdmin) return <div className="min-h-screen pt-28 px-4 text-center text-red-600">Access denied</div>;
-  if (loading) return <div className="min-h-screen pt-28 px-4 text-center">Loading users...</div>;
-  if (error) return <div className="min-h-screen pt-28 px-4 text-center text-red-600">{error}</div>;
+  if (!isAdmin) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">Access denied</div>;
+  if (loading) return <div className="min-h-screen pt-4 px-4 text-center">Loading users...</div>;
+  if (error) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">{error}</div>;
 
   return (
-    <div className="min-h-screen pt-28 pb-12 bg-[#F8FAFC]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen pt-4 pb-12 bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <AdminPageHero
         title="Public Users"
         description="View all registered public users with contact information and account details."

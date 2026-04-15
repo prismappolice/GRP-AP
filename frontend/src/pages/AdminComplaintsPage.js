@@ -85,9 +85,9 @@ const AdminComplaintsPage = () => {
     closed: complaints.filter(c => String(c.status || '').toLowerCase() === 'closed').length,
   }), [complaints]);
 
-  if (!isAdmin) return <div className="min-h-screen pt-28 px-4 text-center text-red-600">Access denied</div>;
-  if (loading) return <div className="min-h-screen pt-28 px-4 text-center">Loading complaints...</div>;
-  if (error) return <div className="min-h-screen pt-28 px-4 text-center text-red-600">{error}</div>;
+  if (!isAdmin) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">Access denied</div>;
+  if (loading) return <div className="min-h-screen pt-4 px-4 text-center">Loading complaints...</div>;
+  if (error) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">{error}</div>;
 
   const statusOptions = ['pending', 'investigating', 'resolved', 'closed'];
 
@@ -126,7 +126,7 @@ const AdminComplaintsPage = () => {
   };
 
   return (
-    <div className="min-h-screen pt-28 pb-12 bg-[#F8FAFC]">
+    <div className="min-h-screen pt-4 pb-12 bg-[#F8FAFC]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <AdminPageHero
         title="Complaints"

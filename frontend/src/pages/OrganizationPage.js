@@ -54,8 +54,8 @@ export const OrganizationPage = () => {
   }, [guntakalSearch]);
 
   return (
-    <div className="min-h-screen pt-24 bg-[#F8FAFC] py-12">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen pt-4 bg-[#F8FAFC] py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <Building2 className="w-12 h-12 text-[#2563EB] mb-4" />
           <h1 className="text-4xl font-extrabold heading-font text-[#0F172A]">{pageContent.title}</h1>
@@ -65,11 +65,11 @@ export const OrganizationPage = () => {
         {/* Organization Chart */}
         <Card className="p-6 border border-[#E2E8F0] bg-white mb-8">
           <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-4">{pageContent.chartTitle}</h2>
-          <div className="bg-[#F8FAFC] p-4 rounded-md">
+          <div className="bg-[#F8FAFC] p-4 rounded-md overflow-x-auto">
             <img 
               src={pageContent.chartImageUrl}
               alt="GRP Andhra Pradesh Organization Chart - Complete Hierarchy"
-              className="w-full h-auto rounded-md"
+              className="w-full h-auto rounded-md min-w-[320px]"
             />
           </div>
         </Card>
@@ -77,40 +77,40 @@ export const OrganizationPage = () => {
         <Tabs defaultValue="vijayawada" className="w-full">
           <div className="mb-8">
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-4">{pageContent.divisionEyebrow}</p>
-            <TabsList className="grid w-full grid-cols-2 gap-6 bg-transparent h-auto p-0">
+            <TabsList className="grid w-full grid-cols-2 gap-3 sm:gap-6 bg-transparent h-auto p-0">
               <TabsTrigger 
                 value="vijayawada" 
                 data-testid="vijayawada-tab"
-                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#E2E8F0] data-[state=active]:border-[#2563EB] rounded-lg px-6 py-3 text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
+                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#E2E8F0] data-[state=active]:border-[#2563EB] rounded-lg px-2 py-2 sm:px-6 sm:py-3 text-xs sm:text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <MapPin className="w-5 h-5 mr-2" />
-                {pageContent.vijayawadaDivisionLabel}
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">{pageContent.vijayawadaDivisionLabel}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="guntakal" 
                 data-testid="guntakal-tab"
-                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#E2E8F0] data-[state=active]:border-[#2563EB] rounded-lg px-6 py-3 text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
+                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#E2E8F0] data-[state=active]:border-[#2563EB] rounded-lg px-2 py-2 sm:px-6 sm:py-3 text-xs sm:text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                <MapPin className="w-5 h-5 mr-2" />
-                {pageContent.guntakalDivisionLabel}
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">{pageContent.guntakalDivisionLabel}</span>
               </TabsTrigger>
             </TabsList>
           </div>
 
           {/* Vijayawada Railway Division */}
           <TabsContent value="vijayawada">
-            <Card className="p-6 border-2 border-[#2563EB] bg-gradient-to-br from-[#EFF6FF] to-white mb-6">
-              <div className="flex items-center gap-6">
+            <Card className="p-4 sm:p-6 border-2 border-[#2563EB] bg-gradient-to-br from-[#EFF6FF] to-white mb-6">
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/79jx7n52_WhatsApp%20Image%202026-03-26%20at%202.27.40%20PM%20%281%29.jpeg"
                   alt="GRP Vijayawada Official Logo"
-                  className="w-32 h-32 object-contain"
+                  className="w-24 h-24 sm:w-32 sm:h-32 object-contain flex-shrink-0"
                 />
-                <div className="flex-1">
-                  <h2 className="text-3xl font-extrabold heading-font text-[#0F172A] mb-2">GRP Vijayawada</h2>
-                  <p className="text-base text-[#475569] mb-3">Superintendent of Railway Police</p>
-                  <a href="tel:9247585800" className="flex items-center gap-2 text-[#2563EB] font-bold text-lg">
-                    <Phone className="w-6 h-6" />
+                <div className="flex-1 text-center sm:text-left">
+                  <h2 className="text-xl sm:text-3xl font-extrabold heading-font text-[#0F172A] mb-2">GRP Vijayawada</h2>
+                  <p className="text-sm sm:text-base text-[#475569] mb-3">Superintendent of Railway Police</p>
+                  <a href="tel:9247585800" className="inline-flex items-center gap-2 text-[#2563EB] font-bold text-base sm:text-lg">
+                    <Phone className="w-5 h-5 sm:w-6 sm:h-6" />
                     <span>9247585800</span>
                   </a>
                 </div>
@@ -122,7 +122,7 @@ export const OrganizationPage = () => {
             <Card className="mb-6 p-4 bg-[#F1F5F9] rounded-md">
 
               <div className="mb-4 justify-between items-center flex">
-                <h2 className="text-3xl font-bold text-[#1E3A5F] mb-3">GRP Vijayawada Stations</h2>
+                <h2 className="text-xl sm:text-3xl font-bold text-[#1E3A5F] mb-3">GRP Vijayawada Stations</h2>
                 <input
                   type="text"
                   value={vijayawadaSearch}
@@ -132,6 +132,7 @@ export const OrganizationPage = () => {
                   data-testid="vijayawada-table-search"
                 />
               </div>
+              <div className="overflow-x-auto w-full">
               <table className="min-w-full divide-y divide-[#2563EB] border-2 border-blue-500 rounded-md" data-testid="organization-table" data-table-id="vijayawada">
                 <thead>
                   <tr className="font-sans">
@@ -398,9 +399,10 @@ export const OrganizationPage = () => {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </Card>
 
-            {/* Special Units */}
+            {/* Special Units */}}
             <Card className="p-6 border-2 border-[#D97706] bg-[#FFF7ED] mt-6">
               <h3 className="text-xl font-bold heading-font text-[#0F172A] mb-4 flex items-center gap-2">
                 <MapPin className="w-6 h-6 text-[#D97706]" />
@@ -491,19 +493,19 @@ export const OrganizationPage = () => {
 
           {/* Guntakal District */}
           <TabsContent value="guntakal">
-            <Card className="p-6 border-2 border-blue-500 bg-gradient-to-br from-[#FEF2F3] to-white mb-6">
-              <div className="flex items-center gap-6">
+            <Card className="p-4 sm:p-6 border-2 border-blue-500 bg-gradient-to-br from-[#FEF2F3] to-white mb-6">
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/xtv6zw6n_WhatsApp%20Image%202026-03-26%20at%202.46.38%20PM.jpeg"
                   alt="GRP Guntakal Official Logo"
-                  className="w-32 h-32 object-contain bg-white p-2 rounded-md"
+                  className="w-24 h-24 sm:w-32 sm:h-32 object-contain bg-white p-2 rounded-md flex-shrink-0"
                 />
-                <div className="flex-1">
-                  <h2 className="text-3xl font-extrabold heading-font text-[#0F172A] mb-2">GRP Guntakal</h2>
-                  <p className="text-base text-[#475569] mb-3">Superintendent of Railway Police</p>
+                <div className="flex-1 text-center sm:text-left">
+                  <h2 className="text-xl sm:text-3xl font-extrabold heading-font text-[#0F172A] mb-2">GRP Guntakal</h2>
+                  <p className="text-sm sm:text-base text-[#475569] mb-3">Superintendent of Railway Police</p>
                   <div className="space-y-2">
-                    <a href="tel:9247575601" className="flex items-center gap-2 text-[#2563EB] font-bold text-lg">
-                      <Phone className="w-6 h-6" />
+                    <a href="tel:9247575601" className="inline-flex items-center gap-2 text-[#2563EB] font-bold text-base sm:text-lg">
+                      <Phone className="w-5 h-5 sm:w-6 sm:h-6" />
                       <span>SRP: 9247575601</span>
                     </a>
                   </div>
@@ -514,7 +516,7 @@ export const OrganizationPage = () => {
             {/* All Sub Divisions in One Table */}
             <Card className="mb-6 p-4 bg-[#F1F5F9] rounded-md">
               <div className="mb-4 justify-between items-center flex">
-                <h2 className="text-3xl font-bold text-[#1E3A5F] mb-3">GRP Guntakal Stations</h2>
+                <h2 className="text-xl sm:text-3xl font-bold text-[#1E3A5F] mb-3">GRP Guntakal Stations</h2>
                 <input
                   type="text"
                   value={guntakalSearch}
@@ -524,6 +526,7 @@ export const OrganizationPage = () => {
                   data-testid="guntakal-table-search"
                 />
               </div>
+              <div className="overflow-x-auto w-full">
               <table className="min-w-full divide-y divide-[#2563EB] border-2 border-blue-500 rounded-md" data-testid="organization-table" data-table-id="guntakal">
                 <thead>
                   <tr>
@@ -826,6 +829,7 @@ export const OrganizationPage = () => {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </Card>
 
             {/* Special Units Guntakal */}

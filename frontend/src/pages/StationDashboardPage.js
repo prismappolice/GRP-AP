@@ -163,7 +163,7 @@ export const StationDashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-28 flex items-center justify-center">
+      <div className="min-h-screen pt-4 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2563EB]" />
       </div>
     );
@@ -171,7 +171,7 @@ export const StationDashboardPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen pt-28 flex items-center justify-center">
+      <div className="min-h-screen pt-4 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error}</p>
           <Button onClick={fetchData} variant="outline">
@@ -183,8 +183,8 @@ export const StationDashboardPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-24 pb-12 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12 px-4">
+      <div className="max-w-7xl mx-auto">
 
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

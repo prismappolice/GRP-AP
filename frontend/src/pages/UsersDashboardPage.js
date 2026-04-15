@@ -159,7 +159,7 @@ export const UsersDashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-24 flex items-center justify-center">
+      <div className="min-h-screen pt-4 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2563EB]"></div>
       </div>
     );
@@ -176,7 +176,7 @@ export const UsersDashboardPage = () => {
   return (
     <div className="min-h-screen pt-0 bg-[#F1F5F9]">
       {/* Header Banner */}
-      <div className="bg-[#0F172A] px-6 py-8 pt-24">
+      <div className="bg-[#0F172A] px-6 py-8 pt-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-[#2563EB] rounded-full flex items-center justify-center">

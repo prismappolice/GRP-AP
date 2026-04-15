@@ -11,6 +11,21 @@ export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const menuRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
   const effectiveIsAdmin = isAdmin || (typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true');
   const adminDisplayName = effectiveIsAdmin && typeof window !== 'undefined'
     ? (localStorage.getItem('admin_display_name') || 'Admin')
@@ -132,7 +147,7 @@ export const Header = () => {
       : publicLinks);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[1200] bg-white border-b border-gray-200">
+    <header ref={menuRef} className="sticky top-0 left-0 right-0 w-full z-[1200] bg-white border-b border-gray-200 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           <div className="flex items-center gap-3">
@@ -173,11 +188,11 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-16 h-16 object-contain"
+                  className="w-10 h-10 md:w-16 md:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-3xl font-extrabold text-[#0F172A] heading-font">GRP-Andhra Pradesh</h1>
-                  <p className="text-lg font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-base md:text-3xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs md:text-lg font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </div>
             ) : (
@@ -185,11 +200,11 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-16 h-16 object-contain"
+                  className="w-10 h-10 md:w-16 md:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-2xl font-extrabold text-[#0F172A] heading-font">GRP-Andhra Pradesh</h1>
-                  <p className="text-lg font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-base md:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs md:text-lg font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </Link>
             )}
@@ -240,10 +255,11 @@ export const Header = () => {
             <Menu className="w-6 h-6" />
           </button>
         </div>
+      </div>
 
-        {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-200" data-testid="mobile-menu">
-            <div className="flex flex-col gap-3">
+      {mobileMenuOpen && (
+        <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-b border-gray-200 md:hidden z-50" data-testid="mobile-menu">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-3">
               {effectiveIsAdmin || user ? (
                 <div className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A]">
                   <User className="w-4 h-4" />
@@ -252,25 +268,24 @@ export const Header = () => {
               ) : null}
 
               {navLinks.map((link) => (
-                <NavLink key={`mobile-${link.to}`} to={link.to} className={navLinkClass}>
+                <NavLink key={`mobile-${link.to}`} to={link.to} className={navLinkClass} onClick={() => setMobileMenuOpen(false)}>
                   {link.label}
                 </NavLink>
               ))}
               {effectiveIsAdmin || user ? (
-                <button onClick={handleSessionLogout} className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
+                <button onClick={() => { handleSessionLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
                   <User className="w-4 h-4" />
                   <span>{loggedInDisplayName}</span>
                   <LogOut className="w-4 h-4" />
                 </button>
               ) : (
-                <Link to="/admin-login" className="text-sm font-medium text-[#0F172A] hover:text-[#2563EB] transition-colors">
+                <Link to="/admin-login" onClick={() => setMobileMenuOpen(false)} className="text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] px-2 py-1 rounded-md transition-colors">
                   Admin Login
                 </Link>
               )}
-            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </header>
   );
 };

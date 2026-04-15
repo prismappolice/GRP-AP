@@ -122,15 +122,15 @@ const StationComplaintsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-28 flex items-center justify-center">
+      <div className="min-h-screen pt-4 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2563EB]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-24 pb-12 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12 px-4">
+      <div className="max-w-7xl mx-auto">
 
         {/* Page Header */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">

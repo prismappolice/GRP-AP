@@ -102,3 +102,32 @@ code {
   0% { transform: translateX(0); }
   100% { transform: translateX(-100%); }
 }
+
+/* ── Large-desktop responsive containers ───────────────────────────────────
+   Tailwind's max-w-7xl caps at 1280 px which leaves excessive side space on
+   wide monitors.  These overrides gradually expand the container so content
+   fills the viewport more naturally on 2xl / 3xl / 4K screens.
+   The rules are intentionally placed after @tailwind utilities so they win
+   the CSS cascade without needing !important.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* 2xl  ≥ 1536 px  →  1440 px container */
+@media (min-width: 1536px) {
+  .max-w-7xl {
+    max-width: 90rem; /* 1440px */
+  }
+}
+
+/* large desktop  ≥ 1920 px  →  1700 px container */
+@media (min-width: 1920px) {
+  .max-w-7xl {
+    max-width: 106.25rem; /* 1700px */
+  }
+}
+
+/* 2K / QHD  ≥ 2560 px  →  2200 px container */
+@media (min-width: 2560px) {
+  .max-w-7xl {
+    max-width: 137.5rem; /* 2200px */
+  }
+}

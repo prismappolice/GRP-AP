@@ -106,7 +106,7 @@ const services = [
 
 export default function IndiaRailways() {
   return (
-    <div className="min-h-screen pt-20 bg-[#F8FAFC] pb-16">
+    <div className="min-h-screen bg-[#F8FAFC] pb-16">
       {/* Hero Section */}
       <section className="relative z-0 h-[400px] flex items-center justify-center overflow-hidden mb-12">
         <div
@@ -121,7 +121,7 @@ export default function IndiaRailways() {
       </section>
 
       {/* Overview Section */}
-      <section className="max-w-5xl mx-auto px-4 mb-10">
+      <section className="max-w-7xl mx-auto px-4 mb-10">
         <Card className="p-8 border border-[#E2E8F0] bg-white mb-8 shadow-sm">
           <h2 className="text-2xl font-bold text-[#0F172A] mb-3 flex items-center gap-2"><Info className="w-6 h-6 text-[#2563EB]" /> Indian Railways Overview</h2>
           <p className="text-base text-[#475569]">Indian Railways is one of the largest railway networks in the world, operated by the Government of India under the Ministry of Railways. It plays a vital role in the country's transportation system by carrying millions of passengers and large volumes of goods across India every day.<br/><br/>It connects major cities, towns, and rural areas, supporting economic growth, tourism, and daily commuting. Indian Railways is known for its extensive network, affordability, and continuous modernization efforts.</p>

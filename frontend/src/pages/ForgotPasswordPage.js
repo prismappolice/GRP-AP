@@ -78,7 +78,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] py-12 pt-32">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] py-12">
       <div className="text-center mb-8">
         <img src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png" alt="AP Police Logo" className="w-20 h-20 mx-auto mb-4 object-contain" />
         <h1 className="text-3xl font-extrabold heading-font text-[#0F172A]">GRP Portal</h1>

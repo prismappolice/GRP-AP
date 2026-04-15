@@ -457,7 +457,7 @@ export const AdminStationsPage = () => {
 
   return (
 
-    <div className="min-h-screen pt-28 bg-[#F8FAFC] pb-12">
+    <div className="min-h-screen pt-4 bg-[#F8FAFC] pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <AdminPageHero
           title="Admin Credentials"

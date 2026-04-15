@@ -65,11 +65,11 @@ const AdminHelpRequestsPage = () => {
     closed: requests.filter(r => r.status === 'closed').length,
   }), [requests]);
 
-  if (loading) return <div className="min-h-screen pt-28 px-4 text-center">Loading help requests...</div>;
+  if (loading) return <div className="min-h-screen pt-4 px-4 text-center">Loading help requests...</div>;
 
   return (
-    <div className="min-h-screen pt-28 pb-12 bg-[#F8FAFC]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen pt-4 pb-12 bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <AdminPageHero
           title="Help Requests"
           description="View and manage all public help desk submissions."

@@ -68,7 +68,7 @@ const UnidentifiedBodiesPage = () => {
   const closeView = () => { setViewGroup(null); setMediaIndex(0); };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-28 pb-16 px-4">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-16 px-4">
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Page heading */}
@@ -100,7 +100,8 @@ const UnidentifiedBodiesPage = () => {
         )}
 
         {/* Table */}
-        <Card className="overflow-hidden border border-[#BFDBFE] shadow-sm rounded-xl">
+        <Card className="border border-[#BFDBFE] shadow-sm rounded-xl">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF] border-b-2 border-[#BFDBFE]">
@@ -167,6 +168,7 @@ const UnidentifiedBodiesPage = () => {
               )}
             </TableBody>
           </Table>
+          </div>
         </Card>
       </div>
 

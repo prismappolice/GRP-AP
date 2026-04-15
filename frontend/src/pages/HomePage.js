@@ -190,9 +190,9 @@ export const HomePage = () => {
   ];
 
   return (
-    <div className="min-h-screen pt-20">
+    <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative z-0 h-[480px] flex items-center justify-center overflow-hidden">
+      <section className="relative z-0 flex items-center justify-center overflow-hidden py-10 sm:py-0 sm:h-[480px]">
         <div 
           className="absolute inset-0 bg-cover bg-center"
           style={{ 
@@ -201,27 +201,29 @@ export const HomePage = () => {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A]/90 to-[#0F172A]/60" />
         
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
-            className="max-w-5xl"
+            className="w-full"
           >
-            <div className="flex items-stretch justify-between gap-11 mb-2 min-h-[220px]">
+            {/* Logo + Title + DGP Photo row — stacks vertically on mobile */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-11 mb-2 sm:min-h-[220px]">
               <img 
                 src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                 alt="AP Police Official Logo"
-                className="w-48 h-48 object-contain flex-shrink-0 self-center [filter:contrast(1.12)_brightness(1.05)_drop-shadow(0_2px_4px_rgba(0,0,0,0.85))_drop-shadow(0_0_2px_rgba(255,255,255,0.35))]"
+                className="w-20 h-20 sm:w-48 sm:h-48 object-contain flex-shrink-0 [filter:contrast(1.12)_brightness(1.05)_drop-shadow(0_2px_4px_rgba(0,0,0,0.85))_drop-shadow(0_0_2px_rgba(255,255,255,0.35))]"
               />
-              <div className="flex-1 flex flex-col justify-center">
-                <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold heading-font tracking-tighter leading-tight">
-                  {pageContent.heroTitle}
+              <div className="flex-1 flex flex-col justify-center items-center text-center">
+                <h1 className="text-3xl sm:text-6xl lg:text-7xl font-extrabold heading-font tracking-tighter leading-tight">
+                  <span className="block sm:inline">Government</span>
+                  <span className="block sm:inline sm:before:content-['_']">Railway Police</span>
                 </h1>
-                <p className="text-xl sm:text-2xl text-gray-200 mt-3">{pageContent.heroSubtitle}</p>
+                <p className="text-base sm:text-2xl text-gray-200 mt-2">{pageContent.heroSubtitle}</p>
               </div>
               <div className="flex flex-col items-center justify-center flex-shrink-0">
-                <div className="w-48 h-48 rounded-full border-4 border-white bg-white p-1 shadow-lg overflow-hidden">
+                <div className="w-20 h-20 sm:w-48 sm:h-48 rounded-full border-4 border-white bg-white p-1 shadow-lg overflow-hidden">
                   <img
                     src="/dgp-Sir.jpeg"
                     alt="Director General of Police"
@@ -230,14 +232,14 @@ export const HomePage = () => {
                 </div>
               </div>
             </div>
-            <p className="text-xs sm:text-xl text-gray-200 leading-relaxed mb-8 max-w-7xl mx-auto whitespace-nowrap overflow-hidden text-ellipsis">
+            <p className="text-xs sm:text-xl text-gray-200 leading-relaxed mb-6 max-w-7xl mx-auto text-center line-clamp-2 sm:whitespace-nowrap sm:overflow-hidden sm:text-ellipsis sm:line-clamp-none">
               {pageContent.heroTagline}
             </p>
-            <div className="flex flex-wrap gap-4 justify-start">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-center">
               <Button
                 onClick={() => navigate('/complaint')}
                 size="lg"
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-8 py-6 text-lg"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-8 py-6 text-lg w-full sm:w-auto"
                 data-testid="hero-file-complaint-button"
               >
                 File a Complaint
@@ -246,7 +248,7 @@ export const HomePage = () => {
                 onClick={() => navigate('/services')}
                 size="lg"
                 variant="outline"
-                className="border-2 border-white text-white hover:bg-white hover:text-[#0F172A] px-8 py-6 text-lg"
+                className="border-2 border-white text-white hover:bg-white hover:text-[#0F172A] px-8 py-6 text-lg w-full sm:w-auto"
                 data-testid="hero-services-button"
               >
                 Our Services
@@ -255,7 +257,7 @@ export const HomePage = () => {
                 onClick={() => navigate('/unidentified-bodies')}
                 size="lg"
                 variant="outline"
-                className="border-2 border-white text-white hover:bg-white hover:text-[#0F172A] px-8 py-6 text-lg"
+                className="border-2 border-white text-white hover:bg-white hover:text-[#0F172A] px-8 py-6 text-lg w-full sm:w-auto"
                 data-testid="hero-unidentified-bodies-button"
               >
                 Unidentified Deadbodies
@@ -267,27 +269,27 @@ export const HomePage = () => {
 
       {/* Message from DPG Section */}
       <section className="py-12 bg-[#F1F5F9]">
-        <div className="max-w-5xl min-h-[200px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center gap-8 rounded-lg shadow-lg bg-white border border-gray-200">
-          <div className="flex-1 text-center md:text-left">
-            <p className="text-lg font-bold text-[#475569] mb-2">&quot;{pageContent.dgpQuote}&quot;</p>
-            <p className="pl-40 text-md font-extraboldbol justify-center text-red-700 font-semibold">-{pageContent.dgpSignature}</p>
-          </div>
-            <div className="text-center">
-              <div className="w-40 h-40 rounded-full border-4 border-[#475569] bg-white p-1 shadow-md overflow-hidden">
-                <img
-                  src="/dgp-Photo.jpeg"
-                  alt="Director General of Police"
-                  className="w-full h-full rounded-full object-cover object-top"
-                />
-              </div>
+        <div className="max-w-7xl min-h-[200px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-6 md:flex-row md:items-center md:gap-8 rounded-lg shadow-lg bg-white border border-gray-200 py-8">
+          <div className="flex-shrink-0 text-center order-first">
+            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-[#475569] bg-white p-1 shadow-md overflow-hidden mx-auto">
+              <img
+                src="/dgp-Photo.jpeg"
+                alt="Director General of Police"
+                className="w-full h-full rounded-full object-cover object-top"
+              />
             </div>
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <p className="text-sm sm:text-lg font-bold text-[#475569] mb-2">&quot;{pageContent.dgpQuote}&quot;</p>
+            <p className="text-xs sm:text-sm text-red-700 font-semibold">-{pageContent.dgpSignature}</p>
+          </div>
         </div>
       </section>
 
 
       {/* Gallery Section */}
       <section className="py-16">
-        <div className="max-w-6xl mx-auto px-5 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <div className="mb-8 text-left">
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">GALLERY</p>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold heading-font tracking-tight text-[#0F172A] mb-4">
@@ -335,7 +337,7 @@ export const HomePage = () => {
 
       {/* Latest News Section */}
       <section className="py-16 bg-[#F1F5F9]">
-        <div className="max-w-6xl mx-auto px-5 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <div className="mb-8 text-left">
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">LATEST NEWS</p>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold heading-font tracking-tight text-[#0F172A]">
@@ -368,7 +370,7 @@ export const HomePage = () => {
 
       {/* Quick Actions */}
       <section className="py-16 bg-[#F8FAFC]">
-        <div className="max-w-[88rem] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-12">
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">QUICK ACCESS</p>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold heading-font tracking-tight text-[#0F172A]">

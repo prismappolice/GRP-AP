@@ -176,7 +176,7 @@ const StationUnidentifiedBodiesPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-24 pb-12 px-4">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12 px-4">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Page Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -317,6 +317,7 @@ const StationUnidentifiedBodiesPage = () => {
             </div>
           </div>
 
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF]">
@@ -364,6 +365,7 @@ const StationUnidentifiedBodiesPage = () => {
               )}
             </TableBody>
           </Table>
+          </div>
         </Card>
       </div>
 
