@@ -1120,22 +1120,29 @@ async def get_latest_news() -> Any:
             if isinstance(items, dict):
                 items = [items]
             if isinstance(items, list) and items:
-                first_item = _normalize_news_item(items[0])
-                if str(first_item.get("image") or "").startswith("/news_uploads/") or not first_item.get("image"):
-                    return JSONResponse(content=first_item)
+                normalized = [_normalize_news_item(item) for item in items]
+                local_items = [item for item in normalized if str(item.get("image") or "").startswith("/news_uploads/") or not item.get("image")]
+                if local_items:
+                    return JSONResponse(content=local_items)
         except Exception:
             pass
 
-        with open(news_path, "r", encoding="utf-8") as f:
-            news = json.load(f)
-        if isinstance(news, list):
-            news = news[0] if news else {}
-        news = _normalize_news_item(news)
-        if str(news.get("image") or "").startswith("/news_uploads/") or not news.get("image"):
-            return JSONResponse(content=news)
-
         derived_items = _news_items_from_upload_dir()
-        return JSONResponse(content=derived_items[0] if derived_items else {})
+        if derived_items:
+            return JSONResponse(content=derived_items)
+
+        try:
+            with open(news_path, "r", encoding="utf-8") as f:
+                news = json.load(f)
+            if isinstance(news, list):
+                news = news[0] if news else {}
+            news = _normalize_news_item(news)
+            if news.get("newsTitle") or news.get("heading"):
+                return JSONResponse(content=[news])
+        except Exception:
+            pass
+
+        return JSONResponse(content=[])
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to load latest news: {e}"}, status_code=500)
 
