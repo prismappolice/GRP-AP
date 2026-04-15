@@ -366,9 +366,9 @@ export const HomePage = () => {
           </div>
           {latestNews.length > 0 ? (
             <div className="overflow-hidden rounded-lg border-2 border-black bg-[#F1F5F9] p-3">
-              <div className="flex w-max gap-4 px-2 animate-marquee">
+              <div className="flex w-max gap-4 px-2 animate-marquee-news">
                 {(latestNews.length > 1 ? [...latestNews, ...latestNews] : latestNews).map((item, idx) => (
-                  <div key={`news-${item.id || idx}-${idx}`} className="min-w-[300px] max-w-[320px] flex-shrink-0">
+                  <div key={`news-${item.id || idx}-${idx}`} className="min-w-[360px] max-w-[360px] flex-shrink-0">
                     <NewsCard
                       heading={item.heading}
                       image={item.image}

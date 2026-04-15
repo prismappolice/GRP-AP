@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { Users, Shield, Award, Network, Building2 } from 'lucide-react';
+import { Users, Shield, Award, Network, Building2, Eye, EyeOff } from 'lucide-react';
 // import removed: adminStationHierarchy, getAdminHierarchyCounts
 
 const normalizeValue = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -282,6 +282,7 @@ export const AdminStationsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pwdDrafts, setPwdDrafts] = useState({});
+  const [pwdVisible, setPwdVisible] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -430,15 +431,27 @@ export const AdminStationsPage = () => {
                       <TableCell className="border border-[#E2E8F0]">{row.password || '--'}</TableCell>
                       <TableCell className="border border-[#E2E8F0]">
                         <div className="flex min-w-[200px] gap-2">
-                          <Input
-                            placeholder={canUpdatePassword ? 'New password' : 'Unavailable'}
-                            type="password"
-                            autoComplete="new-password"
-                            value={pwdDrafts[credentialKey] || ''}
-                            onChange={(e) => onDraftChange(credentialKey, e.target.value)}
-                            className="text-sm"
-                            disabled={!canUpdatePassword}
-                          />
+                          <div className="relative flex-1">
+                            <Input
+                              placeholder={canUpdatePassword ? 'New password' : 'Unavailable'}
+                              type={pwdVisible[credentialKey] ? 'text' : 'password'}
+                              autoComplete="new-password"
+                              value={pwdDrafts[credentialKey] || ''}
+                              onChange={(e) => onDraftChange(credentialKey, e.target.value)}
+                              className="text-sm pr-8"
+                              disabled={!canUpdatePassword}
+                            />
+                            {canUpdatePassword && (
+                              <button
+                                type="button"
+                                onClick={() => setPwdVisible((prev) => ({ ...prev, [credentialKey]: !prev[credentialKey] }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                tabIndex={-1}
+                              >
+                                {pwdVisible[credentialKey] ? <EyeOff size={15} /> : <Eye size={15} />}
+                              </button>
+                            )}
+                          </div>
                           <Button disabled={!canUpdatePassword} onClick={() => updatePassword(row.scope, row.id)}>
                             Update
                           </Button>

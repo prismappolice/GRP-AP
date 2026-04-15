@@ -94,7 +94,12 @@ code {
   animation: marquee-left 60s linear infinite;
 }
 
-.animate-marquee:hover {
+.animate-marquee-news {
+  animation: marquee-left 25s linear infinite;
+}
+
+.animate-marquee:hover,
+.animate-marquee-news:hover {
   animation-play-state: paused;
 }
 
