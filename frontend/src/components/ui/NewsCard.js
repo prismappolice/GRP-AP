@@ -19,19 +19,40 @@ export default function NewsCard({
   date = '',
   source = '',
 }) {
+  // Heights: heading=52, image=210, content=162, date=36 → total=460
   return (
-    <div className="w-[400px] flex-shrink-0 rounded-xl shadow-lg border border-gray-200 bg-white overflow-hidden flex flex-col" style={{height: '460px'}}>
+    <div style={{
+      width: '400px',
+      flexShrink: 0,
+      borderRadius: '12px',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+      border: '1px solid #e5e7eb',
+      backgroundColor: '#fff',
+      overflow: 'hidden',
+      display: 'grid',
+      gridTemplateRows: '52px 210px 162px 36px',
+      height: '460px',
+    }}>
 
-      {/* Section 1 — Heading */}
-      <div className="bg-[#183153] px-5 py-3 flex items-center justify-center" style={{minHeight: '52px'}}>
-        <span className="text-white font-bold tracking-widest text-base text-center">{heading}</span>
+      {/* Row 1 — Heading */}
+      <div style={{
+        backgroundColor: '#183153',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 20px',
+        overflow: 'hidden',
+      }}>
+        <span style={{color: '#fff', fontWeight: 700, letterSpacing: '0.1em', fontSize: '15px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+          {heading}
+        </span>
       </div>
 
-      {/* Section 2 — Image */}
-      <div className="w-full bg-gray-100" style={{height: '210px', overflow: 'hidden', flexShrink: 0}}>
+      {/* Row 2 — Image */}
+      <div style={{overflow: 'hidden', backgroundColor: '#f3f4f6'}}>
         {image ? (
           isVideoUrl(image) ? (
-            <video src={image} controls style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+            <video src={image} controls style={{width: '100%', height: '100%', objectFit: 'cover', display: 'block'}} />
           ) : (
             <img
               src={image}
@@ -41,23 +62,29 @@ export default function NewsCard({
             />
           )
         ) : (
-          <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: '14px'}}>No Image</div>
+          <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: '13px'}}>No Image</div>
         )}
       </div>
 
-      {/* Section 3 — News Title + Summary */}
-      <div className="px-4 pt-3 pb-2 flex flex-col" style={{flex: 1, overflow: 'hidden'}}>
-        <h2 className="font-bold text-[15px] text-[#1a2236] mb-1" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
+      {/* Row 3 — News Title + Summary */}
+      <div style={{padding: '12px 16px 8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '6px'}}>
+        <h2 style={{
+          margin: 0, fontWeight: 700, fontSize: '15px', color: '#1a2236',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
           {newsTitle}
         </h2>
-        <p className="text-gray-600 text-sm leading-relaxed" style={{display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1}}>
+        <p style={{
+          margin: 0, fontSize: '13px', color: '#4b5563', lineHeight: '1.5',
+          display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
           {newsSummary}
         </p>
       </div>
 
-      {/* Section 4 — Date */}
-      <div className="px-4 py-2 border-t border-gray-200 flex items-center" style={{minHeight: '36px', flexShrink: 0}}>
-        <span className="text-xs text-gray-500">{date}</span>
+      {/* Row 4 — Date */}
+      <div style={{borderTop: '1px solid #e5e7eb', padding: '0 16px', display: 'flex', alignItems: 'center'}}>
+        <span style={{fontSize: '12px', color: '#9ca3af'}}>{date}</span>
       </div>
 
     </div>
