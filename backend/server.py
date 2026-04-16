@@ -855,9 +855,12 @@ SRP_PHONE_TO_DIVISION = _FRONTEND_SCOPE_MAPPINGS.get("SRP_PHONE_TO_DIVISION", SR
 # ==================== SCOPE HELPERS ====================
 def _managed_station_names_for_irp(current_user: User) -> List[str]:
     normalized_name = _normalize_label(current_user.name)
+    # Strip leading "irp" prefix so "IRP Guntakal Circle" matches key "Guntakal Circle"
+    normalized_name_stripped = normalized_name[3:] if normalized_name.startswith("irp") else normalized_name
     managed_circles: List[str] = []
     for circle_name in IRP_CIRCLE_STATIONS.keys():
-        if _normalize_label(circle_name) == normalized_name:
+        norm_circle = _normalize_label(circle_name)
+        if norm_circle == normalized_name or norm_circle == normalized_name_stripped:
             managed_circles.append(circle_name)
     phone_digits = _digits_only(current_user.phone or "")
     if phone_digits:
