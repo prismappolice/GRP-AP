@@ -8,9 +8,6 @@ import { ChatBot } from '@/components/ChatBot';
 import { HomePage } from '@/pages/HomePage';
 import { AboutPage } from '@/pages/AboutPage';
 import { HistoryPage } from '@/pages/HistoryPage';
-import ResetPasswordPage from '@/pages/ResetPasswordPage';
-import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
-import { seedData } from '@/lib/api';
 import '@/App.css';
 
 class ChunkErrorBoundary extends React.Component {
@@ -47,7 +44,6 @@ const AwarenessPage = React.lazy(() => import('@/pages/AwarenessPage').then(m =>
 const ServicesPage = React.lazy(() => import('@/pages/ServicesPage').then(m => ({ default: m.ServicesPage })));
 const OrganizationPage = React.lazy(() => import('@/pages/OrganizationPage').then(m => ({ default: m.OrganizationPage })));
 const MobileTrackingPage = React.lazy(() => import('@/pages/MobileTrackingPage').then(m => ({ default: m.MobileTrackingPage })));
-const AdminUsersPage = React.lazy(() => import('@/pages/AdminUsersPage'));
 const AdminGalleryPage = React.lazy(() => import('@/pages/AdminGalleryPage'));
 const AdminDashboardPage = React.lazy(() => import('@/pages/AdminDashboardPage'));
 const AdminHelpRequestsPage = React.lazy(() => import('@/pages/AdminHelpRequestsPage'));
@@ -67,24 +63,6 @@ const IndiaRailwaysPage = React.lazy(() => import('@/pages/IndiaRailways'));
 const UnidentifiedBodiesPage = React.lazy(() => import('@/pages/UnidentifiedBodiesPage'));
 const StationUnidentifiedBodiesPage = React.lazy(() => import('@/pages/StationUnidentifiedBodiesPage'));
 
-const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2563EB]"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  return children;
-};
-
 const OFFICER_ROLES = ['police', 'officer', 'station', 'srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'];
 
 const PoliceRoute = ({ children }) => {
@@ -103,7 +81,7 @@ const PoliceRoute = ({ children }) => {
   }
 
   if (!OFFICER_ROLES.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/complaint" replace />;
   }
 
   return children;
@@ -131,7 +109,7 @@ const StationPoliceRoute = ({ children }) => {
 
   // Only station users and legacy police role can access station upload page
   if (!['police', 'officer', 'station'].includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/complaint" replace />;
   }
 
   return children;
@@ -153,11 +131,6 @@ const ScrollManager = () => {
 const AppContent = () => {
   const { isAdmin } = useAuth();
   const effectiveIsAdmin = isAdmin || (typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true');
-
-  useEffect(() => {
-    // Seed initial data
-    seedData().catch(err => console.log('Seed data already exists or error:', err));
-  }, []);
 
   return (
     <div className="App" style={{overflowX: 'hidden', maxWidth: '100vw'}}>
@@ -182,7 +155,7 @@ const AppContent = () => {
               )
             }
           />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/forgot-password" element={<Navigate to="/complaint" replace />} />
           <Route
             path="/admin-dashboard"
             element={
@@ -213,16 +186,6 @@ const AppContent = () => {
           <Route path="/help-desk" element={<HelpDeskPage />} />
           <Route path="/stations" element={<StationsPage />} />
           <Route path="/admin-login" element={<AdminLoginPage />} />
-          <Route
-            path="/admin-users"
-            element={
-              effectiveIsAdmin ? (
-                <AdminUsersPage />
-              ) : (
-                <Navigate to="/admin-login" replace />
-              )
-            }
-          />
           <Route
             path="/admin-gallery"
             element={
@@ -284,7 +247,7 @@ const AppContent = () => {
               )
             }
           />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/reset-password" element={<Navigate to="/complaint" replace />} />
           <Route path="/indian-railways" element={<IndiaRailwaysPage />} />
         </Routes>
       </React.Suspense>
