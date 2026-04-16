@@ -101,7 +101,7 @@ const _stationsRaw = [
             ]
           },
           {
-            name: "Vizianagaram Circle",
+            name: "Visakhapatnam Circle",
             incharge: "IRP",
             phone: "9247585738",
             stations: [

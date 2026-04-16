@@ -765,7 +765,7 @@ IRP_CIRCLE_STATIONS: Dict[str, List[str]] = {
     "Kakinada Circle": ["Samalkot RPS", "Kakinada RPOP", "Tuni RPS", "Annavaram RPOP"],
     "Bhimavaram Circle": ["Bhimavaram RPS", "Narsapur RPOP", "Tadepalligudem RPS", "Nidavole RPOP", "Tanuku RPOP"],
     "IRP Visakhapatnam": ["Visakhapatnam RPS", "Duvvada RPOP"],
-    "Vizianagaram Circle": ["Vizianagaram RPS", "Parvathipuram RPOP", "Bobbili RPOP", "Palasa RPS", "Srikakulam RPOP"],
+    "Visakhapatnam Circle": ["Vizianagaram RPS", "Parvathipuram RPOP", "Bobbili RPOP", "Palasa RPS", "Srikakulam RPOP"],
     "Guntakal Circle": ["Guntakal RPS", "Gooty RPS", "Tadipatri RPOP", "Adoni RPS", "Rayadurgam RPOP", "Mantralayam RPOP"],
     "Kurnool Circle": ["Kurnool RPS", "Dhone RPOP", "Nandyal RPS", "Markapuram RPOP"],
     "Dharmavaram Circle": ["Dharmavaram RPS", "Anantapuramu RPS", "Hindupuramu RPS", "SSSPN RS RPOP", "Kadiri RPS", "Puttaparthi RPOP"],
@@ -786,7 +786,7 @@ IRP_PHONE_TO_CIRCLE: Dict[str, str] = {
     "9247585727": "Kakinada Circle",      # IRP Kakinada Circle
     "9247585728": "Bhimavaram Circle",    # IRP Bhimavaram Circle
     "9247585737": "IRP Visakhapatnam",    # IRP Visakhapatnam RPS
-    "9247585738": "Vizianagaram Circle",  # IRP Vizianagaram Circle
+    "9247585738": "Visakhapatnam Circle",  # IRP Visakhapatnam Circle
     # Guntakal Division
     "9247575604": "Guntakal Circle",      # IRP Guntakal Circle
     "9247575608": "Kurnool Circle",       # IRP Kurnool Circle
