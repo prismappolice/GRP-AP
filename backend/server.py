@@ -27,7 +27,7 @@ try:
     from pydantic import ConfigDict
 except ImportError:
     ConfigDict = dict  # type: ignore[assignment,misc]
-from sqlalchemy import Column, DateTime, Enum as SAEnum, String, Integer, or_, func, desc
+from sqlalchemy import Column, DateTime, String, Integer, or_, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.future import select
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -103,27 +103,6 @@ api_router = APIRouter(prefix="/api")
 
 
 # ==================== ORM MODELS ====================
-class UserRole(str, enum.Enum):
-    public = "public"
-    admin = "admin"
-    dgp = "dgp"
-    srp = "srp"
-    dsrp = "dsrp"
-    irp = "irp"
-    station = "station"
-
-
-class UserORM(Base):
-    __tablename__ = "public_users"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    email = Column(String, unique=True, nullable=False)
-    name = Column(String, nullable=False)
-    phone = Column(String, nullable=False)
-    role = Column(SAEnum(UserRole), default=UserRole.public, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    password = Column(String, nullable=False)
-
-
 class ComplaintORM(Base):
     __tablename__ = "complaints"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -226,7 +205,6 @@ class UnidentifiedBodyORM(Base):
 @app.on_event("startup")
 async def ensure_database_tables() -> None:
     core_tables = [
-        UserORM.__table__,
         ComplaintORM.__table__,
         AlertORM.__table__,
         StationORM.__table__,
@@ -1087,21 +1065,7 @@ async def get_current_user(
                 created_at=cred["created_at"] or datetime.now(timezone.utc),
             )
 
-        user_id = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-        result = await session.execute(select(UserORM).where(UserORM.id == user_id))
-        user_orm = result.scalar_one_or_none()
-        if user_orm is None:
-            raise HTTPException(status_code=401, detail="User not found")
-        return User(
-            id=str(user_orm.id),
-            email=str(user_orm.email),
-            name=str(user_orm.name),
-            phone=str(user_orm.phone) if user_orm.phone else None,
-            role=str(user_orm.role.value if hasattr(user_orm.role, "value") else user_orm.role),
-            created_at=user_orm.created_at,
-        )
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except HTTPException:
@@ -1406,30 +1370,31 @@ async def create_srp_credential(
         raise HTTPException(status_code=403, detail="Admins only")
     if data.name not in SRP_ALLOWED_NAMES:
         raise HTTPException(status_code=400, detail="Invalid SRP name")
-    result = await session.execute(select(UserORM).where(UserORM.name == data.name, UserORM.role == UserRole.srp))
-    existing = result.scalar_one_or_none()
     hashed_password = hash_password(data.password)
-    if existing:
-        existing.email = data.email  # type: ignore[assignment]
-        existing.phone = data.phone or existing.phone  # type: ignore[assignment]
-        existing.password = hashed_password  # type: ignore[assignment]
-        await session.commit()
-        await session.refresh(existing)
-        return AdminCredentialEntry(
-            scope="user", id=str(existing.id), name=str(existing.name),
-            email=str(existing.email), password=str(existing.password), role="srp",
-        )
-    new_user = UserORM(
-        id=str(uuid.uuid4()), email=data.email, name=data.name,
-        phone=data.phone or "", role=UserRole.srp,
-        created_at=datetime.now(timezone.utc), password=hashed_password,
+    existing_result = await session.execute(
+        text("SELECT id, email, name, phone, password FROM srp WHERE name = :name LIMIT 1"),
+        {"name": data.name},
     )
-    session.add(new_user)
+    existing = existing_result.mappings().first()
+    if existing:
+        await session.execute(
+            text("UPDATE srp SET email = :email, phone = :phone, password = :password WHERE id = :id"),
+            {"email": data.email, "phone": data.phone or existing["phone"], "password": hashed_password, "id": existing["id"]},
+        )
+        await session.commit()
+        return AdminCredentialEntry(
+            scope="srp", id=str(existing["id"]), name=str(existing["name"]),
+            email=data.email, password=hashed_password, role="srp",
+        )
+    new_id = str(uuid.uuid4())
+    await session.execute(
+        text("INSERT INTO srp (id, email, name, phone, password, role, created_at) VALUES (:id, :email, :name, :phone, :password, 'srp', :created_at)"),
+        {"id": new_id, "email": data.email, "name": data.name, "phone": data.phone or "", "password": hashed_password, "created_at": datetime.now(timezone.utc)},
+    )
     await session.commit()
-    await session.refresh(new_user)
     return AdminCredentialEntry(
-        scope="user", id=str(new_user.id), name=str(new_user.name),
-        email=str(new_user.email), password=str(new_user.password), role="srp",
+        scope="srp", id=new_id, name=data.name,
+        email=data.email, password=hashed_password, role="srp",
     )
 
 
@@ -1986,12 +1951,13 @@ async def update_credential_password(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admins only")
     plain_password = body.new_password
-    if scope == "user":
-        result = await session.execute(select(UserORM).where(UserORM.id == entry_id))
-        user = result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        user.password = plain_password  # type: ignore[assignment]
+    if scope == "srp":
+        res = await session.execute(
+            text("UPDATE srp SET password = :password WHERE id = :id"),
+            {"password": plain_password, "id": entry_id},
+        )
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="SRP not found")
     elif scope == "officer":
         await ensure_officer_credentials_table(session)
         officer_result = await session.execute(
