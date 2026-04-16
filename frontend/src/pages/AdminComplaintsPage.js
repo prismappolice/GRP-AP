@@ -87,12 +87,6 @@ const AdminComplaintsPage = () => {
     closed: complaints.filter(c => String(c.status || '').toLowerCase() === 'closed').length,
   }), [complaints]);
 
-  if (!isAdmin) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">Access denied</div>;
-  if (loading) return <div className="min-h-screen pt-4 px-4 text-center">Loading complaints...</div>;
-  if (error) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">{error}</div>;
-
-  const statusOptions = ['pending', 'investigating', 'approved', 'rejected', 'resolved', 'closed'];
-
   const filteredComplaints = useMemo(() => {
     if (!searchText.trim()) return complaints;
     const q = searchText.toLowerCase();
@@ -101,6 +95,12 @@ const AdminComplaintsPage = () => {
         .join(' ').toLowerCase().includes(q)
     );
   }, [complaints, searchText]);
+
+  if (!isAdmin) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">Access denied</div>;
+  if (loading) return <div className="min-h-screen pt-4 px-4 text-center">Loading complaints...</div>;
+  if (error) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">{error}</div>;
+
+  const statusOptions = ['pending', 'investigating', 'approved', 'rejected', 'resolved', 'closed'];
 
   const hasEvidence = (complaint) => {
     return complaint?.evidence_media || complaint?.evidence || complaint?.media || complaint?.attachments;
