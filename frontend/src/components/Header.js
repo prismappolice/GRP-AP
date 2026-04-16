@@ -33,7 +33,7 @@ export const Header = () => {
   const isLoggedInSession = Boolean(effectiveIsAdmin || user);
 
   const navLinkClass = ({ isActive }) =>
-    `text-sm font-semibold transition-colors px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
+    `text-xs lg:text-sm font-semibold transition-colors px-1 lg:px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
 
   const publicLinks = [
     { to: '/', label: 'Home', testId: 'home-link' },
@@ -188,11 +188,11 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-10 h-10 md:w-16 md:h-16 object-contain"
+                  className="w-10 h-10 md:w-12 md:h-12 lg:w-16 lg:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-base md:text-3xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
-                  <p className="text-xs md:text-lg font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-sm md:text-base lg:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs md:text-xs lg:text-sm font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </div>
             ) : (
@@ -200,17 +200,17 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-10 h-10 md:w-16 md:h-16 object-contain"
+                  className="w-10 h-10 md:w-12 md:h-12 lg:w-16 lg:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-base md:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
-                  <p className="text-xs md:text-lg font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-sm md:text-base lg:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs md:text-xs lg:text-sm font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </Link>
             )}
           </div>
 
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-1 lg:gap-4">
             {navLinks.map((link) => (
               <NavLink key={link.to} to={link.to} className={navLinkClass} data-testid={link.testId}>
                 {link.label}
