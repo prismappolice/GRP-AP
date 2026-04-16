@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { MapPin, Image, Newspaper, HelpCircle, FileText } from 'lucide-react';
+import { MapPin, Image, Newspaper, HelpCircle, FileText, UserX } from 'lucide-react';
 import api from '@/lib/api';
 // import removed: getAdminHierarchyCounts
 
@@ -42,7 +42,13 @@ const adminServices = [
     link: '/admin/stations',
     color: 'bg-[#16A34A]'
   },
-
+  {
+    icon: UserX,
+    title: 'Unidentified Bodies',
+    description: 'View and manage unidentified body records',
+    link: '/police-unidentified-bodies',
+    color: 'bg-[#0F172A]'
+  },
 ];
 
 const AdminDashboardPage = () => {
@@ -52,17 +58,19 @@ const AdminDashboardPage = () => {
     latestNews: 0,
     complaints: 0,
     helpRequests: 0,
+    unidentifiedBodies: 0,
   });
 
   useEffect(() => {
     const loadCounts = async () => {
       try {
-        const [galleryRes, policeUsersRes, newsRes, complaintsRes, helpRes] = await Promise.all([
+        const [galleryRes, policeUsersRes, newsRes, complaintsRes, helpRes, ubRes] = await Promise.all([
           api.get('/gallery-items'),
           api.get('/admin/credentials'),
           api.get('/news-items'),
           api.get('/complaints'),
           api.get('/admin/help-requests'),
+          api.get('/unidentified-bodies'),
         ]);
 
         setCounts({
@@ -71,6 +79,7 @@ const AdminDashboardPage = () => {
           latestNews: Array.isArray(newsRes.data) ? newsRes.data.length : 0,
           complaints: Array.isArray(complaintsRes.data) ? complaintsRes.data.length : 0,
           helpRequests: Array.isArray(helpRes.data) ? helpRes.data.length : 0,
+          unidentifiedBodies: Array.isArray(ubRes.data) ? ubRes.data.length : 0,
         });
       } catch (error) {
         console.error('Failed to load admin dashboard counts:', error);
@@ -92,6 +101,8 @@ const AdminDashboardPage = () => {
         return counts.complaints;
       case 'Help Requests':
         return counts.helpRequests;
+      case 'Unidentified Bodies':
+        return counts.unidentifiedBodies;
       default:
         return 0;
     }
