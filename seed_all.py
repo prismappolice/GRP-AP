@@ -270,7 +270,7 @@ _IRP_RAW = [
     ("IRP Kakinada Circle",     "9247585727", "irp.kakinada@grp.local"),
     ("IRP Bhimavaram Circle",   "9247585728", "irp.bhimavaram@grp.local"),
     ("IRP Visakhapatnam",       "9247585737", "irp.visakhapatnam@grp.local"),
-    ("IRP Vizianagaram Circle", "9247585738", "irp.vizianagaram@grp.local"),
+    ("IRP Visakhapatnam Circle", "9247585738", "irp.vizianagaram@grp.local"),
     ("IRP Guntakal Circle",     "9247575604", "irp.guntakal@grp.local"),
     ("IRP Kurnool Circle",      "9247575608", "irp.kurnool@grp.local"),
     ("IRP Dharmavaram Circle",  "9247575612", "irp.dharmavaram@grp.local"),
