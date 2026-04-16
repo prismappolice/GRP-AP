@@ -15,7 +15,7 @@ export const AwarenessPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Card className="p-8 border border-[#E2E8F0] bg-white">
+          <Card className="p-8 border border-[#60A5FA] bg-white">
             <Shield className="w-10 h-10 text-[#2563EB] mb-4" />
             <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-4">Railway Safety Tips</h2>
              <ul className="space-y-1.5 text-base text-[#475569]">
@@ -28,7 +28,7 @@ export const AwarenessPage = () => {
             </ul>
           </Card>
 
-          <Card className="p-8 border border-[#E2E8F0] bg-white">
+          <Card className="p-8 border border-[#60A5FA] bg-white">
             <AlertTriangle className="w-10 h-10 text-[#D97706] mb-4" />
             <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-4">Cyber Crime Awareness</h2>
              <ul className="space-y-1.5 text-base text-[#475569]">
@@ -42,7 +42,7 @@ export const AwarenessPage = () => {
             </ul>
           </Card>
 
-          <Card className="p-8 border border-[#E2E8F0] bg-white">
+          <Card className="p-8 border border-[#60A5FA] bg-white">
             <Users className="w-10 h-10 text-[#16A34A] mb-4" />
             <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-4">Anti-Trafficking Information</h2>
              <ul className="space-y-1.5 text-base text-[#475569]">
@@ -55,7 +55,7 @@ export const AwarenessPage = () => {
             </ul>
           </Card>
 
-          <Card className="p-8 border border-[#E2E8F0] bg-white">
+          <Card className="p-8 border border-[#60A5FA] bg-white">
             <Book className="w-10 h-10 text-[#DC2626] mb-4" />
             <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-4">Important Contacts</h2>
              <ul className="space-y-1.5 text-base text-[#475569]">
@@ -69,7 +69,7 @@ export const AwarenessPage = () => {
             </ul>
           </Card>
 
-            <Card className="p-8 border border-[#E2E8F0] bg-white">
+            <Card className="p-8 border border-[#60A5FA] bg-white">
               <SearchCheck className="w-10 h-10 text-[#16A34A] mb-4" />
               <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-2">Lost & Found / Reporting Procedures</h2>
                <ul className="space-y-1.5 text-base text-[#475569] mb-2">
@@ -82,7 +82,7 @@ export const AwarenessPage = () => {
           </Card>
 
                  {/* Missing/Stolen Electronic Devices Section */}
-                  <Card className="p-8 border border-[#E2E8F0] bg-white">
+                  <Card className="p-8 border border-[#60A5FA] bg-white">
                       <AlertTriangle className="w-10 h-10 text-[#D97706] mb-4" />
                         <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-2">Missing/Stolen Electronic Devices</h2>
                          <ul className="space-y-1.5 text-base text-[#475569] mb-2">

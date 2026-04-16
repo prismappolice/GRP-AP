@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search } from 'lucide-react';
 import api, { complaintsAPI, getAuthToken } from '@/lib/api';
 import { getAllStations } from '@/lib/policeScope';
 
@@ -24,6 +24,7 @@ const AdminComplaintsPage = () => {
   const [forwardStation, setForwardStation] = useState('');
   const [forwardLoading, setForwardLoading] = useState(false);
   const [descModal, setDescModal] = useState(null);
+  const [searchText, setSearchText] = useState('');
 
   const allStations = useMemo(() => getAllStations(), []);
 
@@ -89,7 +90,16 @@ const AdminComplaintsPage = () => {
   if (loading) return <div className="min-h-screen pt-4 px-4 text-center">Loading complaints...</div>;
   if (error) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">{error}</div>;
 
-  const statusOptions = ['pending', 'investigating', 'resolved', 'closed'];
+  const statusOptions = ['pending', 'investigating', 'approved', 'rejected', 'resolved', 'closed'];
+
+  const filteredComplaints = useMemo(() => {
+    if (!searchText.trim()) return complaints;
+    const q = searchText.toLowerCase();
+    return complaints.filter(c =>
+      [c.tracking_number, c.complaint_type, c.description, c.location, c.status, c.station]
+        .join(' ').toLowerCase().includes(q)
+    );
+  }, [complaints, searchText]);
 
   const hasEvidence = (complaint) => {
     return complaint?.evidence_media || complaint?.evidence || complaint?.media || complaint?.attachments;
@@ -145,7 +155,7 @@ const AdminComplaintsPage = () => {
           { label: 'Resolved', value: stats.resolved, icon: CheckCircle2, color: 'bg-[#10B981]', text: 'text-[#10B981]' },
           { label: 'Closed', value: stats.closed, icon: XCircle, color: 'bg-[#6B7280]', text: 'text-[#6B7280]' },
         ].map(({ label, value, icon: Icon, color, text }) => (
-          <Card key={label} className="p-4 border border-[#E2E8F0] bg-white">
+          <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
             <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
               <Icon className="w-4 h-4 text-white" />
             </div>
@@ -154,39 +164,49 @@ const AdminComplaintsPage = () => {
           </Card>
         ))}
       </div>
-      <Card className="p-8 mb-8 border border-[#E2E8F0] shadow-sm bg-white">
+      <Card className="p-8 mb-8 border border-[#60A5FA] shadow-sm bg-white">
         <h2 className="text-2xl font-bold text-[#0F172A] mb-6">All Complaints</h2>
-        <div className="overflow-x-auto rounded-xl border border-[#E2E8F0]">
+        <div className="mb-4 relative">
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search by tracking #, type, description, location, station..."
+            className="w-full pl-9 pr-3 py-2 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+          />
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-[#60A5FA]">
           <Table className="border-collapse">
             <TableHeader className="bg-[#F8FAFC]">
               <TableRow className="hover:bg-[#F8FAFC]">
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 w-20 text-center font-bold text-[#0F172A]">S.No</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Tracking #</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Type</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A] w-[320px] max-w-[320px]">Description</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Location</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Forward To</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Media</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Status</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Actions</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 w-20 text-center font-bold text-[#0F172A]">S.No</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Tracking #</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Type</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A] w-[320px] max-w-[320px]">Description</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Location</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Forward To</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Media</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Status</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {complaints.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="border border-[#E2E8F0] px-4 py-10 text-center text-[#64748B]">
+                  <TableCell colSpan={9} className="border border-[#60A5FA] px-4 py-10 text-center text-[#64748B]">
                     No complaints found.
                   </TableCell>
                 </TableRow>
               ) : (
-                complaints.map((c, index) => (
+                filteredComplaints.map((c, index) => (
                   <TableRow key={c.id} className="hover:bg-[#F8FAFC]">
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 text-center font-semibold text-[#0F172A]">{index + 1}</TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 font-medium text-[#0F172A]">{c.tracking_number}</TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 text-[#334155]">{c.complaint_type}</TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 max-w-[320px] text-[#334155]"><div className="line-clamp-3 break-words cursor-pointer text-[#2563EB] hover:text-[#1D4ED8] hover:underline font-medium" title="Click to view full description" onClick={() => setDescModal(c.description)}>{c.description}</div></TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 text-[#334155]">{c.location}</TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 text-[#334155] min-w-[220px]">
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-center font-semibold text-[#0F172A]">{index + 1}</TableCell>
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 font-medium text-[#0F172A]">{c.tracking_number}</TableCell>
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">{c.complaint_type}</TableCell>
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 max-w-[320px] text-[#334155]"><div className="line-clamp-3 break-words cursor-pointer text-[#2563EB] hover:text-[#1D4ED8] hover:underline font-medium" title="Click to view full description" onClick={() => setDescModal(c.description)}>{c.description}</div></TableCell>
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">{c.location}</TableCell>
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155] min-w-[220px]">
                       {forwardId === c.id ? (
                         <div className="flex gap-2 items-center">
                           <select
@@ -213,7 +233,7 @@ const AdminComplaintsPage = () => {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 text-[#334155]">
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">
                       {hasEvidence(c) ? (
                         <button
                           onClick={() => openMediaModal(c.evidence_media || c.evidence || c.media || c.attachments)}
@@ -225,7 +245,7 @@ const AdminComplaintsPage = () => {
                         <span className="text-[#94A3B8]">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 text-[#334155]">
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">
                       {editId === c.id ? (
                         <select value={editStatus} onChange={handleStatusChange} className="w-full border border-[#CBD5E1] rounded-md px-3 py-2 text-sm text-[#0F172A] bg-white">
                           {statusOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -234,7 +254,7 @@ const AdminComplaintsPage = () => {
                         <Badge>{c.status}</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="border border-[#E2E8F0] px-4 py-2 text-[#334155]">
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">
                       <div className="flex flex-wrap gap-2">
                         {editId === c.id ? (
                           <>
@@ -272,7 +292,7 @@ const AdminComplaintsPage = () => {
       {showMediaModal && selectedMedia && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <Card className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-[#E2E8F0]">
+            <div className="flex items-center justify-between p-6 border-b border-[#60A5FA]">
               <h3 className="text-xl font-bold text-[#0F172A]">Evidence Upload</h3>
               <button
                 onClick={closeMediaModal}
@@ -288,7 +308,7 @@ const AdminComplaintsPage = () => {
                   {selectedMedia.map((media, idx) => (
                     <div
                       key={idx}
-                      className="border border-[#E2E8F0] rounded-lg p-4 flex items-center justify-between hover:bg-[#F8FAFC] transition-colors"
+                      className="border border-[#60A5FA] rounded-lg p-4 flex items-center justify-between hover:bg-[#F8FAFC] transition-colors"
                     >
                       <div className="flex-1">
                         {isImageUrl(media) ? (

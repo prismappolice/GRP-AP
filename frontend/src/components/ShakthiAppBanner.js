@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const ShakthiAppBanner = () => (
-  <div className="flex flex-col md:flex-row items-center justify-between bg-white rounded-lg shadow p-8 mb-8 border border-[#E2E8F0]">
+  <div className="flex flex-col md:flex-row items-center justify-between bg-white rounded-lg shadow p-8 mb-8 border border-[#60A5FA]">
     {/* Left: Text Content */}
     <div className="flex-1 md:pr-12 text-left">
       <h3 className="text-2xl font-extrabold heading-font mb-4 text-[#2563EB]">AP Police Shakthi App</h3>

@@ -140,6 +140,54 @@ export const getStationHierarchy = (stationName) => {
 
 export const getAllStations = () => uniqueStationNames;
 
+// Returns { division, subdivisions: [{name, circles: [{name, stations}]}] } for an SRP user
+export const getSRPScopeDetails = (user) => {
+  if (!user) return { division: '', subdivisions: [] };
+  const normalizedName = normalize(user.name);
+  const phoneDigits = extractPhoneDigits(user.phone);
+  let division = SRP_PHONE_TO_DIVISION[phoneDigits] || '';
+  if (!division) {
+    division = Object.keys(SRP_DIVISION_STATIONS).find((name) => normalizedName.includes(normalize(name))) || '';
+  }
+  // Subdivisions that belong to this division
+  const subdivisionNames = Object.entries(SUBDIVISION_TO_DIVISION)
+    .filter(([, div]) => div === division)
+    .map(([sub]) => sub);
+  const subdivisions = subdivisionNames.map((subName) => {
+    const circleNames = Object.entries(CIRCLE_TO_SUBDIVISION)
+      .filter(([, sub]) => sub === subName)
+      .map(([circle]) => circle);
+    return {
+      name: subName,
+      circles: circleNames.map((cName) => ({
+        name: cName,
+        stations: (IRP_CIRCLE_STATIONS[cName] || []).filter((s) => !s.toUpperCase().endsWith('RPOP')),
+      })),
+    };
+  });
+  return { division, subdivisions };
+};
+
+// Returns { subdivision, circles: [{name, stations}] } for a DSRP user
+export const getDSRPScopeDetails = (user) => {
+  if (!user) return { subdivision: '', circles: [] };
+  const normalizedName = normalize(user.name);
+  const phoneDigits = extractPhoneDigits(user.phone);
+  let subdivision = DSRP_PHONE_TO_SUBDIVISION[phoneDigits] || '';
+  if (!subdivision) {
+    subdivision = Object.keys(DSRP_SUBDIVISION_STATIONS).find((name) => normalizedName.includes(normalize(name))) || '';
+  }
+  // Derive circles that belong to this subdivision
+  const circleNames = Object.entries(CIRCLE_TO_SUBDIVISION)
+    .filter(([, sub]) => sub === subdivision)
+    .map(([circle]) => circle);
+  const circles = circleNames.map((name) => ({
+    name,
+    stations: (IRP_CIRCLE_STATIONS[name] || []).filter((s) => !s.toUpperCase().endsWith('RPOP')),
+  }));
+  return { subdivision, circles };
+};
+
 export const getOfficerScope = (user) => {
   if (!user) {
     return { scope: 'public', dashboardPath: '/dashboard', stations: uniqueStationNames, defaultStation: '' };
@@ -147,10 +195,27 @@ export const getOfficerScope = (user) => {
 
   // Route IRP users directly to IRP dashboard
   if (user.role === 'irp') {
+    const normalizedIRPName = normalize(user.name);
+    const irpPhoneDigits = extractPhoneDigits(user.phone);
+    const managedCircles = [];
+    // Match by name
+    for (const circleName of Object.keys(IRP_CIRCLE_STATIONS)) {
+      if (normalize(circleName) === normalizedIRPName) {
+        if (!managedCircles.includes(circleName)) managedCircles.push(circleName);
+      }
+    }
+    // Match by phone
+    const circleByPhone = IRP_PHONE_TO_CIRCLE[irpPhoneDigits];
+    if (circleByPhone && !managedCircles.includes(circleByPhone)) {
+      managedCircles.push(circleByPhone);
+    }
+    const irpScopedStations = managedCircles.length > 0
+      ? dedupe(managedCircles.flatMap((c) => IRP_CIRCLE_STATIONS[c] || []).filter((s) => !s.toUpperCase().endsWith('RPOP')))
+      : uniqueStationNames.filter((s) => !s.toUpperCase().endsWith('RPOP'));
     return {
       scope: 'irp',
       dashboardPath: '/irp-dashboard',
-      stations: uniqueStationNames,
+      stations: irpScopedStations,
       defaultStation: '',
     };
   }
@@ -179,28 +244,7 @@ export const getOfficerScope = (user) => {
       defaultStation: stationName,
     };
   }
-  if (user.role === 'dgp' || user.role === 'adgp' || user.role === 'dig') {
-    return {
-      scope: 'dgp',
-      dashboardPath: '/dgp-dashboard',
-      stations: uniqueStationNames,
-      defaultStation: '',
-    };
-  }
-  if (user.role !== 'police') {
-    return { scope: 'public', dashboardPath: '/dashboard', stations: uniqueStationNames, defaultStation: '' };
-  }
-
-  const normalizedName = normalize(user.name);
-  const phoneDigits = extractPhoneDigits(user.phone);
-
-  if (
-    normalizedName.includes('adgp') ||
-    normalizedName.includes('dgp') ||
-    normalizedName.includes('dig') ||
-    normalizedName.includes('directorgeneral') ||
-    normalizedName.includes('deputyinspectorgeneral')
-  ) {
+  if (user.role === 'dgp') {
     return {
       scope: 'dgp',
       dashboardPath: '/dgp-dashboard',
@@ -209,72 +253,6 @@ export const getOfficerScope = (user) => {
     };
   }
 
-  let srpStations = [];
-  const mappedDivision = SRP_PHONE_TO_DIVISION[phoneDigits];
-  if (mappedDivision) {
-    srpStations = stationsForDivision(mappedDivision);
-  } else {
-    const matchedDivision = Object.keys(SRP_DIVISION_STATIONS).find((name) => normalizedName.includes(normalize(name)));
-    if (matchedDivision) srpStations = stationsForDivision(matchedDivision);
-  }
-
-  if (srpStations.length > 0) {
-    const filtered = dedupe(srpStations).filter((name) => uniqueStationNames.includes(name));
-    return {
-      scope: 'srp',
-      dashboardPath: '/srp-dashboard',
-      stations: filtered,
-      defaultStation: filtered[0] || '',
-    };
-  }
-
-  let dsrpStations = [];
-  const mappedSubdivision = DSRP_PHONE_TO_SUBDIVISION[phoneDigits];
-  if (mappedSubdivision) {
-    dsrpStations = stationsForSubdivision(mappedSubdivision);
-  } else {
-    const matchedSubdivision = Object.keys(DSRP_SUBDIVISION_STATIONS).find((name) => normalizedName.includes(normalize(name)));
-    if (matchedSubdivision) dsrpStations = stationsForSubdivision(matchedSubdivision);
-  }
-
-  if (dsrpStations.length > 0) {
-    const filtered = dedupe(dsrpStations).filter((name) => uniqueStationNames.includes(name));
-    return {
-      scope: 'dsrp',
-      dashboardPath: '/dsrp-dashboard',
-      stations: filtered,
-      defaultStation: filtered[0] || '',
-    };
-  }
-
-  let irpStations = [];
-  const mappedCircle = IRP_PHONE_TO_CIRCLE[phoneDigits];
-  if (mappedCircle) {
-    irpStations = stationsForCircle(mappedCircle);
-  } else {
-    const matchedCircle = Object.keys(IRP_CIRCLE_STATIONS).find((name) => normalizedName.includes(normalize(name)));
-    if (matchedCircle) irpStations = stationsForCircle(matchedCircle);
-  }
-
-  if (irpStations.length > 0) {
-    const filtered = dedupe(irpStations).filter((name) => uniqueStationNames.includes(name));
-    return {
-      scope: 'irp',
-      dashboardPath: '/irp-dashboard',
-      stations: filtered,
-      defaultStation: filtered[0] || '',
-    };
-  }
-
-  const stationName = user.name;
-  if (uniqueStationNames.includes(stationName)) {
-    return {
-      scope: 'station',
-      dashboardPath: '/station-dashboard',
-      stations: [stationName],
-      defaultStation: stationName,
-    };
-  }
-
-  return { scope: 'station', dashboardPath: '/station-dashboard', stations: uniqueStationNames, defaultStation: '' };
+  // Unknown role — treat as public
+  return { scope: 'public', dashboardPath: '/dashboard', stations: uniqueStationNames, defaultStation: '' };
 };

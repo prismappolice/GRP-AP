@@ -7,6 +7,7 @@ import { ArrowUpRight, Building2, Download, FileText, RefreshCw, Upload, Image a
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { irpAPI } from '@/lib/api';
 import { stations } from '@/data/stations';
+import { getOfficerScope } from '@/lib/policeScope';
 
 const PIE_COLORS = { pending: '#F59E0B', investigating: '#3B82F6', resolved: '#10B981', approved: '#059669', rejected: '#EF4444', closed: '#6B7280' };
 const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#78716C'];
@@ -43,7 +44,10 @@ export const IRPDashboardPage = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [crimeTypeFilter, setCrimeTypeFilter] = useState('');
+  const [stationFilter, setStationFilter] = useState('');
   const [viewRecord, setViewRecord] = useState(null);
+
+  const scopedStations = useMemo(() => getOfficerScope(user).stations, [user]);
 
   useEffect(() => {
     const load = async () => {
@@ -71,14 +75,16 @@ export const IRPDashboardPage = () => {
     if (dateFrom && row.incident_date < dateFrom) return false;
     if (dateTo && row.incident_date > dateTo) return false;
     if (crimeTypeFilter && row.complaint_type !== crimeTypeFilter) return false;
+    if (stationFilter && row.station !== stationFilter) return false;
     return true;
-  }), [complaints, dateFrom, dateTo, crimeTypeFilter]);
+  }), [complaints, dateFrom, dateTo, crimeTypeFilter, stationFilter]);
 
   const filteredUbRecords = useMemo(() => ubRecords.filter((r) => {
     if (dateFrom && r.reported_date < dateFrom) return false;
     if (dateTo && r.reported_date > dateTo) return false;
+    if (stationFilter && r.station !== stationFilter) return false;
     return true;
-  }), [ubRecords, dateFrom, dateTo]);
+  }), [ubRecords, dateFrom, dateTo, stationFilter]);
 
   const statusPieData = useMemo(() => {
     const counts = {};
@@ -92,11 +98,30 @@ export const IRPDashboardPage = () => {
     return Object.entries(counts).map(([name, value]) => ({ name: name.replace(/_/g, ' '), value })).sort((a, b) => b.value - a.value);
   }, [filteredComplaints]);
 
+  const crimeTypeByDateData = useMemo(() => {
+    const allTypes = [...new Set(filteredComplaints.map(c => (c.complaint_type || 'unknown').replace(/_/g, ' ')))];
+    const byDate = {};
+    filteredComplaints.forEach(c => {
+      const d = (c.incident_date || '').substring(0, 10);
+      if (!d) return;
+      if (!byDate[d]) byDate[d] = { date: d };
+      const t = (c.complaint_type || 'unknown').replace(/_/g, ' ');
+      byDate[d][t] = (byDate[d][t] || 0) + 1;
+    });
+    return { data: Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date)), types: allTypes };
+  }, [filteredComplaints]);
+
   const ubByMonthData = useMemo(() => {
     const counts = {};
-    filteredUbRecords.forEach(r => { if (r.reported_date) { const m = r.reported_date.substring(0, 7); counts[m] = (counts[m] || 0) + 1; } });
+    filteredUbRecords.forEach(r => { if (r.reported_date) { const d = r.reported_date.substring(0, 10); counts[d] = (counts[d] || 0) + 1; } });
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name));
   }, [filteredUbRecords]);
+
+  const complaintsByMonthData = useMemo(() => {
+    const counts = {};
+    filteredComplaints.forEach(c => { if (c.incident_date) { const d = c.incident_date.substring(0, 10); counts[d] = (counts[d] || 0) + 1; } });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredComplaints]);
 
   const handleExport = () => exportToCSV('irp_complaints.csv', [
     { label: 'Tracking #', key: 'tracking_number' }, { label: 'Station', key: 'station' },
@@ -152,29 +177,29 @@ export const IRPDashboardPage = () => {
         {/* Summary cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <button type="button" onClick={() => navigate('/police-complaints')} className="text-left">
-            <Card className="p-4 border border-[#E2E8F0] hover:border-[#93C5FD] hover:bg-[#F8FAFF] hover:shadow-md active:scale-[0.99] transition-all duration-150 cursor-pointer transform-gpu">
+            <Card className="p-4 border border-[#60A5FA] hover:border-[#60A5FA] hover:bg-[#F8FAFF] hover:shadow-md active:scale-[0.99] transition-all duration-150 cursor-pointer transform-gpu">
               <div className="flex items-start justify-between gap-2">
                 <div><p className="text-xs text-[#64748B]">Total Complaints</p><p className="text-2xl font-bold text-[#0F172A]">{filteredComplaints.length}</p></div>
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB]">Details <ArrowUpRight className="w-3.5 h-3.5" /></span>
               </div>
             </Card>
           </button>
-          <Card className="p-4 border border-[#E2E8F0]">
+          <Card className="p-4 border border-[#60A5FA]">
             <p className="text-xs text-[#64748B]">Pending</p>
             <p className="text-2xl font-bold text-[#D97706]">{filteredComplaints.filter(c => c.status === 'pending').length}</p>
           </Card>
-          <Card className="p-4 border border-[#E2E8F0]">
+          <Card className="p-4 border border-[#60A5FA]">
             <p className="text-xs text-[#64748B]">Investigating</p>
             <p className="text-2xl font-bold text-[#3B82F6]">{filteredComplaints.filter(c => c.status === 'investigating').length}</p>
           </Card>
-          <Card className="p-4 border border-[#E2E8F0]">
+          <Card className="p-4 border border-[#60A5FA]">
             <p className="text-xs text-[#64748B]">Resolved</p>
             <p className="text-2xl font-bold text-[#16A34A]">{filteredComplaints.filter(c => c.status === 'resolved').length}</p>
           </Card>
         </div>
 
         {/* Filters + Export */}
-        <Card className="mb-6 p-4 border border-[#E2E8F0] bg-white">
+        <Card className="mb-6 p-4 border border-[#60A5FA] bg-white">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-[#64748B]">From</label>
@@ -191,7 +216,14 @@ export const IRPDashboardPage = () => {
                 {crimeTypeOptions.map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
               </select>
             </div>
-            <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setCrimeTypeFilter(''); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md bg-white text-[#334155] hover:bg-[#F8FAFC]">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Station</label>
+              <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                <option value="">All stations</option>
+                {scopedStations.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setCrimeTypeFilter(''); setStationFilter(''); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md bg-white text-[#334155] hover:bg-[#F8FAFC]">
               <RefreshCw className="w-3.5 h-3.5" /> Reset
             </button>
             <button type="button" onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#2563EB] rounded-md bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]">
@@ -202,7 +234,7 @@ export const IRPDashboardPage = () => {
 
         {/* Charts row 1 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <Card className="p-5 border border-[#E2E8F0]">
+          <Card className="p-5 border border-[#60A5FA]">
             <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Status</p>
             {statusPieData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
               <ResponsiveContainer width="100%" height={260}>
@@ -215,44 +247,61 @@ export const IRPDashboardPage = () => {
               </ResponsiveContainer>
             )}
           </Card>
-          <Card className="p-5 border border-[#E2E8F0]">
-            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Crime Type</p>
-            {crimeTypeBarData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+          <Card className="p-5 border border-[#60A5FA]">
+            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Crime Type &amp; Date</p>
+            {crimeTypeByDateData.data.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={crimeTypeBarData} margin={{ top: 4, right: 8, bottom: 40, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                <BarChart data={crimeTypeByDateData.data} margin={{ top: 4, right: 8, bottom: 40, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="value" name="Complaints" radius={[3,3,0,0]}>
-                    {crimeTypeBarData.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
-                  </Bar>
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {crimeTypeByDateData.types.map((t, i) => (
+                    <Bar key={t} dataKey={t} stackId="a" fill={BAR_COLORS[i % BAR_COLORS.length]} radius={i === crimeTypeByDateData.types.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             )}
           </Card>
         </div>
 
-        {/* UB by Month */}
-        <Card className="p-5 border border-[#E2E8F0] mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-[#0F172A]">Unidentified Bodies by Month ({filteredUbRecords.length} total)</p>
-            <button type="button" onClick={() => navigate('/unidentified-bodies')} className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:underline">
-              View All <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          {ubByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={ubByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="value" name="Bodies" fill="#7C3AED" radius={[3,3,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
+        {/* Charts row 2 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Card className="p-5 border border-[#60A5FA]">
+            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Date </p>
+            {complaintsByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={complaintsByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Complaints" fill="#2563EB" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+          <Card className="p-5 border border-[#60A5FA]">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold text-[#0F172A]">Unidentified Bodies by Date </p>
+              <button type="button" onClick={() => navigate('/police-unidentified-bodies')} className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:underline">
+                View All <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {ubByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={ubByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Bodies" fill="#7C3AED" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </div>
       </div>
 
       <Dialog open={!!viewRecord} onOpenChange={(open) => { if (!open) setViewRecord(null); }}>

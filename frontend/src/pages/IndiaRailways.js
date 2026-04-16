@@ -122,7 +122,7 @@ export default function IndiaRailways() {
 
       {/* Overview Section */}
       <section className="max-w-7xl mx-auto px-4 mb-10">
-        <Card className="p-8 border border-[#E2E8F0] bg-white mb-8 shadow-sm">
+        <Card className="p-8 border border-[#60A5FA] bg-white mb-8 shadow-sm">
           <h2 className="text-2xl font-bold text-[#0F172A] mb-3 flex items-center gap-2"><Info className="w-6 h-6 text-[#2563EB]" /> Indian Railways Overview</h2>
           <p className="text-base text-[#475569]">Indian Railways is one of the largest railway networks in the world, operated by the Government of India under the Ministry of Railways. It plays a vital role in the country's transportation system by carrying millions of passengers and large volumes of goods across India every day.<br/><br/>It connects major cities, towns, and rural areas, supporting economic growth, tourism, and daily commuting. Indian Railways is known for its extensive network, affordability, and continuous modernization efforts.</p>
         </Card>
@@ -130,7 +130,7 @@ export default function IndiaRailways() {
         <h2 className="text-2xl font-bold text-[#0F172A] mb-6 flex items-center gap-2"><Train className="w-6 h-6 text-[#2563EB]" /> Indian Railways Services</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {services.map((service, idx) => (
-            <Card key={idx} className="p-6 border border-[#E2E8F0] bg-white flex flex-col gap-2 shadow-sm h-full justify-between">
+            <Card key={idx} className="p-6 border border-[#60A5FA] bg-white flex flex-col gap-2 shadow-sm h-full justify-between">
               <div className="flex items-center gap-3 mb-2">
                 {service.icon}
                 <h3 className="font-bold text-lg text-[#0F172A]">{service.title}</h3>
@@ -143,11 +143,11 @@ export default function IndiaRailways() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="p-6 border border-[#E2E8F0] bg-white flex flex-col gap-2 shadow-sm">
+          <Card className="p-6 border border-[#60A5FA] bg-white flex flex-col gap-2 shadow-sm">
             <h3 className="font-bold text-lg text-[#0F172A] mb-2 flex items-center gap-2"><Phone className="w-5 h-5 text-[#DC2626]" /> Helpline</h3>
             <p className="text-base text-[#475569]">For any railway-related emergency or enquiry, call <span className="font-bold text-[#2563EB]">139</span>.</p>
           </Card>
-          <Card className="p-6 border border-[#E2E8F0] bg-white flex flex-col gap-2 shadow-sm">
+          <Card className="p-6 border border-[#60A5FA] bg-white flex flex-col gap-2 shadow-sm">
             <h3 className="font-bold text-lg text-[#0F172A] mb-2 flex items-center gap-2"><Info className="w-5 h-5 text-[#16A34A]" /> Customer Support</h3>
             <p className="text-base text-[#475569]">For feedback, lost & found, or complaints, visit <a href="https://railmadad.indianrailways.gov.in/" target="_blank" rel="noopener noreferrer" className="text-[#2563EB] underline">Rail Madad</a> or email <a href="mailto:customercare@indianrailways.gov.in" className="text-[#2563EB] underline">customercare@indianrailways.gov.in</a>.</p>
           </Card>

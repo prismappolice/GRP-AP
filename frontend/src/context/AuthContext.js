@@ -135,7 +135,7 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
-  const logout = () => {
+  const logout = (redirectTo) => {
     updateAuthToken(null);
     setUser(null);
     if (typeof window !== 'undefined') {
@@ -145,7 +145,16 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('grp_login_time');
       setIsAdmin(false);
       emitAuthChange();
+      if (redirectTo) {
+        window.location.replace(redirectTo);
+      }
     }
+  };
+
+  // Helper to detect if current session is a police/admin session (used by session timer)
+  const _isAdminOrPoliceSession = () => {
+    const POLICE_ROLES = ['police', 'officer', 'station', 'srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'];
+    return isAdmin || Boolean(user && POLICE_ROLES.includes(user.role));
   };
 
   // Keep logoutRef current so session timer always calls the latest logout
@@ -167,8 +176,8 @@ export const AuthProvider = ({ children }) => {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(countdownIntervalRef.current);
-          logoutRef.current?.();
           setSessionWarning(false);
+          logoutRef.current?.(_isAdminOrPoliceSession() ? '/admin-login' : undefined);
           return WARNING_DURATION_S;
         }
         return prev - 1;
@@ -271,7 +280,7 @@ export const AuthProvider = ({ children }) => {
             {/* Actions */}
             <div className="px-6 pb-6 flex gap-3">
               <button
-                onClick={logout}
+                onClick={() => logout(_isAdminOrPoliceSession() ? '/admin-login' : undefined)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 Log Out

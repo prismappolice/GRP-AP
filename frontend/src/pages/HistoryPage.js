@@ -37,7 +37,7 @@ export const HistoryPage = () => {
       <section className="py-20 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">{pageContent.sectionEyebrow}</p>
-          <div className="bg-white border border-[#E2E8F0] rounded-md p-8">
+          <div className="bg-white border border-[#60A5FA] rounded-md p-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               {pageContent.sections.map((section, index) => {
                 const meta = sectionMeta[index] || sectionMeta[0];

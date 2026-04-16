@@ -54,7 +54,8 @@ const StationComplaintsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchText, setSearchText] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [crimeFilter, setCrimeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [rejectingId, setRejectingId] = useState(null);
@@ -113,12 +114,12 @@ const StationComplaintsPage = () => {
     return complaints.filter(c => {
       const matchSearch = [c.complaint_type, c.description, c.location, c.tracking_number, c.status]
         .join(' ').toLowerCase().includes(searchText.toLowerCase());
-      const matchDate = !dateFilter || c.incident_date === dateFilter;
+      const matchDate = (!dateFrom || c.incident_date >= dateFrom) && (!dateTo || c.incident_date <= dateTo);
       const matchCrime = !crimeFilter || c.complaint_type === crimeFilter;
       const matchStatus = !statusFilter || c.status === statusFilter;
       return matchSearch && matchDate && matchCrime && matchStatus;
     });
-  }, [complaints, searchText, dateFilter, crimeFilter, statusFilter]);
+  }, [complaints, searchText, dateFrom, dateTo, crimeFilter, statusFilter]);
 
   if (loading) {
     return (
@@ -149,8 +150,8 @@ const StationComplaintsPage = () => {
         {error && <Card className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>}
 
         {/* Filters */}
-        <Card className="mb-4 p-4 border border-[#E2E8F0] bg-white">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+        <Card className="mb-4 p-4 border border-[#60A5FA] bg-white">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
             <div className="relative xl:col-span-2">
               <Search className="w-4 h-4 text-[#94A3B8] absolute left-2 top-1/2 -translate-y-1/2" />
               <input
@@ -163,8 +164,16 @@ const StationComplaintsPage = () => {
             </div>
             <input
               type="date"
-              value={dateFilter}
-              onChange={e => setDateFilter(e.target.value)}
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              title="From date"
+              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              title="To date"
               className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
             />
             <select
@@ -207,8 +216,8 @@ const StationComplaintsPage = () => {
         </Card>
 
         {/* Complaints Table */}
-        <Card className="p-0 overflow-hidden border border-[#E2E8F0]">
-          <div className="p-4 border-b border-[#E2E8F0] flex items-center gap-2 font-semibold text-[#0F172A] bg-white">
+        <Card className="p-0 overflow-hidden border border-[#60A5FA]">
+          <div className="p-4 border-b border-[#60A5FA] flex items-center gap-2 font-semibold text-[#0F172A] bg-white">
             <FileText className="w-4 h-4" />
             Complaints ({filtered.length})
           </div>
@@ -236,7 +245,7 @@ const StationComplaintsPage = () => {
                 ) : (
                   filtered.map((c, index) => (
                     <React.Fragment key={c.id}>
-                    <TableRow className="border-b border-[#E2E8F0] hover:bg-[#F8FAFC]">
+                    <TableRow className="border-b border-[#60A5FA] hover:bg-[#F8FAFC]">
                       <TableCell className="px-4 py-3 text-sm font-semibold text-[#0F172A]">{index + 1}</TableCell>
                       <TableCell className="px-4 py-3 font-mono text-xs text-[#2563EB] font-semibold">{c.tracking_number}</TableCell>
                       <TableCell className="px-4 py-3 capitalize text-sm">{c.complaint_type?.replace(/_/g, ' ')}</TableCell>

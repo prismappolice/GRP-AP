@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowUpRight, Building2, Download, Filter, Search, ShieldCheck, Image as ImageIcon, Eye, LogIn } from 'lucide-react';
+import { ArrowUpRight, Building2, Download, ShieldCheck, Image as ImageIcon, Eye, LogIn } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { dgpAPI } from '@/lib/api';
 import { getAllStations, getStationHierarchy } from '@/lib/policeScope';
@@ -93,42 +93,35 @@ export const DGPDashboardPage = () => {
   }, [complaints]);
 
   const divisionOptions = useMemo(() => {
-    const values = complaintRows.map((r) => r.hierarchy.division).filter(Boolean);
-    return Array.from(new Set(values));
-  }, [complaintRows]);
+    return stations.map((d) => d.division).filter(Boolean);
+  }, []);
 
   const subdivisionOptions = useMemo(() => {
-    const values = complaintRows
-      .filter((r) => !divisionFilter || r.hierarchy.division === divisionFilter)
-      .map((r) => r.hierarchy.subdivision)
-      .filter(Boolean);
-    return Array.from(new Set(values));
-  }, [complaintRows, divisionFilter]);
+    const divs = divisionFilter ? stations.filter((d) => d.division === divisionFilter) : stations;
+    return divs.flatMap((d) => (d.subdivisions || []).map((s) => s.name)).filter(Boolean);
+  }, [divisionFilter]);
 
   const circleOptions = useMemo(() => {
-    const values = complaintRows
-      .filter((r) => {
-        if (divisionFilter && r.hierarchy.division !== divisionFilter) return false;
-        if (subdivisionFilter && r.hierarchy.subdivision !== subdivisionFilter) return false;
-        return true;
-      })
-      .map((r) => r.hierarchy.circle)
-      .filter(Boolean);
-    return Array.from(new Set(values));
-  }, [complaintRows, divisionFilter, subdivisionFilter]);
+    const divs = divisionFilter ? stations.filter((d) => d.division === divisionFilter) : stations;
+    return divs.flatMap((d) =>
+      (d.subdivisions || [])
+        .filter((s) => !subdivisionFilter || s.name === subdivisionFilter)
+        .flatMap((s) => (s.circles || []).map((c) => c.name))
+    ).filter(Boolean);
+  }, [divisionFilter, subdivisionFilter]);
 
   const stationOptions = useMemo(() => {
-    const values = complaintRows
-      .filter((r) => {
-        if (divisionFilter && r.hierarchy.division !== divisionFilter) return false;
-        if (subdivisionFilter && r.hierarchy.subdivision !== subdivisionFilter) return false;
-        if (circleFilter && r.hierarchy.circle !== circleFilter) return false;
-        return true;
-      })
-      .map((r) => r.station)
-      .filter(Boolean);
-    return Array.from(new Set(values));
-  }, [complaintRows, divisionFilter, subdivisionFilter, circleFilter]);
+    const divs = divisionFilter ? stations.filter((d) => d.division === divisionFilter) : stations;
+    return divs.flatMap((d) =>
+      (d.subdivisions || [])
+        .filter((s) => !subdivisionFilter || s.name === subdivisionFilter)
+        .flatMap((s) =>
+          (s.circles || [])
+            .filter((c) => !circleFilter || c.name === circleFilter)
+            .flatMap((c) => (c.stations || []).map((st) => st.name))
+        )
+    ).filter((s) => Boolean(s) && !/rpo/i.test(s));
+  }, [divisionFilter, subdivisionFilter, circleFilter]);
 
   const crimeTypeOptions = useMemo(() => Array.from(new Set(complaintRows.map((r) => r.complaint_type).filter(Boolean))), [complaintRows]);
 
@@ -143,7 +136,7 @@ export const DGPDashboardPage = () => {
           return true;
         })
         .map((r) => r.station)
-        .filter(Boolean)
+        .filter((s) => Boolean(s) && !s.toUpperCase().endsWith('RPOP'))
     ));
   }, [ubRecords, divisionFilter, subdivisionFilter, circleFilter]);
 
@@ -241,11 +234,30 @@ export const DGPDashboardPage = () => {
     return Object.entries(counts).map(([name, value]) => ({ name: name.replace(/_/g, ' '), value })).sort((a, b) => b.value - a.value);
   }, [filteredComplaints]);
 
+  const crimeTypeByDateData = useMemo(() => {
+    const allTypes = [...new Set(filteredComplaints.map(c => (c.complaint_type || 'unknown').replace(/_/g, ' ')))];
+    const byDate = {};
+    filteredComplaints.forEach(c => {
+      const d = (c.incident_date || '').substring(0, 10);
+      if (!d) return;
+      if (!byDate[d]) byDate[d] = { date: d };
+      const t = (c.complaint_type || 'unknown').replace(/_/g, ' ');
+      byDate[d][t] = (byDate[d][t] || 0) + 1;
+    });
+    return { data: Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date)), types: allTypes };
+  }, [filteredComplaints]);
+
   const ubByMonthData = useMemo(() => {
     const counts = {};
-    filteredUbRecords.forEach(r => { if (r.reported_date) { const m = r.reported_date.substring(0, 7); counts[m] = (counts[m] || 0) + 1; } });
+    filteredUbRecords.forEach(r => { if (r.reported_date) { const d = r.reported_date.substring(0, 10); counts[d] = (counts[d] || 0) + 1; } });
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name));
   }, [filteredUbRecords]);
+
+  const complaintsByMonthData = useMemo(() => {
+    const counts = {};
+    filteredComplaints.forEach(c => { if (c.incident_date) { const d = c.incident_date.substring(0, 10); counts[d] = (counts[d] || 0) + 1; } });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredComplaints]);
 
   const handleExport = () => exportToCSV('dgp_complaints.csv', [
     { label: 'Tracking #', key: 'tracking_number' }, { label: 'Station', key: 'station' },
@@ -275,7 +287,7 @@ export const DGPDashboardPage = () => {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <ShieldCheck className="w-8 h-8 text-[#2563EB]" />
-              <h1 className="text-3xl font-extrabold text-[#0F172A] heading-font">DGP Unified Dashboard</h1>
+              <h1 className="text-3xl font-extrabold text-[#0F172A] heading-font">DGP Dashboard</h1>
             </div>
             <p className="text-[#475569]">
               Officer: <span className="font-semibold text-[#0F172A]">{user?.name || '-'}</span>
@@ -305,146 +317,76 @@ export const DGPDashboardPage = () => {
           <Card className="mb-6 p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>
         )}
 
-        <Card className="mb-6 p-4 border border-[#E2E8F0] bg-white">
-          <div className="flex items-center gap-2 text-[#0F172A] font-semibold mb-3">
-            <Filter className="w-4 h-4" />
-            Filters
-          </div>
-          <div className="flex flex-wrap gap-2 mb-3">
-            <button
-              type="button"
-              onClick={() => applyDivisionPreset('Vijayawada Division')}
-              className="px-3 py-1.5 text-xs font-semibold rounded-full border border-[#CBD5E1] bg-[#EFF6FF] text-[#1E40AF] hover:bg-[#DBEAFE]"
-            >
-              Vijayawada Only
-            </button>
-            <button
-              type="button"
-              onClick={() => applyDivisionPreset('Guntakal Division')}
-              className="px-3 py-1.5 text-xs font-semibold rounded-full border border-[#CBD5E1] bg-[#FEF3C7] text-[#92400E] hover:bg-[#FDE68A]"
-            >
-              Guntakal Only
-            </button>
-            <button
-              type="button"
-              onClick={applyPendingPreset}
-              className="px-3 py-1.5 text-xs font-semibold rounded-full border border-[#FCD34D] bg-[#FFFBEB] text-[#B45309] hover:bg-[#FEF3C7]"
-            >
-              Pending Complaints Only
-            </button>
-            <button
-              type="button"
-              onClick={applyLast7DaysPreset}
-              className="px-3 py-1.5 text-xs font-semibold rounded-full border border-[#BFDBFE] bg-[#F8FAFC] text-[#1E3A8A] hover:bg-[#EFF6FF]"
-            >
-              Last 7 Days
-            </button>
-            <button
-              type="button"
-              onClick={applyLast30DaysPreset}
-              className="px-3 py-1.5 text-xs font-semibold rounded-full border border-[#BFDBFE] bg-[#EEF2FF] text-[#3730A3] hover:bg-[#E0E7FF]"
-            >
-              Last 30 Days
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
-            <div className="relative xl:col-span-2">
-              <Search className="w-4 h-4 text-[#94A3B8] absolute left-2 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Search complaints and unidentified bodies"
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-              />
+        <Card className="mb-6 p-4 border border-[#60A5FA] bg-white">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">From</label>
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
             </div>
-            <select
-              value={divisionFilter}
-              onChange={(e) => {
-                setDivisionFilter(e.target.value);
-                setSubdivisionFilter('');
-                setCircleFilter('');
-                setStationFilter('');
-              }}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All SRP (Division)</option>
-              {divisionOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
-            <select
-              value={subdivisionFilter}
-              onChange={(e) => {
-                setSubdivisionFilter(e.target.value);
-                setCircleFilter('');
-                setStationFilter('');
-              }}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All DSRP (Sub Division)</option>
-              {subdivisionOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
-            <select
-              value={circleFilter}
-              onChange={(e) => {
-                setCircleFilter(e.target.value);
-                setStationFilter('');
-              }}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All IRP (Circle)</option>
-              {circleOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
-            <select
-              value={stationFilter}
-              onChange={(e) => setStationFilter(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All Stations</option>
-              {stationOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            />
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            />
-            <select
-              value={complaintTypeFilter}
-              onChange={(e) => setComplaintTypeFilter(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All complaint types</option>
-              {crimeTypeOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
-            <select
-              value={complaintStatusFilter}
-              onChange={(e) => setComplaintStatusFilter(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All complaint statuses</option>
-              <option value="pending">Pending</option>
-              <option value="investigating">Investigating</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="px-3 py-1.5 text-sm font-semibold rounded-md border border-[#CBD5E1] bg-white text-[#334155] hover:bg-[#F8FAFC]"
-            >
-              Reset Filters
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">To</label>
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Crime Type</label>
+              <select value={complaintTypeFilter} onChange={(e) => setComplaintTypeFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                <option value="">All crime types</option>
+                {crimeTypeOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Division</label>
+              <select value={divisionFilter} onChange={(e) => { setDivisionFilter(e.target.value); setSubdivisionFilter(''); setCircleFilter(''); setStationFilter(''); }} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                <option value="">All divisions</option>
+                {divisionOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name === 'Vijayawada' ? 'SRP Vijayawada' : name === 'Guntakal' ? 'SRP Guntakal' : name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {subdivisionOptions.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#64748B]">Subdivision</label>
+                <select value={subdivisionFilter} onChange={(e) => { setSubdivisionFilter(e.target.value); setCircleFilter(''); setStationFilter(''); }} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                  <option value="">All subdivisions</option>
+                  {subdivisionOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+            )}
+            {circleOptions.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#64748B]">Circle</label>
+                <select value={circleFilter} onChange={(e) => { setCircleFilter(e.target.value); setStationFilter(''); }} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                  <option value="">All circles</option>
+                  {circleOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+            )}
+            {stationOptions.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#64748B]">Station</label>
+                <select value={stationFilter} onChange={(e) => setStationFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                  <option value="">All stations</option>
+                  {stationOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Status</label>
+              <select value={complaintStatusFilter} onChange={(e) => setComplaintStatusFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="investigating">Investigating</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <button type="button" onClick={resetFilters} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md bg-white text-[#334155] hover:bg-[#F8FAFC]">
+              Reset
+            </button>
+            <button type="button" onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#2563EB] rounded-md bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]">
+              <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
           </div>
         </Card>
@@ -452,19 +394,19 @@ export const DGPDashboardPage = () => {
         {/* Summary cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <button type="button" onClick={() => navigate('/police-complaints')} className="text-left">
-            <Card className="p-4 border border-[#E2E8F0] hover:border-[#93C5FD] hover:bg-[#F8FAFF] hover:shadow-md active:scale-[0.99] transition-all duration-150 cursor-pointer transform-gpu">
+            <Card className="p-4 border border-[#60A5FA] hover:border-[#60A5FA] hover:bg-[#F8FAFF] hover:shadow-md active:scale-[0.99] transition-all duration-150 cursor-pointer transform-gpu">
               <div className="flex items-start justify-between gap-2">
-                <div><p className="text-xs text-[#64748B]">Complaints</p><p className="text-2xl font-bold text-[#0F172A]">{filteredComplaints.length}</p></div>
+                <div><p className="text-xs text-[#64748B]">Total Complaints</p><p className="text-2xl font-bold text-[#0F172A]">{filteredComplaints.length}</p></div>
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB]">Details <ArrowUpRight className="w-3.5 h-3.5" /></span>
               </div>
             </Card>
           </button>
-          <Card className="p-4 border border-[#E2E8F0]">
-            <p className="text-xs text-[#64748B]">Pending Complaints</p>
+          <Card className="p-4 border border-[#60A5FA]">
+            <p className="text-xs text-[#64748B]">Total Pending Complaints</p>
             <p className="text-2xl font-bold text-[#D97706]">{filteredComplaints.filter((c) => c.status === 'pending').length}</p>
           </Card>
-          <Card className="p-4 border border-[#E2E8F0]">
-            <p className="text-xs text-[#64748B]">Resolved Complaints</p>
+          <Card className="p-4 border border-[#60A5FA]">
+            <p className="text-xs text-[#64748B]">Total Resolved Complaints</p>
             <p className="text-2xl font-bold text-[#16A34A]">{filteredComplaints.filter((c) => c.status === 'resolved').length}</p>
           </Card>
         </div>
@@ -478,7 +420,7 @@ export const DGPDashboardPage = () => {
 
         {/* Charts row 1 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <Card className="p-5 border border-[#E2E8F0]">
+          <Card className="p-5 border border-[#60A5FA]">
             <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Status</p>
             {statusPieData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
               <ResponsiveContainer width="100%" height={260}>
@@ -491,44 +433,61 @@ export const DGPDashboardPage = () => {
               </ResponsiveContainer>
             )}
           </Card>
-          <Card className="p-5 border border-[#E2E8F0]">
-            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Crime Type</p>
-            {crimeTypeBarData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+          <Card className="p-5 border border-[#60A5FA]">
+            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Crime Type &amp; Date</p>
+            {crimeTypeByDateData.data.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={crimeTypeBarData} margin={{ top: 4, right: 8, bottom: 40, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                <BarChart data={crimeTypeByDateData.data} margin={{ top: 4, right: 8, bottom: 40, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="value" name="Complaints" radius={[3,3,0,0]}>
-                    {crimeTypeBarData.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
-                  </Bar>
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {crimeTypeByDateData.types.map((t, i) => (
+                    <Bar key={t} dataKey={t} stackId="a" fill={BAR_COLORS[i % BAR_COLORS.length]} radius={i === crimeTypeByDateData.types.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             )}
           </Card>
         </div>
 
-        {/* UB by Month */}
-        <Card className="p-5 border border-[#E2E8F0] mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-[#0F172A]">Unidentified Bodies by Month ({filteredUbRecords.length} total)</p>
-            <button type="button" onClick={() => navigate('/unidentified-bodies')} className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:underline">
-              View All <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          {ubByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={ubByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="value" name="Bodies" fill="#7C3AED" radius={[3,3,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
+        {/* Charts row 2 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Card className="p-5 border border-[#60A5FA]">
+            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Date </p>
+            {complaintsByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={complaintsByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Complaints" fill="#2563EB" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+          <Card className="p-5 border border-[#60A5FA]">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold text-[#0F172A]">Unidentified Bodies by Date </p>
+              <button type="button" onClick={() => navigate('/police-unidentified-bodies')} className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:underline">
+                View All <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {ubByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={ubByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Bodies" fill="#7C3AED" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </div>
       </div>
 
       <Dialog open={!!viewRecord} onOpenChange={(open) => { if (!open) setViewRecord(null); }}>

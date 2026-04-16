@@ -1020,7 +1020,7 @@ async def get_current_user(
                 email=officer["email"],
                 name=str(officer["name"]),
                 phone=str(officer["phone"] or "N/A"),
-                role="police",
+                role="dgp",
                 created_at=officer["created_at"] or datetime.now(timezone.utc),
             )
 
@@ -1271,11 +1271,11 @@ async def admin_login(credentials: AdminLogin, session: AsyncSession = Depends(g
     if officer:
         if not verify_password(credentials.password, str(officer["password"] or "")):
             raise HTTPException(status_code=401, detail="Invalid admin credentials")
-        access_token = create_access_token({"officer_id": officer["id"], "role": "police"})
+        access_token = create_access_token({"officer_id": officer["id"], "officer_role": "dgp"})
         return {
             "msg": "Login successful",
             "portal_role": "officer",
-            "officer_role": officer["role"],
+            "officer_role": "dgp",
             "access_token": access_token,
             "token_type": "bearer",
             "user": build_auth_user_payload(officer["id"], officer["email"], officer["name"], officer["phone"] or "N/A", officer["created_at"]),

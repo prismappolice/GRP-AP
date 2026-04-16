@@ -57,13 +57,13 @@ const SRPDashboardPage = React.lazy(() => import('@/pages/SRPDashboardPage').the
 const DGPDashboardPage = React.lazy(() => import('@/pages/DGPDashboardPage').then(m => ({ default: m.DGPDashboardPage })));
 const PoliceComplaintsPage = React.lazy(() => import('@/pages/PoliceComplaintsPage').then(m => ({ default: m.PoliceComplaintsPage })));
 const StationComplaintsPage = React.lazy(() => import('@/pages/StationComplaintsPage'));
-const PoliceReportItemsPage = React.lazy(() => import('@/pages/PoliceReportItemsPage').then(m => ({ default: m.PoliceReportItemsPage })));
 const IndiaRailwaysPage = React.lazy(() => import('@/pages/IndiaRailways'));
 
 const UnidentifiedBodiesPage = React.lazy(() => import('@/pages/UnidentifiedBodiesPage'));
 const StationUnidentifiedBodiesPage = React.lazy(() => import('@/pages/StationUnidentifiedBodiesPage'));
+const PoliceUnidentifiedBodiesPage = React.lazy(() => import('@/pages/PoliceUnidentifiedBodiesPage').then(m => ({ default: m.PoliceUnidentifiedBodiesPage })));
 
-const OFFICER_ROLES = ['police', 'officer', 'station', 'srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'];
+const OFFICER_ROLES = ['station', 'srp', 'dsrp', 'irp', 'dgp'];
 
 const PoliceRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -102,13 +102,8 @@ const StationPoliceRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Superior officers see the public unidentified bodies page
-  if (['srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'].includes(user.role)) {
-    return <Navigate to="/unidentified-bodies" replace />;
-  }
-
-  // Only station users and legacy police role can access station upload page
-  if (!['police', 'officer', 'station'].includes(user.role)) {
+  // Only station users can access station upload page
+  if (user.role !== 'station') {
     return <Navigate to="/complaint" replace />;
   }
 
@@ -145,6 +140,7 @@ const AppContent = () => {
         <Routes>
           <Route path="/unidentified-bodies" element={<UnidentifiedBodiesPage />} />
           <Route path="/station-unidentified-bodies" element={<StationPoliceRoute><StationUnidentifiedBodiesPage /></StationPoliceRoute>} />
+          <Route path="/police-unidentified-bodies" element={<PoliceRoute><PoliceUnidentifiedBodiesPage /></PoliceRoute>} />
           <Route
             path="/"
             element={
@@ -181,7 +177,6 @@ const AppContent = () => {
           <Route path="/dgp-dashboard" element={<PoliceRoute><DGPDashboardPage /></PoliceRoute>} />
           <Route path="/police-complaints" element={<PoliceRoute><PoliceComplaintsPage /></PoliceRoute>} />
           <Route path="/station-complaints" element={<PoliceRoute><StationComplaintsPage /></PoliceRoute>} />
-          <Route path="/police-report-items" element={<PoliceRoute><PoliceReportItemsPage /></PoliceRoute>} />
           <Route path="/women-safety" element={<WomenSafetyPage />} />
           <Route path="/help-desk" element={<HelpDeskPage />} />
           <Route path="/stations" element={<StationsPage />} />

@@ -14,7 +14,7 @@ export const MobileTrackingPage = () => {
         </div>
 
         {/* CEIR Portal Section */}
-        <Card className="p-8 border border-[#E2E8F0] bg-white mb-8">
+        <Card className="p-8 border border-[#60A5FA] bg-white mb-8">
           <div className="bg-[#F8FAFC] border-2 border-[#2563EB] rounded-lg p-6 mb-6">
             <div className="flex items-start gap-6">
               <div className="flex-shrink-0">
@@ -27,7 +27,7 @@ export const MobileTrackingPage = () => {
                   <img 
                     src="https://ceir.sancharsaathi.gov.in/images/ceir_logo.png"
                     alt="CEIR Portal"
-                    className="w-32 h-32 object-contain border border-[#E2E8F0] rounded-md bg-white p-2"
+                    className="w-32 h-32 object-contain border border-[#60A5FA] rounded-md bg-white p-2"
                     onError={(e) => {
                       e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="%232563EB" stroke-width="2"%3E%3Crect x="5" y="2" width="14" height="20" rx="2" ry="2"%3E%3C/rect%3E%3Cline x1="12" y1="18" x2="12.01" y2="18"%3E%3C/line%3E%3C/svg%3E';
                     }}
@@ -88,7 +88,7 @@ export const MobileTrackingPage = () => {
 
         {/* Additional Information Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="p-6 border border-[#E2E8F0] bg-white">
+          <Card className="p-6 border border-[#60A5FA] bg-white">
             <Shield className="w-10 h-10 text-[#16A34A] mb-4" />
             <h3 className="text-xl font-bold heading-font text-[#0F172A] mb-3">What is IMEI?</h3>
             <p className="text-sm text-[#475569] leading-relaxed mb-4">
@@ -102,7 +102,7 @@ export const MobileTrackingPage = () => {
             </ul>
           </Card>
 
-          <Card className="p-6 border border-[#E2E8F0] bg-white">
+          <Card className="p-6 border border-[#60A5FA] bg-white">
             <AlertCircle className="w-10 h-10 text-[#DC2626] mb-4" />
             <h3 className="text-xl font-bold heading-font text-[#0F172A] mb-3">Before You Lose Your Phone</h3>
             <p className="text-sm text-[#475569] leading-relaxed mb-4">

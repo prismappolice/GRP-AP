@@ -39,7 +39,7 @@ export const ComplaintPage = () => {
     return (
       <div className="min-h-screen pt-4 bg-[#F8FAFC] py-12">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card className="p-10 border border-[#E2E8F0] bg-white text-center">
+          <Card className="p-10 border border-[#60A5FA] bg-white text-center">
             <CheckCircle className="w-16 h-16 text-[#16A34A] mx-auto mb-4" />
             <h2 className="text-3xl font-extrabold heading-font text-[#0F172A] mb-2">Complaint Registered!</h2>
             <p className="text-[#475569] mb-6">Your complaint has been submitted. Please save your tracking number.</p>
@@ -69,7 +69,7 @@ export const ComplaintPage = () => {
           <p className="text-base text-[#475569] mt-2">Register your complaint with GRP. You will receive a tracking number.</p>
         </div>
 
-        <Card className="p-8 border border-[#E2E8F0] bg-white">
+        <Card className="p-8 border border-[#60A5FA] bg-white">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>

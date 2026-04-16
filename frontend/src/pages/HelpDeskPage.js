@@ -35,7 +35,7 @@ export const HelpDeskPage = () => {
           <p className="text-base text-[#475569] mt-2">Get assistance from our team</p>
         </div>
 
-        <Card className="p-8 border border-[#E2E8F0] bg-white">
+        <Card className="p-8 border border-[#60A5FA] bg-white">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <Label>Name *</Label>

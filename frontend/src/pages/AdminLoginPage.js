@@ -95,8 +95,9 @@ export default function AdminLoginPage() {
           srp: '/srp-dashboard',
           dsrp: '/dsrp-dashboard',
           irp: '/irp-dashboard',
+          dgp: '/dgp-dashboard',
         };
-        const dashboardPath = roleToDashboard[officerRole] || getOfficerScope(response.data.user).dashboardPath || '/dashboard';
+        const dashboardPath = roleToDashboard[normalisedRole] || '/dashboard';
         navigate(dashboardPath, { replace: true });
       } else {
         throw new Error('Unsupported login response');
@@ -122,7 +123,7 @@ export default function AdminLoginPage() {
           <h1 className="text-3xl font-extrabold heading-font text-[#0F172A]">GRP Portal</h1>
           <p className="text-sm text-[#475569] mt-2">Government Railway Police, Andhra Pradesh</p>
         </div>
-        <div className="p-8 border border-[#E2E8F0] bg-white rounded-lg">
+        <div className="p-8 border border-[#60A5FA] bg-white rounded-lg">
           <h2 className="text-2xl font-bold mb-6 text-center">Admin Login</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -193,16 +194,6 @@ export default function AdminLoginPage() {
               Select the account from the list and enter only the password.
             </p>
 
-            <div className="flex flex-row justify-between items-center">
-              <button
-                type="button"
-                className="text-sm text-[#2563EB] underline bg-transparent border-0 p-0 hover:opacity-80"
-                onClick={() => navigate('/login')}
-              >
-                File Complaint?
-              </button>
-            </div>
-            
             {lockout && <div className="text-xs text-red-600 text-center">Too many failed attempts. Please wait 15 seconds.</div>}
           </form>
         </div>

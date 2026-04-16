@@ -72,7 +72,7 @@ const UnidentifiedBodiesPage = () => {
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Page heading */}
-        <div className="bg-white border border-[#BFDBFE] rounded-2xl shadow-sm px-8 py-6 flex flex-col items-center text-center gap-3">
+        <div className="bg-white border border-[#60A5FA] rounded-2xl shadow-sm px-8 py-6 flex flex-col items-center text-center gap-3">
           <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#FEF2F2] border border-[#FECACA]">
             <AlertTriangle className="w-6 h-6 text-[#DC2626]" />
           </div>
@@ -81,7 +81,7 @@ const UnidentifiedBodiesPage = () => {
             <p className="text-sm text-[#64748B] mt-1">
               Records reported by AP Government Railway Police stations.
               {!loading && grouped.length > 0 && (
-                <span className="ml-2 inline-flex items-center bg-[#EFF6FF] text-[#1D4ED8] text-xs font-bold px-2 py-0.5 rounded-full border border-[#BFDBFE]">
+                <span className="ml-2 inline-flex items-center bg-[#EFF6FF] text-[#1D4ED8] text-xs font-bold px-2 py-0.5 rounded-full border border-[#60A5FA]">
                   {grouped.length} case{grouped.length !== 1 ? 's' : ''}
                 </span>
               )}
@@ -100,11 +100,11 @@ const UnidentifiedBodiesPage = () => {
         )}
 
         {/* Table */}
-        <Card className="border border-[#BFDBFE] shadow-sm rounded-xl">
+        <Card className="border border-[#60A5FA] shadow-sm rounded-xl">
           <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF] border-b-2 border-[#BFDBFE]">
+              <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF] border-b-2 border-[#60A5FA]">
                 {['S.No', 'Reported Date', 'Description', 'Station', 'Contact No', 'Images/Videos'].map((h) => (
                   <TableHead key={h} className="px-4 py-3 font-bold text-[#1E3A5F] border-r border-[#DBEAFE] last:border-r-0 whitespace-nowrap">
                     {h}
@@ -178,7 +178,7 @@ const UnidentifiedBodiesPage = () => {
           <DialogHeader className="mb-4">
             <DialogTitle className="text-[#0F172A]">Full Description</DialogTitle>
           </DialogHeader>
-          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 text-sm text-[#334155] whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+          <div className="bg-[#F8FAFC] border border-[#60A5FA] rounded-lg p-4 text-sm text-[#334155] whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
             {descModal}
           </div>
         </DialogContent>
@@ -238,7 +238,7 @@ const UnidentifiedBodiesPage = () => {
                 {viewGroup.mediaUrls.map((url, i) => (
                   <button key={i} onClick={() => setMediaIndex(i)}
                     className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                      i === mediaIndex ? 'border-[#2563EB]' : 'border-[#E2E8F0] hover:border-[#93C5FD]'
+                      i === mediaIndex ? 'border-[#2563EB]' : 'border-[#60A5FA] hover:border-[#60A5FA]'
                     }`}>
                     {isVideo(url) ? (
                       <div className="w-full h-full bg-[#E2E8F0] flex items-center justify-center">

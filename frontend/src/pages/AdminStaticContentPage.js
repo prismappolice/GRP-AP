@@ -13,7 +13,7 @@ const labelClass = 'text-sm font-semibold text-[#0F172A]';
 const fieldClass = 'space-y-2';
 
 const HistorySectionEditor = ({ section, index, onChange }) => (
-  <Card className="border border-[#E2E8F0] bg-white p-5 space-y-4">
+  <Card className="border border-[#60A5FA] bg-white p-5 space-y-4">
     <div className={fieldClass}>
       <label className={labelClass}>Section {index + 1} Title</label>
       <Input value={section.title} onChange={(event) => onChange(index, 'title', event.target.value)} />
@@ -170,7 +170,7 @@ const AdminStaticContentPage = () => {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {formData.dutyCards.map((card, index) => (
-                <Card key={card.title + index} className="border border-[#E2E8F0] bg-white p-5 space-y-3">
+                <Card key={card.title + index} className="border border-[#60A5FA] bg-white p-5 space-y-3">
                   <div className={fieldClass}>
                     <label className={labelClass}>Card {index + 1} Title</label>
                     <Input value={card.title} onChange={(event) => updateDutyCard(index, 'title', event.target.value)} />
@@ -294,7 +294,7 @@ const AdminStaticContentPage = () => {
           ))}
         </div>
 
-        <Card className="border border-[#E2E8F0] bg-white p-6">
+        <Card className="border border-[#60A5FA] bg-white p-6">
           {loading ? (
             <div className="py-12 text-center text-sm font-medium text-[#475569]">Loading page content...</div>
           ) : renderPageFields()}

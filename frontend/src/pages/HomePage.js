@@ -287,14 +287,14 @@ export const HomePage = () => {
             </div>
             {/* Quote */}
             <div className="flex-1 flex flex-col gap-4">
-              <span className="text-6xl leading-none text-[#BFDBFE] font-serif select-none">&ldquo;</span>
+              <span className="text-6xl leading-none text-[#60A5FA] font-serif select-none">&ldquo;</span>
               <p className="text-base sm:text-lg md:text-xl font-semibold text-[#1E3A5F] leading-relaxed -mt-4">
                 {pageContent.dgpQuote}
               </p>
               <p className="text-sm sm:text-base text-[#475569]">
                 The Andhra Pradesh Government Railway Police remains steadfast in its mission to protect passengers, prevent crime, and ensure swift justice. Our officers work round the clock across all railway zones to maintain law, order, and public safety.
               </p>
-              <div className="border-t border-[#E2E8F0] pt-3">
+              <div className="border-t border-[#60A5FA] pt-3">
                 <p className="text-sm font-bold text-red-700 text-center sm:text-right leading-snug">
                   &mdash;&nbsp;
                   <span className="sm:hidden">{pageContent.dgpSignature.replace('Andhra Pradesh', 'AP.')}</span>
@@ -409,7 +409,7 @@ export const HomePage = () => {
                   transition={{ delay: index * 0.1 }}
                 >
                   <Link to={action.link} data-testid={action.testId}>
-                    <Card className="p-5 border border-[#E2E8F0] hover:-translate-y-1 hover:shadow-lg transition-all duration-200 min-h-[230px] bg-white">
+                    <Card className="p-5 border border-[#60A5FA] hover:-translate-y-1 hover:shadow-lg transition-all duration-200 min-h-[230px] bg-white">
                       <div className={`${action.color} w-12 h-12 rounded-md flex items-center justify-center mb-3`}>
                         <Icon className="w-6 h-6 text-white" strokeWidth={2} />
                       </div>

@@ -393,22 +393,22 @@ export const AdminStationsPage = () => {
             Count: {rows.length}
           </div>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-[#E2E8F0]">
-          <Table className="border-collapse border border-[#E2E8F0]">
+        <div className="overflow-x-auto rounded-xl border border-[#60A5FA]">
+          <Table className="border-collapse border border-[#60A5FA]">
             <TableHeader className="bg-[#F8FAFC]">
-              <TableRow className="hover:bg-[#F8FAFC] border border-[#E2E8F0]">
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 w-20 text-left font-bold text-[#0F172A]">S.No</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Role</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Name</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Email</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Password</TableHead>
-                <TableHead className="border border-[#E2E8F0] px-4 py-3 font-bold text-[#0F172A]">Change Password</TableHead>
+              <TableRow className="hover:bg-[#F8FAFC] border border-[#60A5FA]">
+                <TableHead className="border border-[#60A5FA] px-4 py-3 w-20 text-left font-bold text-[#0F172A]">S.No</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Role</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Name</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Email</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Password</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Change Password</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
-                <TableRow className="border border-[#E2E8F0]">
-                  <TableCell colSpan={6} className="border border-[#E2E8F0] text-center py-4 text-[#64748B]">{emptyLabel}</TableCell>
+                <TableRow className="border border-[#60A5FA]">
+                  <TableCell colSpan={6} className="border border-[#60A5FA] text-center py-4 text-[#64748B]">{emptyLabel}</TableCell>
                 </TableRow>
               ) : (
                 rows.map((row, idx) => {
@@ -423,13 +423,13 @@ export const AdminStationsPage = () => {
                     displayRole = 'ADGP';
                   }
                   return (
-                    <TableRow key={row.id || idx} className="border border-[#E2E8F0]">
-                      <TableCell className="border border-[#E2E8F0]">{idx + 1}</TableCell>
-                      <TableCell className="border border-[#E2E8F0]">{displayRole}</TableCell>
-                      <TableCell className="border border-[#E2E8F0]">{row.name}</TableCell>
-                      <TableCell className="border border-[#E2E8F0]">{row.email || '--'}</TableCell>
-                      <TableCell className="border border-[#E2E8F0]">{row.password || '--'}</TableCell>
-                      <TableCell className="border border-[#E2E8F0]">
+                    <TableRow key={row.id || idx} className="border border-[#60A5FA]">
+                      <TableCell className="border border-[#60A5FA]">{idx + 1}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{displayRole}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{row.name}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{row.email || '--'}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{row.password || '--'}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">
                         <div className="flex min-w-[200px] gap-2">
                           <div className="relative flex-1">
                             <Input
@@ -489,7 +489,7 @@ export const AdminStationsPage = () => {
             { label: 'IRP', value: irpCredentials.length, icon: Network, color: 'bg-[#0891B2]', text: 'text-[#0891B2]' },
             { label: 'Station', value: stationCredentials.length, icon: Building2, color: 'bg-[#10B981]', text: 'text-[#10B981]' },
           ].map(({ label, value, icon: Icon, color, text }) => (
-            <Card key={label} className="p-4 border border-[#E2E8F0] bg-white">
+            <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
               <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
@@ -498,7 +498,7 @@ export const AdminStationsPage = () => {
             </Card>
           ))}
         </div>
-        <Card className="p-6 border border-[#E2E8F0] shadow-sm bg-white">
+        <Card className="p-6 border border-[#60A5FA] shadow-sm bg-white">
           <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-bold text-[#0F172A]">Admin Credentials</h2>

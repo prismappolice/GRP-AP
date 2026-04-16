@@ -193,8 +193,8 @@ const StationUnidentifiedBodiesPage = () => {
         </div>
 
         {/* Records Table */}
-        <Card className="overflow-hidden border border-[#E2E8F0] shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-6 py-4 flex-wrap gap-2">
+        <Card className="overflow-hidden border border-[#60A5FA] shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#60A5FA] bg-white px-6 py-4 flex-wrap gap-2">
             <div>
               <h2 className="text-xl font-bold text-[#0F172A]">Uploaded Records</h2>
               <p className="text-sm text-[#64748B]">Latest unidentified deadbody entries uploaded by stations are listed below.</p>
@@ -213,7 +213,7 @@ const StationUnidentifiedBodiesPage = () => {
 
           {/* Upload Form — collapsible */}
           {uploadOpen && (
-            <div className="border-b border-[#E2E8F0] bg-[#F8FAFC] px-6 py-5">
+            <div className="border-b border-[#60A5FA] bg-[#F8FAFC] px-6 py-5">
               <div className="mb-3 flex items-center gap-2">
                 <Upload className="h-4 w-4 text-[#2563EB]" />
                 <span className="text-sm font-semibold text-[#0F172A]">Upload New Record</span>
@@ -277,7 +277,7 @@ const StationUnidentifiedBodiesPage = () => {
 
 
           {/* Filter Bar */}
-          <div className="border-b border-[#E2E8F0] bg-white px-6 py-3">
+          <div className="border-b border-[#60A5FA] bg-white px-6 py-3">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="w-4 h-4 text-[#94A3B8] absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -412,7 +412,7 @@ const StationUnidentifiedBodiesPage = () => {
                 {viewGroup.mediaUrls.map((url, i) => (
                   <button key={i} onClick={() => setMediaIndex(i)}
                     className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                      i === mediaIndex ? 'border-[#2563EB]' : 'border-[#E2E8F0] hover:border-[#93C5FD]'
+                      i === mediaIndex ? 'border-[#2563EB]' : 'border-[#60A5FA] hover:border-[#60A5FA]'
                     }`}>
                     {/\.(mp4|webm|ogg|mov|avi)$/i.test(url) ? (
                       <div className="w-full h-full bg-[#E2E8F0] flex items-center justify-center">

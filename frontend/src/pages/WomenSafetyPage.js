@@ -18,24 +18,24 @@ export const WomenSafetyPage = () => {
         <ShakthiAppBanner />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="p-6 border border-[#E2E8F0] bg-white text-center">
+          <Card className="p-6 border border-[#60A5FA] bg-white text-center">
             <Phone className="w-10 h-10 text-[#DC2626] mx-auto mb-4" />
             <h3 className="font-bold text-lg text-[#0F172A] mb-2">Emergency Helpline</h3>
             <p className="text-2xl font-bold text-[#DC2626]">112</p>
           </Card>
-          <Card className="p-6 border border-[#E2E8F0] bg-white text-center">
+          <Card className="p-6 border border-[#60A5FA] bg-white text-center">
             <Phone className="w-10 h-10 text-[#DC2626] mx-auto mb-4" />
             <h3 className="font-bold text-lg text-[#0F172A] mb-2">Women Helpline</h3>
             <p className="text-2xl font-bold text-[#DC2626]">1091</p>
           </Card>
-          <Card className="p-6 border border-[#E2E8F0] bg-white text-center">
+          <Card className="p-6 border border-[#60A5FA] bg-white text-center">
             <Phone className="w-10 h-10 text-[#DC2626] mx-auto mb-4" />
             <h3 className="font-bold text-lg text-[#0F172A] mb-2">Child Helpline</h3>
             <p className="text-2xl font-bold text-[#DC2626]">1098</p>
           </Card>
         </div>
 
-        <Card className="p-8 border border-[#E2E8F0] bg-white mb-8">
+        <Card className="p-8 border border-[#60A5FA] bg-white mb-8">
           <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-6">Safety Guidelines</h2>
           <div className="space-y-4 text-base text-[#475569]">
             <div className="flex gap-3">

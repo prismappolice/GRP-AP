@@ -125,13 +125,32 @@ export const StationDashboardPage = () => {
     return Object.entries(counts).sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value }));
   }, [filteredComplaints]);
 
+  const crimeTypeByDateData = useMemo(() => {
+    const allTypes = [...new Set(filteredComplaints.map(c => (c.complaint_type || 'Unknown').replace(/_/g, ' ')))];
+    const byDate = {};
+    filteredComplaints.forEach(c => {
+      const d = (c.incident_date || '').substring(0, 10);
+      if (!d) return;
+      if (!byDate[d]) byDate[d] = { date: d };
+      const t = (c.complaint_type || 'Unknown').replace(/_/g, ' ');
+      byDate[d][t] = (byDate[d][t] || 0) + 1;
+    });
+    return { data: Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date)), types: allTypes };
+  }, [filteredComplaints]);
+
   const groupedUbRecords = useMemo(() => groupUbRecords(filteredUbRecords), [filteredUbRecords]);
 
   const ubByMonthData = useMemo(() => {
     const counts = {};
-    groupedUbRecords.forEach(r => { const m = (r.reported_date || '').substring(0, 7); if (m) counts[m] = (counts[m] || 0) + 1; });
+    groupedUbRecords.forEach(r => { const d = (r.reported_date || '').substring(0, 10); if (d) counts[d] = (counts[d] || 0) + 1; });
     return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => ({ name, value }));
   }, [groupedUbRecords]);
+
+  const complaintsByMonthData = useMemo(() => {
+    const counts = {};
+    filteredComplaints.forEach(c => { if (c.incident_date) { const d = c.incident_date.substring(0, 10); counts[d] = (counts[d] || 0) + 1; } });
+    return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => ({ name, value }));
+  }, [filteredComplaints]);
 
   const tableFiltered = useMemo(() => filteredComplaints.filter(c =>
     !tableSearch || [c.complaint_type, c.description, c.location, c.tracking_number, c.status]
@@ -249,7 +268,7 @@ export const StationDashboardPage = () => {
         {/* Quick Navigation */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <button type="button" onClick={() => navigate('/station-complaints')} className="text-left">
-            <Card className="p-4 border border-[#E2E8F0] hover:border-[#93C5FD] hover:bg-[#F8FAFF] hover:shadow-md transition-all cursor-pointer">
+            <Card className="p-4 border border-[#60A5FA] hover:border-[#60A5FA] hover:bg-[#F8FAFF] hover:shadow-md transition-all cursor-pointer">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-xs text-[#64748B]">Complaints</p>
@@ -263,7 +282,7 @@ export const StationDashboardPage = () => {
             </Card>
           </button>
           <button type="button" onClick={() => navigate('/station-unidentified-bodies')} className="text-left">
-            <Card className="p-4 border border-[#E2E8F0] hover:border-[#93C5FD] hover:bg-[#F8FAFF] hover:shadow-md transition-all cursor-pointer">
+            <Card className="p-4 border border-[#60A5FA] hover:border-[#60A5FA] hover:bg-[#F8FAFF] hover:shadow-md transition-all cursor-pointer">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-xs text-[#64748B]">Unidentified Bodies</p>
@@ -279,15 +298,15 @@ export const StationDashboardPage = () => {
         </div>
 
         {/* Filters + Export */}
-        <Card className="mb-6 p-4 border border-[#E2E8F0] bg-white">
+        <Card className="mb-6 p-4 border border-[#60A5FA] bg-white">
           <p className="text-xs font-semibold text-[#475569] mb-3 uppercase tracking-wide">Filter Charts</p>
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-[#64748B]">From Date</label>
+              <label className="text-xs text-[#64748B]">From</label>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-[#64748B]">To Date</label>
+              <label className="text-xs text-[#64748B]">To</label>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
             </div>
             <div className="flex flex-col gap-1">
@@ -310,7 +329,7 @@ export const StationDashboardPage = () => {
 
         {/* Charts Row 1: Status Pie + Crime Type Bar */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <Card className="p-5 border border-[#E2E8F0]">
+          <Card className="p-5 border border-[#60A5FA]">
             <h3 className="text-sm font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
               <FileText className="w-4 h-4 text-[#2563EB]" /> Complaint Status Breakdown
             </h3>
@@ -331,18 +350,21 @@ export const StationDashboardPage = () => {
             )}
           </Card>
 
-          <Card className="p-5 border border-[#E2E8F0]">
+          <Card className="p-5 border border-[#60A5FA]">
             <h3 className="text-sm font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[#7C3AED]" /> Complaints by Crime Type
+              <FileText className="w-4 h-4 text-[#7C3AED]" /> Complaints by Crime Type &amp; Date
             </h3>
-            {crimeTypeBarData.length > 0 ? (
+            {crimeTypeByDateData.data.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={crimeTypeBarData} margin={{ top: 5, right: 10, left: -10, bottom: 55 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis dataKey="name" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} interval={0} />
+                <BarChart data={crimeTypeByDateData.data} margin={{ top: 5, right: 10, left: -10, bottom: 55 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="date" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} interval={0} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="value" name="Complaints" fill="#7C3AED" radius={[4, 4, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {crimeTypeByDateData.types.map((t, i) => (
+                    <Bar key={t} dataKey={t} stackId="a" fill={BAR_COLORS[i % BAR_COLORS.length]} radius={i === crimeTypeByDateData.types.length - 1 ? [4,4,0,0] : [0,0,0,0]} />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -351,18 +373,35 @@ export const StationDashboardPage = () => {
           </Card>
         </div>
 
-        {/* Chart: UB by Month */}
-        <Card className="p-5 border border-[#E2E8F0]">
+        {/* Charts row 2 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Card className="p-5 border border-[#60A5FA]">
+            <h3 className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Date </h3>
+            {complaintsByMonthData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={complaintsByMonthData} margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Complaints" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[240px] items-center justify-center text-[#94A3B8] text-sm">No complaint data for selected filters</div>
+            )}
+          </Card>
+          <Card className="p-5 border border-[#60A5FA]">
           <h3 className="text-sm font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
             <Upload className="w-4 h-4 text-[#059669]" />
-            Unidentified Bodies — Report Trend by Month
+            Unidentified Bodies by Date 
             <span className="ml-auto text-xs text-[#64748B] font-normal">{groupedUbRecords.length} total</span>
           </h3>
           {ubByMonthData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={ubByMonthData} margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip />
                 <Bar dataKey="value" name="Bodies Reported" fill="#059669" radius={[4, 4, 0, 0]} />
@@ -371,7 +410,8 @@ export const StationDashboardPage = () => {
           ) : (
             <div className="flex h-[240px] items-center justify-center text-[#94A3B8] text-sm">No unidentified body records for selected date range</div>
           )}
-        </Card>
+          </Card>
+        </div>
 
       </div>
     </div>

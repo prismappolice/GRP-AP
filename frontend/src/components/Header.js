@@ -2,8 +2,6 @@ import React from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet';
-import { STATIC_PAGE_OPTIONS } from '@/data/staticPageContent';
 import { Phone, Menu, LogOut, User } from 'lucide-react';
 
 export const Header = () => {
@@ -44,55 +42,11 @@ export const Header = () => {
     { to: '/services', label: 'Services', testId: 'services-link' },
   ];
 
-  const irpPhones = [
-    '9247585710', '9247585711', '9247585716', '9247585717', '9247585726', '9247585727',
-    '9247585728', '9247585736', '9247585737', '9247585738', '9247575608', '9247575612',
-    '9247575617', '9247575620', '9247575623', '9247575627',
-  ];
-
-  const dsrpPhones = [
-    '9247585709', '9247585715', '9247585725', '9247585736', '9247575603', '9247575617', '9247575626',
-  ];
-
-  const srpPhones = ['9247585800', '9247575601'];
-
-  const normalizedPhone = String(user?.phone || '').replace(/\D+/g, '');
-  const normalizedName = String(user?.name || '').toLowerCase();
-  const isSRPUser = Boolean(
-    user?.role === 'police' && (
-      normalizedName.includes('srp') ||
-      normalizedName.includes('superintendent') ||
-      normalizedName.includes('vijayawada') ||
-      normalizedName.includes('guntakal') ||
-      srpPhones.includes(normalizedPhone)
-    )
-  );
-  const isDGPUser = Boolean(
-    user?.role === 'police' && (
-      normalizedName.includes('adgp') ||
-      normalizedName.includes('dgp') ||
-      normalizedName.includes('dig') ||
-      normalizedName.includes('director general') ||
-      normalizedName.includes('directorgeneral') ||
-      normalizedName.includes('deputy inspector general') ||
-      normalizedName.includes('deputyinspectorgeneral')
-    )
-  );
-  const isDSRPUser = Boolean(
-    user?.role === 'police' && (
-      normalizedName.includes('dsrp') ||
-      normalizedName.includes('sub division') ||
-      dsrpPhones.includes(normalizedPhone)
-    )
-  );
-  const isIRPUser = Boolean(
-    user?.role === 'police' && (
-      normalizedName.includes('irp') ||
-      normalizedName.includes('circle') ||
-      irpPhones.includes(normalizedPhone)
-    )
-  );
-  const isPoliceUser = Boolean(user?.role === 'police');
+  const isSRPUser = user?.role === 'srp';
+  const isDGPUser = user?.role === 'dgp';
+  const isDSRPUser = user?.role === 'dsrp';
+  const isIRPUser = user?.role === 'irp';
+  const isStationUser = user?.role === 'station';
   const isSuperiorPoliceUser = Boolean(isIRPUser || isDSRPUser || isSRPUser || isDGPUser);
 
   const policeDashboardPath = isDGPUser
@@ -106,7 +60,7 @@ export const Header = () => {
           : '/station-dashboard';
 
   const policeUnidentifiedBodiesPath = isSuperiorPoliceUser
-    ? '/unidentified-bodies'
+    ? '/police-unidentified-bodies'
     : '/station-unidentified-bodies';
 
   const policeComplaintsPath = isSuperiorPoliceUser ? '/police-complaints' : '/station-complaints';
@@ -127,18 +81,17 @@ export const Header = () => {
   };
 
   const handleAdminLogout = () => {
-    logout();
-    navigate('/admin-login', { replace: true });
+    logout('/admin-login');
   };
 
   const loggedInDisplayName = effectiveIsAdmin ? adminDisplayName : user?.name || '';
-  const isPoliceSession = Boolean(user && ['police', 'officer', 'station', 'srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'].includes(user.role));
+  const isPoliceSession = Boolean(user && ['station', 'srp', 'dsrp', 'irp', 'dgp'].includes(user.role));
   const handleSessionLogout = (effectiveIsAdmin || isPoliceSession) ? handleAdminLogout : handleLogout;
 
   const navLinks = effectiveIsAdmin
     ? adminLinks
     : (user
-      ? ((['police', 'officer', 'station', 'srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'].includes(user.role)) ? policeLinks : publicLinks)
+      ? (['station', 'srp', 'dsrp', 'irp', 'dgp'].includes(user.role) ? policeLinks : publicLinks)
       : publicLinks);
 
   return (
@@ -146,37 +99,6 @@ export const Header = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           <div className="flex items-center gap-3">
-            {effectiveIsAdmin ? (
-              <Sheet>
-                <SheetTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#CBD5E1] bg-white text-[#0F172A] shadow-sm transition-colors hover:border-[#2563EB] hover:text-[#2563EB]"
-                    data-testid="admin-content-sidebar-trigger"
-                  >
-                    <Menu className="h-5 w-5" />
-                  </button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-[320px] pt-20 border-r border-[#E2E8F0] bg-[#F8FAFC] px-5">
-                  <div className="mt-6 space-y-3">
-                    {STATIC_PAGE_OPTIONS.map((page) => {
-                      const isActive = location.pathname === page.adminPath;
-                      return (
-                        <SheetClose asChild key={page.key}>
-                          <Link
-                            to={page.adminPath}
-                            className={`block rounded-2xl border px-4 py-3 transition-colors ${isActive ? 'border-[#2563EB] bg-[#DBEAFE]' : 'border-[#E2E8F0] bg-white hover:border-[#2563EB]'}`}
-                          >
-                            <div className="text-sm font-bold text-[#0F172A]">{page.label}</div>
-                            <div className="mt-1 text-xs text-[#475569]">{page.description}</div>
-                          </Link>
-                        </SheetClose>
-                      );
-                    })}
-                  </div>
-                </SheetContent>
-              </Sheet>
-            ) : null}
 
             {isLoggedInSession ? (
               <div className="flex items-center gap-3 select-none" data-testid="logo-link">
@@ -227,7 +149,7 @@ export const Header = () => {
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2"
-                    data-testid={effectiveIsAdmin ? 'admin-session-button' : isPoliceUser ? 'police-session-button' : 'user-session-button'}
+                    data-testid={effectiveIsAdmin ? 'admin-session-button' : isPoliceSession ? 'police-session-button' : 'user-session-button'}
                   >
                     <User className="w-4 h-4" />
                     <span>{loggedInDisplayName}</span>
@@ -256,7 +178,7 @@ export const Header = () => {
         <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-b border-gray-200 lg:hidden z-50" data-testid="mobile-menu">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-3">
               {(effectiveIsAdmin || isPoliceSession) ? (
-                <div className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A]">
+                <div className="flex items-center gap-2 rounded-md border border-[#60A5FA] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A]">
                   <User className="w-4 h-4" />
                   <span>{loggedInDisplayName}</span>
                 </div>
@@ -268,7 +190,7 @@ export const Header = () => {
                 </NavLink>
               ))}
               {(effectiveIsAdmin || isPoliceSession) ? (
-                <button onClick={() => { handleSessionLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
+                <button onClick={() => { handleSessionLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-md border border-[#60A5FA] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
                   <User className="w-4 h-4" />
                   <span>{loggedInDisplayName}</span>
                   <LogOut className="w-4 h-4" />

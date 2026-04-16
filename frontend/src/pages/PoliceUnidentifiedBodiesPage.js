@@ -3,35 +3,45 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
-import { irpAPI, dsrpAPI, srpAPI, dgpAPI } from '@/lib/api';
+import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { irpAPI, dsrpAPI, srpAPI, dgpAPI, normalizeMediaUrl } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
 
-const STATUS_COLORS = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  investigating: 'bg-blue-100 text-blue-800',
-  resolved: 'bg-green-100 text-green-800',
-  approved: 'bg-emerald-100 text-emerald-800',
-  rejected: 'bg-red-100 text-red-800',
-  closed: 'bg-gray-100 text-gray-700',
-};
-
-const COMPLAINT_COLS = [
-  { key: 'tracking_number', label: 'Tracking #' },
-  { key: 'complaint_type', label: 'Crime Type' },
+const UB_COLS = [
   { key: 'station', label: 'Station' },
-  { key: 'location', label: 'Location' },
-  { key: 'incident_date', label: 'Date' },
-  { key: 'status', label: 'Status' },
+  { key: 'reported_date', label: 'Reported Date' },
   { key: 'description', label: 'Description' },
+  { key: 'media_count', label: 'Media' },
 ];
+
+function groupRecords(records) {
+  const map = new Map();
+  for (const r of records) {
+    const key = `${r.station}||${r.reported_date}||${r.description}`;
+    const incomingUrls = Array.isArray(r.media_urls) && r.media_urls.length
+      ? r.media_urls
+      : (r.image_url ? [r.image_url] : []);
+    const incomingIds = Array.isArray(r.ids) && r.ids.length
+      ? r.ids
+      : (r.id ? [r.id] : []);
+    if (!map.has(key)) map.set(key, { ...r, mediaUrls: [], ids: [] });
+    const grouped = map.get(key);
+    incomingUrls.forEach(url => { if (url && !grouped.mediaUrls.includes(url)) grouped.mediaUrls.push(url); });
+    incomingIds.forEach(id => { if (id && !grouped.ids.includes(id)) grouped.ids.push(id); });
+  }
+  return Array.from(map.values());
+}
 
 function exportToCSV(filename, rows) {
   if (!rows.length) return;
-  const headerRow = COMPLAINT_COLS.map(h => `"${h.label}"`).join(',');
+  const headerRow = UB_COLS.map(h => `"${h.label}"`).join(',');
   const dataRows = rows.map(row =>
-    COMPLAINT_COLS.map(h => `"${String(row[h.key] || '').replace(/_/g, ' ').replace(/"/g, '""')}"`).join(',')
+    UB_COLS.map(h => {
+      const val = h.key === 'media_count' ? String(row.mediaUrls?.length || 0) : String(row[h.key] || '');
+      return `"${val.replace(/"/g, '""')}"`;
+    }).join(',')
   );
   const csv = [headerRow, ...dataRows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -51,32 +61,34 @@ function getAPIForRole(role) {
   return dgpAPI;
 }
 
-export const PoliceComplaintsPage = () => {
+export const PoliceUnidentifiedBodiesPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [complaints, setComplaints] = useState([]);
+  const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [crimeTypeFilter, setCrimeTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [divisionFilter, setDivisionFilter] = useState('');
   const [subdivisionFilter, setSubdivisionFilter] = useState('');
   const [circleFilter, setCircleFilter] = useState('');
   const [stationFilter, setStationFilter] = useState('');
   const [searchText, setSearchText] = useState('');
 
+  // Media viewer state
+  const [viewGroup, setViewGroup] = useState(null);
+  const [mediaIndex, setMediaIndex] = useState(0);
+  const [descModal, setDescModal] = useState(null);
+
   const scope = useMemo(() => getOfficerScope(user), [user]);
   const role = user?.role || '';
-  const dashboardPath = scope.dashboardPath || '/station-dashboard';
+  const dashboardPath = scope.dashboardPath || '/irp-dashboard';
 
-  // Hierarchy scope details per role
   const srpScope = useMemo(() => (role === 'srp' ? getSRPScopeDetails(user) : null), [user, role]);
   const dsrpScope = useMemo(() => (role === 'dsrp' ? getDSRPScopeDetails(user) : null), [user, role]);
 
-  // --- Available options from static stations data (not from complaint data) ---
+  // --- Available hierarchy options from static stations data ---
   const availableDivisions = useMemo(() => {
     if (role === 'dgp') return stations.map(d => d.division).filter(Boolean);
     return [];
@@ -87,9 +99,7 @@ export const PoliceComplaintsPage = () => {
       const divs = divisionFilter ? stations.filter(d => d.division === divisionFilter) : stations;
       return divs.flatMap(d => (d.subdivisions || []).map(s => s.name)).filter(Boolean);
     }
-    if (role === 'srp' && srpScope) {
-      return srpScope.subdivisions.map(s => s.name);
-    }
+    if (role === 'srp' && srpScope) return srpScope.subdivisions.map(s => s.name);
     return [];
   }, [role, divisionFilter, srpScope]);
 
@@ -107,9 +117,7 @@ export const PoliceComplaintsPage = () => {
         .filter(s => !subdivisionFilter || s.name === subdivisionFilter)
         .flatMap(s => s.circles.map(c => c.name));
     }
-    if (role === 'dsrp' && dsrpScope) {
-      return dsrpScope.circles.map(c => c.name);
-    }
+    if (role === 'dsrp' && dsrpScope) return dsrpScope.circles.map(c => c.name);
     return [];
   }, [role, divisionFilter, subdivisionFilter, srpScope, dsrpScope]);
 
@@ -138,9 +146,7 @@ export const PoliceComplaintsPage = () => {
         .filter(c => !circleFilter || c.name === circleFilter)
         .flatMap(c => c.stations);
     }
-    if (role === 'irp') {
-      return scope.stations || [];
-    }
+    if (role === 'irp') return scope.stations || [];
     return [];
   }, [role, divisionFilter, subdivisionFilter, circleFilter, srpScope, dsrpScope, scope]);
 
@@ -149,10 +155,10 @@ export const PoliceComplaintsPage = () => {
     setError(null);
     try {
       const api = getAPIForRole(user?.role);
-      const res = await api.getComplaints();
-      setComplaints(res.data || []);
+      const res = await api.getUnidentifiedBodies();
+      setRecords(res.data || []);
     } catch {
-      setError('Failed to load complaints. Please try again.');
+      setError('Failed to load records. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -160,38 +166,31 @@ export const PoliceComplaintsPage = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  const crimeTypeOptions = useMemo(() => (
-    [...new Set(complaints.map(c => c.complaint_type).filter(Boolean))]
-  ), [complaints]);
+  const grouped = useMemo(() => groupRecords(records), [records]);
 
-  const filtered = useMemo(() => complaints.filter(c => {
-    if (dateFrom && (c.incident_date || '') < dateFrom) return false;
-    if (dateTo && (c.incident_date || '') > dateTo) return false;
-    if (crimeTypeFilter && c.complaint_type !== crimeTypeFilter) return false;
-    if (statusFilter && c.status !== statusFilter) return false;
-    // Hierarchy filtering
+  const filtered = useMemo(() => grouped.filter(r => {
+    if (dateFrom && (r.reported_date || '') < dateFrom) return false;
+    if (dateTo && (r.reported_date || '') > dateTo) return false;
     if (divisionFilter || subdivisionFilter || circleFilter || stationFilter) {
-      const h = getStationHierarchy(c.station);
+      const h = getStationHierarchy(r.station);
       if (divisionFilter && h.division !== divisionFilter) return false;
       if (subdivisionFilter && h.subdivision !== subdivisionFilter) return false;
       if (circleFilter && h.circle !== circleFilter) return false;
-      if (stationFilter && c.station !== stationFilter) return false;
+      if (stationFilter && r.station !== stationFilter) return false;
     }
     if (searchText) {
       const q = searchText.toLowerCase();
-      const inTracking = (c.tracking_number || '').toLowerCase().includes(q);
-      const inDesc = (c.description || '').toLowerCase().includes(q);
-      const inLocation = (c.location || '').toLowerCase().includes(q);
-      if (!inTracking && !inDesc && !inLocation) return false;
+      if (
+        !(r.station || '').toLowerCase().includes(q) &&
+        !(r.description || '').toLowerCase().includes(q)
+      ) return false;
     }
     return true;
-  }), [complaints, dateFrom, dateTo, crimeTypeFilter, statusFilter, divisionFilter, subdivisionFilter, circleFilter, stationFilter, searchText]);
+  }), [grouped, dateFrom, dateTo, divisionFilter, subdivisionFilter, circleFilter, stationFilter, searchText]);
 
   const handleReset = () => {
     setDateFrom('');
     setDateTo('');
-    setCrimeTypeFilter('');
-    setStatusFilter('');
     setDivisionFilter('');
     setSubdivisionFilter('');
     setCircleFilter('');
@@ -202,6 +201,8 @@ export const PoliceComplaintsPage = () => {
   const inputCls = 'h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]';
   const labelCls = 'text-xs font-semibold text-[#64748B] mb-1';
 
+  const isVideo = (url) => /\.(mp4|webm|ogg|mov)(\?|$)/i.test(url || '');
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-5">
@@ -211,7 +212,7 @@ export const PoliceComplaintsPage = () => {
           <div>
             <div className="flex items-center gap-3 mb-1">
               <ShieldCheck className="w-7 h-7 text-[#2563EB]" />
-              <h1 className="text-2xl font-extrabold text-[#0F172A] heading-font">Complaints</h1>
+              <h1 className="text-2xl font-extrabold text-[#0F172A] heading-font">Unidentified Dead Bodies</h1>
             </div>
             <p className="text-[#475569] text-sm">
               Officer: <span className="font-semibold text-[#0F172A]">{user?.name || '-'}</span>
@@ -230,7 +231,7 @@ export const PoliceComplaintsPage = () => {
         <Card className="p-5 border border-[#60A5FA]">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
             <div>
-              <h1 className="text-xl font-extrabold text-[#0F172A]">Complaints</h1>
+              <h1 className="text-xl font-extrabold text-[#0F172A]">Unidentified Dead Bodies</h1>
               <p className="text-sm text-[#64748B] mt-0.5">{filtered.length} record{filtered.length !== 1 ? 's' : ''} found</p>
             </div>
             <button
@@ -253,29 +254,13 @@ export const PoliceComplaintsPage = () => {
               <span className={labelCls}>To</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={inputCls} />
             </div>
-            <div className="flex flex-col">
-              <span className={labelCls}>Crime Type</span>
-              <select value={crimeTypeFilter} onChange={e => setCrimeTypeFilter(e.target.value)} className={inputCls}>
-                <option value="">All Types</option>
-                {crimeTypeOptions.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <span className={labelCls}>Status</span>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={inputCls}>
-                <option value="">All Status</option>
-                {['pending', 'investigating', 'resolved', 'approved', 'rejected', 'closed'].map(s => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
-              </select>
-            </div>
 
             {/* Division — DGP only */}
             {availableDivisions.length > 0 && (
               <div className="flex flex-col">
                 <span className={labelCls}>Division</span>
                 <select value={divisionFilter} onChange={e => { setDivisionFilter(e.target.value); setSubdivisionFilter(''); setCircleFilter(''); setStationFilter(''); }} className={inputCls}>
-                  <option value="">All divisions</option>
+                  <option value="">All Divisions</option>
                   {availableDivisions.map(d => (
                     <option key={d} value={d}>{d === 'Vijayawada' ? 'SRP Vijayawada' : d === 'Guntakal' ? 'SRP Guntakal' : d}</option>
                   ))}
@@ -288,7 +273,7 @@ export const PoliceComplaintsPage = () => {
               <div className="flex flex-col">
                 <span className={labelCls}>Subdivision</span>
                 <select value={subdivisionFilter} onChange={e => { setSubdivisionFilter(e.target.value); setCircleFilter(''); setStationFilter(''); }} className={inputCls}>
-                  <option value="">All subdivisions</option>
+                  <option value="">All Subdivisions</option>
                   {availableSubdivisions.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
@@ -299,7 +284,7 @@ export const PoliceComplaintsPage = () => {
               <div className="flex flex-col">
                 <span className={labelCls}>Circle</span>
                 <select value={circleFilter} onChange={e => { setCircleFilter(e.target.value); setStationFilter(''); }} className={inputCls}>
-                  <option value="">All circles</option>
+                  <option value="">All Circles</option>
                   {availableCircles.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -322,7 +307,7 @@ export const PoliceComplaintsPage = () => {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#94A3B8]" />
                 <input
                   type="text"
-                  placeholder="Tracking #, description…"
+                  placeholder="Station, description…"
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   className={`${inputCls} pl-8 w-full`}
@@ -339,7 +324,7 @@ export const PoliceComplaintsPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => exportToCSV(`complaints_${new Date().toISOString().slice(0, 10)}.csv`, filtered)}
+              onClick={() => exportToCSV(`unidentified_bodies_${new Date().toISOString().slice(0, 10)}.csv`, filtered)}
               className="self-end inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
@@ -359,52 +344,59 @@ export const PoliceComplaintsPage = () => {
               <button
                 type="button"
                 onClick={fetchData}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#60A5FA] bg-white text-sm font-semibold text-[#0F172A] hover:border-[#2563EB] transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-                Retry
+                Try Again
               </button>
             </div>
           )}
 
           {!loading && !error && (
             <div className="overflow-x-auto rounded-lg border border-[#60A5FA]">
-              <Table>
+              <Table className="border-collapse w-full">
                 <TableHeader>
                   <TableRow className="bg-[#F1F5F9]">
-                    <TableHead className="text-xs font-bold text-[#64748B]">S.No</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Tracking #</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Crime Type</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Station</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Location</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Date</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Status</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Description</TableHead>
+                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 w-12 border border-[#60A5FA] px-3">S.No</TableHead>
+                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Station</TableHead>
+                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Reported Date</TableHead>
+                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Description</TableHead>
+                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Media</TableHead>
+                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">View</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10 text-[#94A3B8]">
-                        No complaints found.
+                      <TableCell colSpan={6} className="text-center text-[#94A3B8] py-14 text-sm border border-[#60A5FA]">
+                        No records found.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((c, i) => (
-                      <TableRow key={c.id || i} className="hover:bg-[#F8FAFC]">
-                        <TableCell className="text-sm text-[#64748B]">{i + 1}</TableCell>
-                        <TableCell className="text-sm font-mono font-semibold text-[#2563EB]">{c.tracking_number || '-'}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{(c.complaint_type || '-').replace(/_/g, ' ')}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{c.station || '-'}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{c.location || '-'}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{c.incident_date || '-'}</TableCell>
-                        <TableCell>
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}>
-                            {c.status || '-'}
-                          </span>
+                    filtered.map((r, i) => (
+                      <TableRow key={i} className="hover:bg-[#F8FAFC] transition-colors">
+                        <TableCell className="text-sm text-[#94A3B8] py-3 text-center border border-[#60A5FA] px-3">{i + 1}</TableCell>
+                        <TableCell className="font-medium text-[#0F172A] text-sm py-3 whitespace-nowrap border border-[#60A5FA] px-3">{r.station || '-'}</TableCell>
+                        <TableCell className="text-sm text-[#475569] py-3 whitespace-nowrap border border-[#60A5FA] px-3">{r.reported_date || '-'}</TableCell>
+                        <TableCell className="text-sm py-3 max-w-xs border border-[#60A5FA] px-3">
+                          <div
+                            className="line-clamp-2 break-words cursor-pointer text-[#2563EB] hover:text-[#1D4ED8] hover:underline font-medium"
+                            title="Click to view full description"
+                            onClick={() => setDescModal(r.description)}
+                          >{r.description || '-'}</div>
                         </TableCell>
-                        <TableCell className="text-sm text-[#475569] max-w-[220px] truncate" title={c.description || ''}>
-                          {c.description || '-'}
+                        <TableCell className="text-sm text-[#475569] py-3 whitespace-nowrap border border-[#60A5FA] px-3">{r.mediaUrls?.length || 0} file{(r.mediaUrls?.length || 0) !== 1 ? 's' : ''}</TableCell>
+                        <TableCell className="py-3 border border-[#60A5FA] px-3">
+                          {r.mediaUrls?.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => { setViewGroup(r); setMediaIndex(0); }}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View
+                            </button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -415,8 +407,70 @@ export const PoliceComplaintsPage = () => {
           )}
         </Card>
       </div>
+
+      {/* Description Dialog */}
+      <Dialog open={!!descModal} onOpenChange={open => { if (!open) setDescModal(null); }}>
+        <DialogContent className="max-w-lg mt-16">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-[#0F172A]">Full Description</DialogTitle>
+          </DialogHeader>
+          <div className="bg-[#F8FAFC] border border-[#60A5FA] rounded-lg p-4 text-sm text-[#334155] whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+            {descModal}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Media Viewer Dialog */}
+      <Dialog open={!!viewGroup} onOpenChange={open => { if (!open) { setViewGroup(null); setMediaIndex(0); } }}>
+        <DialogContent className="max-w-2xl w-full">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[#0F172A]">
+              {viewGroup?.station} — {viewGroup?.reported_date}
+            </DialogTitle>
+          </DialogHeader>
+          {viewGroup && (
+            <div className="space-y-3">
+              <p className="text-sm text-[#475569]">{viewGroup.description}</p>
+              <div className="relative flex items-center justify-center bg-[#F1F5F9] rounded-lg overflow-hidden min-h-[300px]">
+                {isVideo(viewGroup.mediaUrls[mediaIndex]) ? (
+                  <video
+                    src={normalizeMediaUrl(viewGroup.mediaUrls[mediaIndex])}
+                    controls
+                    className="max-h-[420px] max-w-full rounded"
+                  />
+                ) : (
+                  <img
+                    src={normalizeMediaUrl(viewGroup.mediaUrls[mediaIndex])}
+                    alt={`Media ${mediaIndex + 1}`}
+                    className="max-h-[420px] max-w-full object-contain rounded"
+                  />
+                )}
+                {viewGroup.mediaUrls.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setMediaIndex(i => (i - 1 + viewGroup.mediaUrls.length) % viewGroup.mediaUrls.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMediaIndex(i => (i + 1) % viewGroup.mediaUrls.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-center text-[#94A3B8]">{mediaIndex + 1} / {viewGroup.mediaUrls.length}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
-export default PoliceComplaintsPage;
+export default PoliceUnidentifiedBodiesPage;

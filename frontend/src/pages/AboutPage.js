@@ -24,7 +24,7 @@ export const AboutPage = () => {
               <img
                 src={pageContent.imageUrl}
                 alt="Vijayawada Railway Station"
-                className="w-full h-[400px] object-cover rounded-md border border-[#E2E8F0]"
+                className="w-full h-[400px] object-cover rounded-md border border-[#60A5FA]"
               />
             </div>
             <div>
@@ -43,7 +43,7 @@ export const AboutPage = () => {
               {pageContent.dutyCards.map((card, index) => {
                 const Icon = dutyIcons[index] || Shield;
                 return (
-                  <Card key={card.title + index} className="p-6 border border-[#E2E8F0] bg-white">
+                  <Card key={card.title + index} className="p-6 border border-[#60A5FA] bg-white">
                     <Icon className="w-10 h-10 text-[#2563EB] mb-4" />
                     <h3 className="text-xl font-bold heading-font text-[#0F172A] mb-3">{card.title}</h3>
                     <p className="text-sm text-[#475569] leading-relaxed">{card.description}</p>
@@ -53,7 +53,7 @@ export const AboutPage = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-md p-8">
+          <div className="bg-white border border-[#60A5FA] rounded-md p-8">
             <h2 className="text-2xl sm:text-3xl font-bold heading-font text-[#0F172A] mb-6">{pageContent.comparisonTitle}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>

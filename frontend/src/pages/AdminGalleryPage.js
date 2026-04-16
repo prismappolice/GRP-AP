@@ -250,7 +250,7 @@ const AdminGalleryPage = () => {
             { label: 'Gallery Items', value: gallery.length, icon: Image, color: 'bg-[#2563EB]', text: 'text-[#2563EB]' },
             { label: 'News Items', value: newsItems.length, icon: Newspaper, color: 'bg-[#D97706]', text: 'text-[#D97706]' },
           ].map(({ label, value, icon: Icon, color, text }) => (
-            <Card key={label} className="p-4 border border-[#E2E8F0] bg-white">
+            <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
               <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
@@ -263,7 +263,7 @@ const AdminGalleryPage = () => {
         {/* ── Gallery Tab ── */}
         {activeTab === 'gallery' && (
           <>
-            <Card className="p-8 mb-8 border border-[#E2E8F0] shadow-sm bg-white">
+            <Card className="p-8 mb-8 border border-[#60A5FA] shadow-sm bg-white">
               <h2 className="text-2xl font-bold mb-6">Upload Gallery Media</h2>
               <div className="border rounded-lg p-4 bg-gray-50">
                 <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -307,7 +307,7 @@ const AdminGalleryPage = () => {
               </div>
             </Card>
 
-            <Card className="p-8 border border-[#E2E8F0] shadow-sm bg-white">
+            <Card className="p-8 border border-[#60A5FA] shadow-sm bg-white">
               <h2 className="text-xl font-bold mb-4">Gallery Items</h2>
               {gallery.length === 0 ? (
                 <p className="text-gray-400">No gallery items yet.</p>
@@ -349,7 +349,7 @@ const AdminGalleryPage = () => {
         {/* ── Latest News Tab ── */}
         {activeTab === 'news' && (
           <>
-          <Card className="p-8 border border-[#E2E8F0] shadow-sm bg-white">
+          <Card className="p-8 border border-[#60A5FA] shadow-sm bg-white">
             <h2 className="text-2xl font-bold mb-6">Update Latest News</h2>
             <form onSubmit={handleNewsSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
@@ -460,7 +460,7 @@ const AdminGalleryPage = () => {
           </Card>
 
           {/* News Items Table */}
-          <Card className="p-8 mt-8 border border-[#E2E8F0] shadow-sm bg-white">
+          <Card className="p-8 mt-8 border border-[#60A5FA] shadow-sm bg-white">
             <h2 className="text-xl font-bold mb-4">News Items</h2>
             {newsItems.length === 0 ? (
               <p className="text-gray-400">No news items yet.</p>
@@ -536,7 +536,7 @@ const AdminGalleryPage = () => {
                       key={`${previewItem.id || 'preview'}-${i}`}
                       src={image?.url}
                       alt={image?.name || `gallery-${i}`}
-                      className="w-full h-64 object-cover rounded border border-[#E2E8F0]"
+                      className="w-full h-64 object-cover rounded border border-[#60A5FA]"
                     />
                   ))}
                 </div>

@@ -27,7 +27,7 @@ export const ServicesPage = () => {
             const Icon = service.icon;
             return (
               <Link key={idx} to={service.link}>
-                <Card className="p-8 border border-[#E2E8F0] bg-white hover:-translate-y-1 hover:shadow-lg transition-all duration-200 h-full">
+                <Card className="p-8 border border-[#60A5FA] bg-white hover:-translate-y-1 hover:shadow-lg transition-all duration-200 h-full">
                   <div className={`${service.color} w-14 h-14 rounded-md flex items-center justify-center mb-4`}>
                     <Icon className="w-7 h-7 text-white" strokeWidth={2} />
                   </div>

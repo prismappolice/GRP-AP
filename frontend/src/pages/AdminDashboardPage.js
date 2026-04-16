@@ -51,16 +51,18 @@ const AdminDashboardPage = () => {
     policeUsers: 0,
     latestNews: 0,
     complaints: 0,
+    helpRequests: 0,
   });
 
   useEffect(() => {
     const loadCounts = async () => {
       try {
-        const [galleryRes, policeUsersRes, newsRes, complaintsRes] = await Promise.all([
+        const [galleryRes, policeUsersRes, newsRes, complaintsRes, helpRes] = await Promise.all([
           api.get('/gallery-items'),
           api.get('/admin/credentials'),
           api.get('/news-items'),
           api.get('/complaints'),
+          api.get('/admin/help-requests'),
         ]);
 
         setCounts({
@@ -68,6 +70,7 @@ const AdminDashboardPage = () => {
           policeUsers: Array.isArray(policeUsersRes.data) ? policeUsersRes.data.length : 0,
           latestNews: Array.isArray(newsRes.data) ? newsRes.data.length : 0,
           complaints: Array.isArray(complaintsRes.data) ? complaintsRes.data.length : 0,
+          helpRequests: Array.isArray(helpRes.data) ? helpRes.data.length : 0,
         });
       } catch (error) {
         console.error('Failed to load admin dashboard counts:', error);
@@ -87,6 +90,8 @@ const AdminDashboardPage = () => {
         return counts.latestNews;
       case 'Complaints':
         return counts.complaints;
+      case 'Help Requests':
+        return counts.helpRequests;
       default:
         return 0;
     }
@@ -107,7 +112,7 @@ const AdminDashboardPage = () => {
             const Icon = service.icon;
             return (
               <Link key={idx} to={service.link}>
-                <Card className="relative p-8 border border-[#E2E8F0] bg-white hover:-translate-y-1 hover:shadow-lg transition-all duration-200 h-full">
+                <Card className="relative p-8 border border-[#60A5FA] bg-white hover:-translate-y-1 hover:shadow-lg transition-all duration-200 h-full">
                   <div className="absolute top-6 right-6 min-w-10 h-10 px-3 rounded-full bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center text-lg font-extrabold shadow-sm">
                     {getCountForCard(service.title)}
                   </div>

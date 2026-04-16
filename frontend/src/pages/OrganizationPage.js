@@ -10,7 +10,7 @@ const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   
   return (
-    <div className="border border-[#E2E8F0] rounded-md mb-4">
+    <div className="border border-[#60A5FA] rounded-md mb-4">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full p-4 flex items-center justify-between bg-[#F8FAFC] hover:bg-[#F1F5F9] transition-colors"
@@ -63,7 +63,7 @@ export const OrganizationPage = () => {
         </div>
 
         {/* Organization Chart */}
-        <Card className="p-6 border border-[#E2E8F0] bg-white mb-8">
+        <Card className="p-6 border border-[#60A5FA] bg-white mb-8">
           <h2 className="text-2xl font-bold heading-font text-[#0F172A] mb-4">{pageContent.chartTitle}</h2>
           <div className="bg-[#F8FAFC] p-4 rounded-md overflow-x-auto">
             <img 
@@ -81,7 +81,7 @@ export const OrganizationPage = () => {
               <TabsTrigger 
                 value="vijayawada" 
                 data-testid="vijayawada-tab"
-                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#E2E8F0] data-[state=active]:border-[#2563EB] rounded-lg px-2 py-2 sm:px-6 sm:py-3 text-xs sm:text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
+                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#60A5FA] data-[state=active]:border-[#2563EB] rounded-lg px-2 py-2 sm:px-6 sm:py-3 text-xs sm:text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 <MapPin className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2 flex-shrink-0" />
                 <span className="truncate">{pageContent.vijayawadaDivisionLabel}</span>
@@ -89,7 +89,7 @@ export const OrganizationPage = () => {
               <TabsTrigger 
                 value="guntakal" 
                 data-testid="guntakal-tab"
-                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#E2E8F0] data-[state=active]:border-[#2563EB] rounded-lg px-2 py-2 sm:px-6 sm:py-3 text-xs sm:text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
+                className="data-[state=active]:bg-[#2563EB] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#0F172A] border-2 border-[#60A5FA] data-[state=active]:border-[#2563EB] rounded-lg px-2 py-2 sm:px-6 sm:py-3 text-xs sm:text-lg font-bold heading-font hover:border-[#2563EB] transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 <MapPin className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2 flex-shrink-0" />
                 <span className="truncate">{pageContent.guntakalDivisionLabel}</span>
@@ -409,77 +409,77 @@ export const OrganizationPage = () => {
                 Special Units - GRP Vijayawada
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">IRP RCRB</span>
                   <a href="tel:9247585755" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585755</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RCRB Vijayawada</span>
                   <a href="tel:9247585749" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585749</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">SB Vijayawada</span>
                   <a href="tel:9247585750" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585750</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">IT Core Team</span>
                   <a href="tel:9247585751" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585751 / 5752</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RI RPAR Vijayawada</span>
                   <a href="tel:9247585747" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585747</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RI RPAR Duty ORSI</span>
                   <a href="tel:9247585748" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585748</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">SRP CC Vijayawada</span>
                   <a href="tel:9247585758" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585758</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">SRP AO Vijayawada</span>
                   <a href="tel:9247585760" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585760</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">SRP B Supdt Vijayawada</span>
                   <a href="tel:9247585759" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585759</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">SRP A Supdt Vijayawada</span>
                   <a href="tel:9247585761" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247585761</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0] col-span-1 md:col-span-2">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA] col-span-1 md:col-span-2">
                   <span className="font-semibold text-[#0F172A]">SRP Store Supdt Vijayawada</span>
                   <a href="tel:9247585753" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
@@ -839,70 +839,70 @@ export const OrganizationPage = () => {
                 Special Units - GRP Guntakal
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RI, RPAR, GTL (GRP DAR)</span>
                   <a href="tel:9247575634" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575634</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RSI Kadapa (VIP/NRO duties)</span>
                   <a href="tel:9247575635" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575635</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RSI Dhone (VIP/NRO duties)</span>
                   <a href="tel:9247575636" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575636</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RSI NDL (VIP/NRO duties)</span>
                   <a href="tel:9247575637" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575637</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RSI TPT (VIP/NRO duties)</span>
                   <a href="tel:9247575638" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575638</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">RSI DMM (VIP/NRO duties)</span>
                   <a href="tel:9247575639" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575639</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">CC to SRP, GTL (Control Room)</span>
                   <a href="tel:9247575645" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575645</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">IT Core Team, GTL</span>
                   <a href="tel:9247575646" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575646</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">Special Branch (RSB, GTL)</span>
                   <a href="tel:9247575640" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
                     <span className="text-sm">9247575640</span>
                   </a>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#E2E8F0]">
+                <div className="flex items-center justify-between p-3 bg-white rounded-md border border-[#60A5FA]">
                   <span className="font-semibold text-[#0F172A]">Crime Records Bureau (RCRB, GTL)</span>
                   <a href="tel:9247575641" className="flex items-center gap-1 text-[#2563EB]">
                     <Phone className="w-4 h-4" />
