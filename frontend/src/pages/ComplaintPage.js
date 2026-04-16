@@ -76,8 +76,8 @@ export const ComplaintPage = () => {
   return (
     <div className="min-h-screen pt-4 bg-[#F8FAFC] py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <FileText className="w-12 h-12 text-[#2563EB] mb-4" />
+        <div className="mb-8 text-center">
+          <FileText className="w-12 h-12 text-[#2563EB] mb-4 mx-auto" />
           <h1 className="text-4xl font-extrabold heading-font text-[#0F172A]">File a Complaint</h1>
           <p className="text-base text-[#475569] mt-2">Register your complaint with GRP. You will receive a tracking number.</p>
         </div>
