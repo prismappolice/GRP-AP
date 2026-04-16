@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import api, { complaintsAPI, getAuthToken } from '@/lib/api';
 import { getAllStations } from '@/lib/policeScope';
 
@@ -24,6 +24,7 @@ const AdminComplaintsPage = () => {
   const [forwardStation, setForwardStation] = useState('');
   const [forwardLoading, setForwardLoading] = useState(false);
   const [descModal, setDescModal] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [searchText, setSearchText] = useState('');
 
   const allStations = useMemo(() => getAllStations(), []);
@@ -182,11 +183,13 @@ const AdminComplaintsPage = () => {
               <TableRow className="hover:bg-[#F8FAFC]">
                 <TableHead className="border border-[#60A5FA] px-4 py-3 w-20 text-center font-bold text-[#0F172A]">S.No</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Tracking #</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Complainant</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Type</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A] w-[320px] max-w-[320px]">Description</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Location</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Forward To</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Media</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Documents</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Status</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Actions</TableHead>
               </TableRow>
@@ -200,9 +203,15 @@ const AdminComplaintsPage = () => {
                 </TableRow>
               ) : (
                 filteredComplaints.map((c, index) => (
-                  <TableRow key={c.id} className="hover:bg-[#F8FAFC]">
+                  <React.Fragment key={c.id}>
+                  <TableRow className="hover:bg-[#F8FAFC]">
                     <TableCell className="border border-[#60A5FA] px-4 py-2 text-center font-semibold text-[#0F172A]">{index + 1}</TableCell>
                     <TableCell className="border border-[#60A5FA] px-4 py-2 font-medium text-[#0F172A]">{c.tracking_number}</TableCell>
+                      <TableCell className="border border-[#60A5FA] px-4 py-2">
+                      <div className="text-sm font-semibold text-[#0F172A]">{c.complainant_name || '-'}</div>
+                      <div className="text-xs text-[#64748B]">{c.complainant_phone || ''}</div>
+                      <div className="text-xs text-[#64748B]">{c.complainant_email || ''}</div>
+                    </TableCell>
                     <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">{c.complaint_type}</TableCell>
                     <TableCell className="border border-[#60A5FA] px-4 py-2 max-w-[320px] text-[#334155]"><div className="line-clamp-3 break-words cursor-pointer text-[#2563EB] hover:text-[#1D4ED8] hover:underline font-medium" title="Click to view full description" onClick={() => setDescModal(c.description)}>{c.description}</div></TableCell>
                     <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">{c.location}</TableCell>
@@ -246,6 +255,16 @@ const AdminComplaintsPage = () => {
                       )}
                     </TableCell>
                     <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">
+                      <div className="flex flex-col gap-1">
+                        {c.aadhar_file ? (
+                          <a href={`http://localhost:8001${c.aadhar_file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline font-medium">Aadhar</a>
+                        ) : <span className="text-xs text-[#94A3B8]">No Aadhar</span>}
+                        {c.supporting_docs ? (
+                          <a href={`http://localhost:8001${c.supporting_docs}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline font-medium">Support Doc</a>
+                        ) : <span className="text-xs text-[#94A3B8]">No Docs</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="border border-[#60A5FA] px-4 py-2 text-[#334155]">
                       {editId === c.id ? (
                         <select value={editStatus} onChange={handleStatusChange} className="w-full border border-[#CBD5E1] rounded-md px-3 py-2 text-sm text-[#0F172A] bg-white">
                           {statusOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -264,9 +283,25 @@ const AdminComplaintsPage = () => {
                         ) : (
                           <Button size="sm" onClick={() => handleEdit(c.id, c.status)}>Edit</Button>
                         )}
+                        <Button size="sm" variant="outline" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
+                          {expandedId === c.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
+                  {expandedId === c.id && (
+                    <TableRow key={`${c.id}-detail`} className="bg-[#F0F9FF]">
+                      <TableCell colSpan={10} className="border border-[#60A5FA] px-6 py-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                          <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
+                          <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Address</span><span className="text-[#0F172A]">{c.address || '-'}</span></div>
+                          <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Date of Incident</span><span className="text-[#0F172A]">{c.incident_date || '-'}</span></div>
+                          <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Email</span><span className="text-[#0F172A]">{c.complainant_email || '-'}</span></div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </React.Fragment>
                 ))
               )}
             </TableBody>

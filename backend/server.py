@@ -90,6 +90,7 @@ logger = logging.getLogger(__name__)
 (ROOT_DIR / "gallery_uploads").mkdir(parents=True, exist_ok=True)
 (ROOT_DIR / "news_uploads").mkdir(parents=True, exist_ok=True)
 (ROOT_DIR / "unidentified_uploads").mkdir(parents=True, exist_ok=True)
+(ROOT_DIR / "complaint_uploads").mkdir(parents=True, exist_ok=True)
 _ub_json = ROOT_DIR / "unidentified_uploads" / "unidentified_bodies.json"
 if not _ub_json.exists():
     _ub_json.write_text("[]", encoding="utf-8")
@@ -97,6 +98,7 @@ if not _ub_json.exists():
 app.mount("/gallery_uploads", StaticFiles(directory=str(ROOT_DIR / "gallery_uploads")), name="gallery_uploads")
 app.mount("/news_uploads", StaticFiles(directory=str(ROOT_DIR / "news_uploads")), name="news_uploads")
 app.mount("/unidentified_uploads", StaticFiles(directory=str(ROOT_DIR / "unidentified_uploads")), name="unidentified_uploads")
+app.mount("/complaint_uploads", StaticFiles(directory=str(ROOT_DIR / "complaint_uploads")), name="complaint_uploads")
 
 # ==================== ROUTER ====================
 api_router = APIRouter(prefix="/api")
@@ -114,37 +116,18 @@ class ComplaintORM(Base):
     location = Column(String, nullable=False)
     station = Column(String, nullable=False)
     incident_date = Column(String, nullable=False)
+    aadhar_number = Column(String, nullable=True)
+    aadhar_file = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    state = Column(String, nullable=True)
+    complainant_email = Column(String, nullable=True)
+    supporting_docs = Column(String, nullable=True)
     evidence_urls = Column(String, nullable=True)
     status = Column(String, default="pending", nullable=False)
     rejection_reason = Column(String, nullable=True)
     tracking_number = Column(String, unique=True, nullable=False, default=lambda: f"GRP{uuid.uuid4().hex[:8].upper()}")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-
-class LostItemORM(Base):
-    __tablename__ = "lost_items"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, nullable=False)
-    item_type = Column(String, nullable=False)
-    description = Column(String, nullable=False)
-    lost_location = Column(String, nullable=False)
-    lost_date = Column(String, nullable=False)
-    contact_phone = Column(String, nullable=False)
-    status = Column(String, default="active", nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-
-class FoundItemORM(Base):
-    __tablename__ = "found_items"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    item_type = Column(String, nullable=False)
-    description = Column(String, nullable=False)
-    found_location = Column(String, nullable=False)
-    found_date = Column(String, nullable=False)
-    station = Column(String, nullable=False)
-    status = Column(String, default="unclaimed", nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class AlertORM(Base):
@@ -421,6 +404,12 @@ class Complaint(BaseModel):
     location: str
     station: str
     incident_date: str
+    aadhar_number: Optional[str] = None
+    aadhar_file: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    complainant_email: Optional[str] = None
+    supporting_docs: Optional[str] = None
     evidence_urls: List[str] = []
     status: str = "pending"
     rejection_reason: Optional[str] = None
@@ -432,6 +421,10 @@ class Complaint(BaseModel):
 class ComplaintCreate(BaseModel):
     complainant_name: str
     complainant_phone: str
+    complainant_email: str
+    aadhar_number: str
+    address: str
+    state: Optional[str] = None
     complaint_type: str
     description: str
     location: str
@@ -447,67 +440,6 @@ class ComplaintAssignUpdate(BaseModel):
 class ComplaintStatusUpdate(BaseModel):
     status: str
     rejection_reason: Optional[str] = None
-
-
-class LostItem(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # type: ignore[call-overload]
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    user_id: str
-    item_type: str
-    description: str
-    lost_location: str
-    lost_date: str
-    contact_phone: str
-    status: str = "active"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-class LostItemCreate(BaseModel):
-    item_type: str
-    description: str
-    lost_location: str
-    lost_date: str
-    contact_phone: str
-
-
-class LostItemUpdate(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # type: ignore[call-overload]
-    item_type: Optional[str] = None
-    description: Optional[str] = None
-    lost_location: Optional[str] = None
-    lost_date: Optional[str] = None
-    contact_phone: Optional[str] = None
-    status: Optional[str] = None
-
-
-class FoundItem(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # type: ignore[call-overload]
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    item_type: str
-    description: str
-    found_location: str
-    found_date: str
-    station: str
-    status: str = "unclaimed"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-class FoundItemCreate(BaseModel):
-    item_type: str
-    description: str
-    found_location: str
-    found_date: str
-    station: str
-
-
-class FoundItemUpdate(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # type: ignore[call-overload]
-    item_type: Optional[str] = None
-    description: Optional[str] = None
-    found_location: Optional[str] = None
-    found_date: Optional[str] = None
-    station: Optional[str] = None
-    status: Optional[str] = None
 
 
 class UnidentifiedBodyRecord(BaseModel):
@@ -898,17 +830,6 @@ def _is_dgp_user(current_user: User) -> bool:
     return any(token in normalized_name for token in ("adgp", "dgp", "dig", "directorgeneral", "deputyinspectorgeneral"))
 
 
-def _filter_lost_items_for_stations(items: List[LostItemORM], managed_stations: List[str]) -> List[LostItemORM]:
-    normalized_tokens = [_normalize_label(s) for s in managed_stations if s]
-    if not normalized_tokens:
-        return []
-    filtered: List[LostItemORM] = []
-    for item in items:
-        normalized_loc = _normalize_label(str(item.lost_location or ""))
-        if any(t and t in normalized_loc for t in normalized_tokens):
-            filtered.append(item)
-    return filtered
-
 
 async def _resolve_station_for_user(session: AsyncSession, current_user: User) -> Optional[StationORM]:
     if current_user.role not in ("police", "station"):
@@ -949,6 +870,24 @@ async def ensure_complaints_table_columns(session: AsyncSession) -> None:
     )
     await session.execute(
         text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS complainant_phone VARCHAR")
+    )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR")
+    )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS aadhar_file VARCHAR")
+    )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS address VARCHAR")
+    )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS state VARCHAR")
+    )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS complainant_email VARCHAR")
+    )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS supporting_docs VARCHAR")
     )
     await session.commit()
 
@@ -1404,6 +1343,12 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
         id=str(c.id), user_id=str(c.user_id),
         complainant_name=c.complainant_name,
         complainant_phone=c.complainant_phone,
+        aadhar_number=c.aadhar_number,
+        aadhar_file=c.aadhar_file,
+        address=c.address,
+        state=c.state,
+        complainant_email=c.complainant_email,
+        supporting_docs=c.supporting_docs,
         complaint_type=str(c.complaint_type), description=str(c.description),
         location=str(c.location), station=str(c.station),
         incident_date=str(c.incident_date),
@@ -1416,18 +1361,53 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
 
 @api_router.post("/complaints", response_model=Complaint)
 async def create_complaint(
-    complaint_data: ComplaintCreate,
+    complainant_name: str = Form(...),
+    complainant_phone: str = Form(...),
+    complainant_email: str = Form(...),
+    aadhar_number: str = Form(...),
+    address: str = Form(...),
+    state: Optional[str] = Form(None),
+    complaint_type: str = Form(...),
+    description: str = Form(...),
+    location: str = Form(...),
+    station: str = Form("Unassigned"),
+    incident_date: str = Form(...),
+    aadhar_file: Optional[UploadFile] = File(None),
+    supporting_docs: Optional[UploadFile] = File(None),
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
     await ensure_complaints_table_columns(session)
-    evidence_urls = ",".join(complaint_data.evidence_urls) if complaint_data.evidence_urls else ""
+    complaint_uploads_dir = ROOT_DIR / "complaint_uploads"
+    complaint_uploads_dir.mkdir(parents=True, exist_ok=True)
+    aadhar_file_path = None
+    if aadhar_file and aadhar_file.filename:
+        ext = Path(aadhar_file.filename).suffix
+        aadhar_file_name = f"{uuid.uuid4().hex}{ext}"
+        dest = complaint_uploads_dir / aadhar_file_name
+        content = await aadhar_file.read()
+        dest.write_bytes(content)
+        aadhar_file_path = f"/complaint_uploads/{aadhar_file_name}"
+    supporting_docs_path = None
+    if supporting_docs and supporting_docs.filename:
+        ext = Path(supporting_docs.filename).suffix
+        supporting_docs_name = f"{uuid.uuid4().hex}{ext}"
+        dest = complaint_uploads_dir / supporting_docs_name
+        content = await supporting_docs.read()
+        dest.write_bytes(content)
+        supporting_docs_path = f"/complaint_uploads/{supporting_docs_name}"
     complaint_orm = ComplaintORM(
         id=str(uuid.uuid4()), user_id="anonymous",
-        complainant_name=complaint_data.complainant_name,
-        complainant_phone=complaint_data.complainant_phone,
-        complaint_type=complaint_data.complaint_type, description=complaint_data.description,
-        location=complaint_data.location, station=complaint_data.station,
-        incident_date=complaint_data.incident_date, evidence_urls=evidence_urls,
+        complainant_name=complainant_name,
+        complainant_phone=complainant_phone,
+        complainant_email=complainant_email,
+        aadhar_number=aadhar_number,
+        aadhar_file=aadhar_file_path,
+        address=address,
+        state=state,
+        complaint_type=complaint_type, description=description,
+        location=location, station=station,
+        incident_date=incident_date, evidence_urls="",
+        supporting_docs=supporting_docs_path,
         status="pending", rejection_reason=None,
         tracking_number=f"GRP{uuid.uuid4().hex[:8].upper()}",
         created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
@@ -1541,17 +1521,6 @@ async def get_station_complaints(
     result = await session.execute(select(ComplaintORM).where(ComplaintORM.station == current_user.name))
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
-
-@api_router.get("/station/lost-items", response_model=List[LostItem])
-async def get_station_lost_items(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[LostItem]:
-    if current_user.role not in ("police", "station"):
-        raise HTTPException(status_code=403, detail="Station access only")
-    result = await session.execute(select(LostItemORM))
-    filtered = _filter_lost_items_for_stations(result.scalars().all(), [current_user.name])
-    return [LostItem(**item.__dict__) for item in filtered]
 
 
 def _ub_orm_to_dict(r: UnidentifiedBodyORM) -> dict:
@@ -1787,20 +1756,6 @@ async def get_irp_complaints(
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
 
-@api_router.get("/irp/lost-items", response_model=List[LostItem])
-async def get_irp_lost_items(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[LostItem]:
-    if current_user.role not in ("police", "irp"):
-        raise HTTPException(status_code=403, detail="IRP access only")
-    managed = _managed_station_names_for_irp(current_user)
-    if not managed:
-        raise HTTPException(status_code=403, detail="No IRP circle mapping found for this account")
-    result = await session.execute(select(LostItemORM))
-    filtered = _filter_lost_items_for_stations(result.scalars().all(), managed)
-    return [LostItem(**item.__dict__) for item in filtered]
-
 
 @api_router.get("/dsrp/complaints", response_model=List[Complaint])
 async def get_dsrp_complaints(
@@ -1815,20 +1770,6 @@ async def get_dsrp_complaints(
     result = await session.execute(select(ComplaintORM).where(ComplaintORM.station.in_(managed)))
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
-
-@api_router.get("/dsrp/lost-items", response_model=List[LostItem])
-async def get_dsrp_lost_items(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[LostItem]:
-    if current_user.role not in ("police", "dsrp"):
-        raise HTTPException(status_code=403, detail="DSRP access only")
-    managed = _managed_station_names_for_dsrp(current_user)
-    if not managed:
-        raise HTTPException(status_code=403, detail="No DSRP subdivision mapping found for this account")
-    result = await session.execute(select(LostItemORM))
-    filtered = _filter_lost_items_for_stations(result.scalars().all(), managed)
-    return [LostItem(**item.__dict__) for item in filtered]
 
 
 @api_router.get("/srp/complaints", response_model=List[Complaint])
@@ -1845,20 +1786,6 @@ async def get_srp_complaints(
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
 
-@api_router.get("/srp/lost-items", response_model=List[LostItem])
-async def get_srp_lost_items(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[LostItem]:
-    if current_user.role not in ("police", "srp"):
-        raise HTTPException(status_code=403, detail="SRP access only")
-    managed = _managed_station_names_for_srp(current_user)
-    if not managed:
-        raise HTTPException(status_code=403, detail="No SRP division mapping found for this account")
-    result = await session.execute(select(LostItemORM))
-    filtered = _filter_lost_items_for_stations(result.scalars().all(), managed)
-    return [LostItem(**item.__dict__) for item in filtered]
-
 
 @api_router.get("/dgp/complaints", response_model=List[Complaint])
 async def get_dgp_complaints(
@@ -1870,16 +1797,6 @@ async def get_dgp_complaints(
     result = await session.execute(select(ComplaintORM))
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
-
-@api_router.get("/dgp/lost-items", response_model=List[LostItem])
-async def get_dgp_lost_items(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[LostItem]:
-    if not _is_dgp_user(current_user) and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="DGP access only")
-    result = await session.execute(select(LostItemORM))
-    return [LostItem(**item.__dict__) for item in result.scalars().all()]
 
 
 # ==================== ADMIN CREDENTIALS ====================
@@ -1986,146 +1903,6 @@ async def update_credential_password(
     await session.commit()
     return {"message": "Password updated successfully"}
 
-
-# ==================== LOST & FOUND ROUTES ====================
-@api_router.post("/lost-items", response_model=LostItem)
-async def report_lost_item(
-    item_data: LostItemCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> LostItem:
-    lost_item_orm = LostItemORM(
-        id=str(uuid.uuid4()), user_id=current_user.id,
-        item_type=item_data.item_type, description=item_data.description,
-        lost_location=item_data.lost_location, lost_date=item_data.lost_date,
-        contact_phone=item_data.contact_phone, status="active",
-        created_at=datetime.now(timezone.utc),
-    )
-    session.add(lost_item_orm)
-    await session.commit()
-    await session.refresh(lost_item_orm)
-    return LostItem(**lost_item_orm.__dict__)
-
-
-@api_router.get("/lost-items", response_model=List[LostItem])
-async def get_lost_items(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[LostItem]:
-    stmt = select(LostItemORM) if current_user.role == "admin" else select(LostItemORM).where(LostItemORM.user_id == current_user.id)
-    result = await session.execute(stmt)
-    return [LostItem(**item.__dict__) for item in result.scalars().all()]
-
-
-@api_router.patch("/lost-items/{item_id}", response_model=LostItem)
-async def update_lost_item(
-    item_id: str,
-    item_data: LostItemUpdate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> LostItem:
-    result = await session.execute(select(LostItemORM).where(LostItemORM.id == item_id))
-    item = result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=404, detail="Lost item not found")
-    if current_user.role not in ["admin", "police"] and item.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    updates = item_data.model_dump(exclude_unset=True, exclude_none=True)
-    for field, value in updates.items():
-        setattr(item, field, value)
-    await session.commit()
-    await session.refresh(item)
-    return LostItem(**item.__dict__)
-
-
-@api_router.delete("/lost-items/{item_id}")
-async def delete_lost_item(
-    item_id: str,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> Any:
-    result = await session.execute(select(LostItemORM).where(LostItemORM.id == item_id))
-    item = result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=404, detail="Lost item not found")
-    if current_user.role not in ["admin", "police"] and item.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    await session.delete(item)
-    await session.commit()
-    return {"message": "Lost item deleted successfully"}
-
-
-@api_router.get("/found-items", response_model=List[FoundItem])
-async def get_found_items(session: AsyncSession = Depends(get_async_session)) -> List[FoundItem]:
-    result = await session.execute(select(FoundItemORM).where(FoundItemORM.status == "unclaimed"))
-    return [FoundItem(**item.__dict__) for item in result.scalars().all()]
-
-
-@api_router.post("/admin/found-items", response_model=FoundItem)
-async def admin_add_found_item(
-    item_data: FoundItemCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> FoundItem:
-    if current_user.role not in ["police", "admin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    found_item_orm = FoundItemORM(
-        id=str(uuid.uuid4()), item_type=item_data.item_type, description=item_data.description,
-        found_location=item_data.found_location, found_date=item_data.found_date,
-        station=item_data.station, status="unclaimed", created_at=datetime.now(timezone.utc),
-    )
-    session.add(found_item_orm)
-    await session.commit()
-    await session.refresh(found_item_orm)
-    return FoundItem(**found_item_orm.__dict__)
-
-
-@api_router.get("/admin/found-items", response_model=List[FoundItem])
-async def admin_get_found_items(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[FoundItem]:
-    if current_user.role not in ["admin", "police"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    result = await session.execute(select(FoundItemORM).order_by(desc(FoundItemORM.created_at)))
-    return [FoundItem(**item.__dict__) for item in result.scalars().all()]
-
-
-@api_router.patch("/found-items/{item_id}", response_model=FoundItem)
-async def update_found_item(
-    item_id: str,
-    item_data: FoundItemUpdate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> FoundItem:
-    if current_user.role not in ["admin", "police"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    result = await session.execute(select(FoundItemORM).where(FoundItemORM.id == item_id))
-    item = result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=404, detail="Found item not found")
-    for field, value in item_data.model_dump(exclude_unset=True, exclude_none=True).items():
-        setattr(item, field, value)
-    await session.commit()
-    await session.refresh(item)
-    return FoundItem(**item.__dict__)
-
-
-@api_router.delete("/found-items/{item_id}")
-async def delete_found_item(
-    item_id: str,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> Any:
-    if current_user.role not in ["admin", "police"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    result = await session.execute(select(FoundItemORM).where(FoundItemORM.id == item_id))
-    item = result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=404, detail="Found item not found")
-    await session.delete(item)
-    await session.commit()
-    return {"message": "Found item deleted successfully"}
 
 
 # ==================== ALERTS ROUTES ====================
@@ -2347,6 +2124,179 @@ async def admin_add_gallery_item(request: Request, current_user: User = Depends(
         return JSONResponse(content=data)
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to add gallery item: {e}"}, status_code=500)
+
+
+# ==================== CHAT ENDPOINT ====================
+
+_CHAT_RESPONSES_EN = [
+    # Greetings
+    (["hello", "hi", "hey", "namaste", "namaskar", "good morning", "good evening", "good afternoon"],
+     "Hello! I am GRP AI Assistant. How can I help you today?\n\nI can assist you with:\n• Filing or tracking a complaint\n• Help desk / SOS requests\n• Station locations\n• Women safety (Shakti)\n• India Railways info\n• Awareness & safety tips\n• Emergency helpline 139"),
+
+    # File complaint
+    (["file complaint", "lodge complaint", "submit complaint", "register complaint", "how to complain", "file a complaint"],
+     "To file a complaint:\n1. Click 'File Complaint' in the navigation menu\n2. Fill in your personal details (name, phone, email)\n3. Describe the incident with date and location\n4. Submit the form\n\nYou will receive a unique Tracking Number to monitor your complaint status anytime."),
+
+    # Track complaint
+    (["track complaint", "track my complaint", "complaint status", "check status", "tracking number", "complaint tracking"],
+     "To track your complaint:\n1. Go to 'File Complaint' page\n2. Enter your Tracking Number in the 'Track Complaint' section\n3. View the current status: Pending → Investigating → Resolved\n\nYou can also call 139 for complaint status updates."),
+
+    # Complaint status meanings
+    (["pending", "investigating", "resolved", "rejected", "closed", "what does status mean"],
+     "Complaint status meanings:\n• Pending – Complaint received, under review\n• Investigating – Officers are actively working on it\n• Resolved – Issue has been addressed\n• Rejected – Complaint could not be processed (reason provided)\n• Closed – Case formally closed\n\nFor updates, call 139 or use your tracking number."),
+
+    # Unidentified bodies
+    (["unidentified", "dead body", "body found", "corpse", "unknown person", "unidentified body"],
+     "GRP maintains records of unidentified bodies found at railway stations and tracks. This information is available through the 'Unidentified Bodies' section on our website. For urgent cases, please contact the nearest GRP station or call 139 immediately."),
+
+    # Help desk / SOS
+    (["help desk", "helpdesk", "sos", "help request", "need help", "assistance", "support"],
+     "For help requests and SOS:\n• Visit the 'Help Desk' section on our website\n• Submit your request with your name, contact, and description\n• Our team will respond as soon as possible\n\nFor immediate emergencies, call 139 directly."),
+
+    # Emergency
+    (["emergency", "urgent", "danger", "accident", "theft", "robbery", "assault", "crime"],
+     "For emergencies at railway stations:\n• Call 139 immediately (24/7 GRP Helpline)\n• Contact the nearest GRP station\n• Approach any GRP officer on duty at the platform\n\nDo NOT delay in reporting crimes or accidents at railway stations."),
+
+    # Helpline / contact
+    (["139", "helpline", "contact number", "phone number", "call grp", "grp number"],
+     "GRP Helpline: 139\n• Available 24 hours, 7 days a week\n• For complaints, emergencies, and general assistance\n• Free to call from any phone\n\nYou can also use our website's Help Desk form for non-urgent requests."),
+
+    # Stations
+    (["station", "grp station", "nearest station", "office location", "which station", "station address"],
+     "GRP has stations at all major railway stations across Andhra Pradesh. To find the nearest GRP station:\n• Visit the 'Stations' section on our website\n• Stations are organized by district and circle\n• Each station listing includes contact details\n\nAlternatively, call 139 for station location assistance."),
+
+    # Officers / staff
+    (["officer", "police officer", "staff", "who is in charge", "sp", "irp", "dsrp", "srp", "dgp"],
+     "GRP is organized in a hierarchy:\n• DGP – Director General of Police (Railway)\n• SRP – Superintendent of Railway Police\n• DSRP – Deputy Superintendent of Railway Police\n• IRP – Inspector of Railway Police\n• Station Officers – stationed at each railway station\n\nFor officer contact, visit the nearest GRP station or call 139."),
+
+    # Women safety / Shakti
+    (["women", "woman", "female", "girl", "shakti", "women safety", "sexual harassment", "eve teasing", "molestation"],
+     "GRP's Shakti initiative is dedicated to women's safety at railway stations.\n• Dedicated women safety helpline: 139\n• Women officers are posted at major stations\n• Report harassment or threats immediately to any GRP officer\n• Visit the 'Women Safety' section on our website for more information and safety tips."),
+
+    # India Railways / train info
+    (["train", "railway", "rail", "irctc", "platform", "schedule", "india railways"],
+     "For train-related information, visit the 'India Railways' section on our website for quick links to:\n• Indian Railways official portal\n• Train schedule and PNR status\n• Station information\n\nFor safety issues at railway stations, contact GRP at 139."),
+
+    # Awareness / safety tips
+    (["awareness", "safety tips", "tips", "campaign", "safe travel", "railway safety"],
+     "GRP's Awareness section provides important railway safety tips:\n• Do not leave luggage unattended\n• Report suspicious activity immediately\n• Keep emergency contacts saved (139)\n• Avoid travelling in empty compartments at night\n• Use designated women's coaches\n\nVisit the 'Awareness' section on our website for more safety guidelines."),
+
+    # News / updates
+    (["news", "latest news", "update", "announcement", "notification", "press release"],
+     "Stay updated with the latest GRP news, announcements, and press releases in the 'Latest News' section on our website. This includes information about new initiatives, campaigns, and important notices from GRP Andhra Pradesh."),
+
+    # About GRP
+    (["what is grp", "grp full form", "about grp", "what does grp do", "government railway police", "railway police"],
+     "GRP stands for Government Railway Police. GRP Andhra Pradesh is responsible for:\n• Maintaining law and order at railway stations\n• Preventing and detecting crimes on trains and stations\n• Protecting passengers and their property\n• Women safety initiatives\n• Emergency response at railway stations"),
+
+    # Register / account / login
+    (["register", "account", "sign up", "login", "how to use", "create account"],
+     "To use GRP services:\n• No account registration is needed to file a complaint or use the help desk\n• Simply visit the respective section on our website\n• You will receive a tracking number after submitting a complaint\n• Admin and police officer logins are restricted to authorized personnel only"),
+
+    # Website features / how to use the site
+    (["website", "portal", "app", "how to use", "features", "what can i do", "services"],
+     "GRP website features:\n• File Complaint – Report incidents at railway stations\n• Track Complaint – Check complaint status using tracking number\n• Help Desk – Submit help/SOS requests\n• Stations – Find nearest GRP station\n• Women Safety – Shakti initiative info\n• Awareness – Railway safety tips\n• India Railways – Quick links to train info\n• Latest News – GRP announcements"),
+
+    # Thank you
+    (["thank", "thanks", "thank you", "thankyou", "ధన్యవాదాలు", "धन्यवाद"],
+     "You're welcome! Stay safe at railway stations. For any emergency, remember to call 139. Is there anything else I can help you with?"),
+
+    # Goodbye
+    (["bye", "goodbye", "see you", "exit", "close"],
+     "Goodbye! Have a safe journey. Remember, GRP is always here to help. For emergencies call 139."),
+]
+
+_CHAT_RESPONSES_TE = [
+    # Greetings
+    (["నమస్కారం", "హలో", "hello", "hi", "నమస్తే", "శుభోదయం", "శుభసంధ్య"],
+     "నమస్కారం! నేను GRP AI సహాయకుడిని. నేను మీకు ఎలా సహాయం చేయగలను?\n\nనేను ఈ విషయాలలో సహాయం చేయగలను:\n• ఫిర్యాదు దాఖలు లేదా ట్రాక్ చేయడం\n• హెల్ప్ డెస్క్ / SOS\n• స్టేషన్ స్థానాలు\n• మహిళా భద్రత (శక్తి)\n• అత్యవసర హెల్ప్‌లైన్ 139"),
+
+    # File complaint
+    (["ఫిర్యాదు", "నమోదు", "రిపోర్ట్", "దాఖలు", "ఫిర్యాదు చేయడం", "complaint"],
+     "ఫిర్యాదు దాఖలు చేయడానికి:\n1. 'ఫిర్యాదు దాఖలు' పేజీకి వెళ్ళండి\n2. మీ పేరు, ఫోన్, ఇమెయిల్ నమోదు చేయండి\n3. సంఘటన వివరాలు, తేదీ, స్థలం నమోదు చేయండి\n4. Submit చేయండి\n\nమీకు ఒక Tracking Number అందించబడుతుంది, దాని ద్వారా ఫిర్యాదు స్థితిని తెలుసుకోవచ్చు."),
+
+    # Track complaint
+    (["ట్రాక్", "స్థితి", "tracking", "తనిఖీ", "ఫిర్యాదు స్థితి"],
+     "ఫిర్యాదు స్థితి తెలుసుకోవడానికి:\n1. 'ఫిర్యాదు దాఖలు' పేజీలో 'Track Complaint' విభాగానికి వెళ్ళండి\n2. మీ Tracking Number నమోదు చేయండి\n3. ప్రస్తుత స్థితి చూడండి\n\nఫిర్యాదు స్థితి కోసం 139కి కూడా కాల్ చేయవచ్చు."),
+
+    # Emergency
+    (["అత్యవసరం", "ప్రమాదం", "దొంగతనం", "నేరం", "సహాయం", "emergency", "danger"],
+     "రైల్వే స్టేషన్‌లో అత్యవసర పరిస్థితిలో:\n• వెంటనే 139కి కాల్ చేయండి (24/7)\n• సమీప GRP స్టేషన్‌ను సంప్రదించండి\n• ప్లాట్‌ఫారమ్‌పై ఉన్న GRP అధికారిని సంప్రదించండి\n\nఆలస్యం చేయకుండా నేరాలు లేదా ప్రమాదాలను వెంటనే రిపోర్ట్ చేయండి."),
+
+    # Helpline
+    (["139", "హెల్ప్‌లైన్", "నంబర్", "ఫోన్", "కాల్", "సంప్రదించు"],
+     "GRP హెల్ప్‌లైన్: 139\n• 24 గంటలు, వారంలో 7 రోజులు అందుబాటులో ఉంటుంది\n• ఫిర్యాదులు, అత్యవసరాలు మరియు సాధారణ సహాయం కోసం\n• ఏ ఫోన్ నుండి అయినా ఉచితంగా కాల్ చేయవచ్చు"),
+
+    # Stations
+    (["స్టేషన్", "కార్యాలయం", "చిరునామా", "ఎక్కడ", "దగ్గరలో"],
+     "ఆంధ్రప్రదేశ్‌లోని అన్ని ప్రధాన రైల్వే స్టేషన్లలో GRP స్టేషన్లు ఉన్నాయి. వెబ్‌సైట్‌లోని 'Stations' విభాగంలో జిల్లా, సర్కిల్ వారీగా స్టేషన్ వివరాలు మరియు సంప్రదింపు నంబర్లు అందుబాటులో ఉన్నాయి."),
+
+    # Women safety
+    (["మహిళ", "అమ్మాయి", "లేడీ", "శక్తి", "భద్రత", "వేధింపు", "women", "shakti"],
+     "GRP శక్తి మహిళా భద్రత కార్యక్రమం:\n• రైల్వే స్టేషన్లలో మహిళల భద్రతకు ప్రత్యేక దళం\n• ఏ వేధింపు అయినా వెంటనే 139కి కాల్ చేయండి\n• 'Women Safety' విభాగంలో భద్రతా సూచనలు చదవండి\n• ప్రతి స్టేషన్‌లో మహిళా అధికారులు అందుబాటులో ఉన్నారు"),
+
+    # About GRP
+    (["grp అంటే", "grp ఏమిటి", "ప్రభుత్వ రైల్వే పోలీస్", "railway police"],
+     "GRP అంటే Government Railway Police (ప్రభుత్వ రైల్వే పోలీస్). GRP ఆంధ్రప్రదేశ్ బాధ్యతలు:\n• రైల్వే స్టేషన్లలో శాంతిభద్రతల నిర్వహణ\n• ప్రయాణికుల భద్రత మరియు ఆస్తి రక్షణ\n• నేరాల నివారణ మరియు నిర్వహణ\n• మహిళా భద్రత కార్యక్రమాలు\n• అత్యవసర స్పందన"),
+
+    # Website features
+    (["వెబ్‌సైట్", "పోర్టల్", "అప్లికేషన్", "ఎలా వాడాలి", "features", "సేవలు"],
+     "GRP వెబ్‌సైట్ సేవలు:\n• ఫిర్యాదు దాఖలు చేయడం\n• ఫిర్యాదు స్థితి తెలుసుకోవడం\n• హెల్ప్ డెస్క్ / SOS\n• స్టేషన్ సమాచారం\n• మహిళా భద్రత (శక్తి)\n• భద్రతా చిట్కాలు\n• తాజా వార్తలు"),
+
+    # Awareness
+    (["అవేర్‌నెస్", "భద్రతా చిట్కాలు", "సురక్షిత ప్రయాణం", "awareness"],
+     "రైల్వే భద్రతా చిట్కాలు:\n• సామాను నిర్లక్ష్యంగా వదలకండి\n• అనుమానాస్పద కార్యకలాపాలు వెంటనే రిపోర్ట్ చేయండి\n• 139 నంబర్ సేవ్ చేసుకోండి\n• రాత్రిపూట ఖాళీ బోగీలలో ప్రయాణించకండి\n• మహిళలకు నిర్ణీత బోగీలు ఉపయోగించండి"),
+
+    # Thank you
+    (["ధన్యవాదాలు", "thanks", "thank", "థాంక్యూ"],
+     "స్వాగతం! రైల్వే స్టేషన్లలో సురక్షితంగా ఉండండి. అత్యవసరానికి 139కి కాల్ చేయండి. మీకు మరింత సహాయం అవసరమా?"),
+
+    # Goodbye
+    (["వెళ్తున్నాను", "బై", "bye", "goodbye"],
+     "చాలా సంతోషం! సురక్షిత ప్రయాణం. అత్యవసరానికి 139కి కాల్ చేయండి. GRP ఎల్లప్పుడూ మీ సేవలో ఉంటుంది."),
+]
+
+_DEFAULT_RESPONSE_EN = (
+    "I'm here to help with GRP-related queries. You can ask me about:\n"
+    "• Filing or tracking a complaint\n"
+    "• Help Desk / SOS requests\n"
+    "• Emergency helpline (139)\n"
+    "• Nearest GRP station locations\n"
+    "• Women safety (Shakti initiative)\n"
+    "• Railway safety awareness tips\n"
+    "• Latest GRP news\n"
+    "• About GRP and its services\n\n"
+    "For immediate assistance, please call 139."
+)
+
+_DEFAULT_RESPONSE_TE = (
+    "నేను GRP సంబంధిత ప్రశ్నలకు సహాయం చేయడానికి ఇక్కడ ఉన్నాను. మీరు అడగవచ్చు:\n"
+    "• ఫిర్యాదు దాఖలు లేదా ట్రాక్ చేయడం\n"
+    "• హెల్ప్ డెస్క్ / SOS\n"
+    "• అత్యవసర హెల్ప్‌లైన్ (139)\n"
+    "• సమీప GRP స్టేషన్\n"
+    "• మహిళా భద్రత (శక్తి)\n"
+    "• భద్రతా చిట్కాలు మరియు అవేర్‌నెస్\n\n"
+    "తక్షణ సహాయం కోసం 139కి కాల్ చేయండి."
+)
+
+
+def _get_chat_reply(message: str, language: str) -> str:
+    msg_lower = message.lower().strip()
+    responses = _CHAT_RESPONSES_TE if language == "te" else _CHAT_RESPONSES_EN
+    for keywords, reply in responses:
+        if any(kw in msg_lower for kw in keywords):
+            return reply
+    return _DEFAULT_RESPONSE_TE if language == "te" else _DEFAULT_RESPONSE_EN
+
+
+@api_router.post("/chat")
+async def chat_endpoint(request: ChatRequest, session: AsyncSession = Depends(get_async_session)):
+    try:
+        reply = _get_chat_reply(request.message, request.language)
+        return {"response": reply, "session_id": request.session_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat error: {e}")
 
 
 # ==================== INCLUDE ROUTER ====================

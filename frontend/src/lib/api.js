@@ -65,7 +65,9 @@ export const authAPI = {
 };
 
 export const complaintsAPI = {
-  create: (data) => api.post('/complaints', data),
+  create: (data) => api.post('/complaints', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
   getAll: () => api.get('/complaints'),
   getById: (id) => api.get(`/complaints/${id}`),
   track: (trackingNumber) => api.get(`/complaints/track/${trackingNumber}`),
@@ -81,39 +83,27 @@ export const complaintsAPI = {
 
 export const stationAPI = {
   getComplaints: () => api.get('/station/complaints'),
-  getLostItems: () => api.get('/station/lost-items'),
   getUnidentifiedBodies: () => api.get('/station/unidentified-bodies'),
 };
 
 export const irpAPI = {
   getComplaints: () => api.get('/irp/complaints'),
-  getLostItems: () => api.get('/irp/lost-items'),
   getUnidentifiedBodies: () => api.get('/irp/unidentified-bodies'),
 };
 
 export const dsrpAPI = {
   getComplaints: () => api.get('/dsrp/complaints'),
-  getLostItems: () => api.get('/dsrp/lost-items'),
   getUnidentifiedBodies: () => api.get('/dsrp/unidentified-bodies'),
 };
 
 export const srpAPI = {
   getComplaints: () => api.get('/srp/complaints'),
-  getLostItems: () => api.get('/srp/lost-items'),
   getUnidentifiedBodies: () => api.get('/srp/unidentified-bodies'),
 };
 
 export const dgpAPI = {
   getComplaints: () => api.get('/dgp/complaints'),
-  getLostItems: () => api.get('/dgp/lost-items'),
   getUnidentifiedBodies: () => api.get('/dgp/unidentified-bodies'),
-};
-
-export const lostFoundAPI = {
-  reportLost: (data) => api.post('/lost-items', data),
-  getMyLostItems: () => api.get('/lost-items'),
-  getFoundItems: () => api.get('/found-items'),
-  update: (id, data) => api.patch(`/lost-items/${id}`, data),
 };
 
 export const alertsAPI = {
@@ -151,7 +141,6 @@ export const chatAPI = {
 };
 
 export const adminAPI = {
-  addFoundItem: (data) => api.post('/admin/found-items', data),
   createAlert: (data) => api.post('/admin/alerts', data),
 };
 

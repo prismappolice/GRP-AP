@@ -13,6 +13,22 @@ export const ChatBot = () => {
   const [sessionId, setSessionId] = useState('');
   const [language, setLanguage] = useState('en');
   const messagesEndRef = useRef(null);
+  const chatRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutsideClick = (e) => {
+      if (chatRef.current && !chatRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     let storedSessionId = localStorage.getItem('grp_chat_session');
@@ -100,7 +116,14 @@ export const ChatBot = () => {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col z-[9999]" data-testid="chatbot-widget">
+    <>
+      {/* Backdrop for outside click on mobile */}
+      <div className="fixed inset-0 z-[9998] sm:hidden" />
+      <div
+        ref={chatRef}
+        className="fixed bottom-0 right-0 left-0 sm:bottom-6 sm:right-6 sm:left-auto w-full sm:w-96 h-[85vh] sm:h-[min(600px,calc(100vh-5rem))] bg-white sm:rounded-lg rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999]"
+        data-testid="chatbot-widget"
+      >
       <div className="bg-[#0F172A] text-white p-4 rounded-t-lg flex justify-between items-center">
         <div className="flex items-center gap-3">
           <MessageCircle className="w-5 h-5" />
@@ -182,5 +205,6 @@ export const ChatBot = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };

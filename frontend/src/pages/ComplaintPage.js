@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { FileText, AlertCircle, CheckCircle, Upload, Paperclip } from 'lucide-react';
 import { complaintsAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -15,18 +15,31 @@ export const ComplaintPage = () => {
   const [formData, setFormData] = useState({
     complainant_name: '',
     complainant_phone: '',
+    complainant_email: '',
+    aadhar_number: '',
+    address: '',
     complaint_type: '',
     description: '',
     location: '',
     station: 'Unassigned',
     incident_date: '',
   });
+  const [aadharFile, setAadharFile] = useState(null);
+  const [supportingDocs, setSupportingDocs] = useState(null);
+  const aadharFileRef = useRef(null);
+  const supportingDocsRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!aadharFile) { toast.error('Please upload your Aadhar card'); return; }
+    if (!supportingDocs) { toast.error('Please upload supporting documents'); return; }
     setLoading(true);
     try {
-      const response = await complaintsAPI.create(formData);
+      const data = new FormData();
+      Object.entries(formData).forEach(([k, v]) => data.append(k, v));
+      data.append('aadhar_file', aadharFile);
+      data.append('supporting_docs', supportingDocs);
+      const response = await complaintsAPI.create(data);
       setTrackingNumber(response.data.tracking_number);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to register complaint');
@@ -49,7 +62,7 @@ export const ComplaintPage = () => {
             </div>
             <p className="text-sm text-[#64748B] mb-6">Your complaint will be reviewed by the GRP admin and forwarded to the concerned police station.</p>
             <Button
-              onClick={() => { setTrackingNumber(null); setFormData({ complainant_name: '', complainant_phone: '', complaint_type: '', description: '', location: '', station: 'Unassigned', incident_date: '' }); }}
+              onClick={() => { setTrackingNumber(null); setFormData({ complainant_name: '', complainant_phone: '', complainant_email: '', aadhar_number: '', address: '', complaint_type: '', description: '', location: '', station: 'Unassigned', incident_date: '' }); setAadharFile(null); setSupportingDocs(null); }}
               className="bg-[#2563EB] hover:bg-[#1D4ED8]"
             >
               File Another Complaint
@@ -94,6 +107,76 @@ export const ComplaintPage = () => {
                   required
                 />
               </div>
+              <div>
+                <Label htmlFor="complainant_email">Email Address *</Label>
+                <Input
+                  id="complainant_email"
+                  type="email"
+                  className="mt-2"
+                  placeholder="Your email address"
+                  value={formData.complainant_email}
+                  onChange={(e) => setFormData({...formData, complainant_email: e.target.value})}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="incident_date">Date of Incident *</Label>
+                <Input
+                  id="incident_date"
+                  type="date"
+                  className="mt-2"
+                  value={formData.incident_date}
+                  onChange={(e) => setFormData({...formData, incident_date: e.target.value})}
+                  required
+                  data-testid="incident-date-input"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="aadhar_number">Aadhar Number *</Label>
+                <Input
+                  id="aadhar_number"
+                  className="mt-2"
+                  placeholder="12-digit Aadhar number"
+                  value={formData.aadhar_number}
+                  onChange={(e) => setFormData({...formData, aadhar_number: e.target.value})}
+                  maxLength={12}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Aadhar Card Upload *</Label>
+                <input
+                  ref={aadharFileRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={(e) => setAadharFile(e.target.files[0] || null)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => aadharFileRef.current?.click()}
+                  className="mt-2 w-full flex items-center gap-2 px-4 py-2 border border-dashed border-[#60A5FA] rounded-md text-sm text-[#2563EB] hover:bg-[#EFF6FF] transition-colors"
+                >
+                  <Paperclip className="w-4 h-4" />
+                  {aadharFile ? aadharFile.name : 'Upload Aadhar (PDF / JPG / PNG)'}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="address">Address *</Label>
+              <Textarea
+                id="address"
+                className="mt-2 min-h-[100px]"
+                placeholder="Your full address including state and pincode"
+                value={formData.address}
+                onChange={(e) => setFormData({...formData, address: e.target.value})}
+                required
+              />
             </div>
 
             <div>
@@ -125,19 +208,6 @@ export const ComplaintPage = () => {
             </div>
 
             <div>
-              <Label htmlFor="incident_date">Date of Incident *</Label>
-              <Input
-                id="incident_date"
-                type="date"
-                className="mt-2"
-                value={formData.incident_date}
-                onChange={(e) => setFormData({...formData, incident_date: e.target.value})}
-                required
-                data-testid="incident-date-input"
-              />
-            </div>
-
-            <div>
               <Label htmlFor="description">Description *</Label>
               <Textarea
                 id="description"
@@ -148,6 +218,26 @@ export const ComplaintPage = () => {
                 required
                 data-testid="description-textarea"
               />
+            </div>
+
+            <div>
+              <Label>Supporting Documents *</Label>
+              <input
+                ref={supportingDocsRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={(e) => setSupportingDocs(e.target.files[0] || null)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => supportingDocsRef.current?.click()}
+                className="mt-2 w-full flex items-center gap-2 px-4 py-2 border border-dashed border-[#60A5FA] rounded-md text-sm text-[#2563EB] hover:bg-[#EFF6FF] transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                {supportingDocs ? supportingDocs.name : 'Upload Supporting Documents (PDF / JPG / PNG)'}
+              </button>
             </div>
 
             <div className="bg-[#F1F5F9] p-4 rounded-md flex gap-3">

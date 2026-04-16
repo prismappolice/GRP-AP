@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
@@ -67,6 +67,7 @@ export const PoliceComplaintsPage = () => {
   const [circleFilter, setCircleFilter] = useState('');
   const [stationFilter, setStationFilter] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [expandedId, setExpandedId] = useState(null);
 
   const scope = useMemo(() => getOfficerScope(user), [user]);
   const role = user?.role || '';
@@ -374,26 +375,34 @@ export const PoliceComplaintsPage = () => {
                   <TableRow className="bg-[#F1F5F9]">
                     <TableHead className="text-xs font-bold text-[#64748B]">S.No</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Tracking #</TableHead>
+                    <TableHead className="text-xs font-bold text-[#64748B]">Complainant</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Crime Type</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Station</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Location</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Date</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Status</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Description</TableHead>
+                    <TableHead className="text-xs font-bold text-[#64748B]">Documents</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10 text-[#94A3B8]">
+                      <TableCell colSpan={9} className="text-center py-10 text-[#94A3B8]">
                         No complaints found.
                       </TableCell>
                     </TableRow>
                   ) : (
                     filtered.map((c, i) => (
-                      <TableRow key={c.id || i} className="hover:bg-[#F8FAFC]">
+                      <React.Fragment key={c.id || i}>
+                      <TableRow className="hover:bg-[#F8FAFC]">
                         <TableCell className="text-sm text-[#64748B]">{i + 1}</TableCell>
                         <TableCell className="text-sm font-mono font-semibold text-[#2563EB]">{c.tracking_number || '-'}</TableCell>
+                        <TableCell className="text-sm">
+                          <div className="font-semibold text-[#0F172A]">{c.complainant_name || '-'}</div>
+                          <div className="text-xs text-[#64748B]">{c.complainant_phone || ''}</div>
+                          <div className="text-xs text-[#64748B]">{c.complainant_email || ''}</div>
+                        </TableCell>
                         <TableCell className="text-sm text-[#0F172A]">{(c.complaint_type || '-').replace(/_/g, ' ')}</TableCell>
                         <TableCell className="text-sm text-[#0F172A]">{c.station || '-'}</TableCell>
                         <TableCell className="text-sm text-[#0F172A]">{c.location || '-'}</TableCell>
@@ -406,7 +415,38 @@ export const PoliceComplaintsPage = () => {
                         <TableCell className="text-sm text-[#475569] max-w-[220px] truncate" title={c.description || ''}>
                           {c.description || '-'}
                         </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col gap-1">
+                            {c.aadhar_file ? (
+                              <a href={`http://localhost:8001${c.aadhar_file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Aadhar</a>
+                            ) : <span className="text-xs text-[#94A3B8]">-</span>}
+                            {c.supporting_docs ? (
+                              <a href={`http://localhost:8001${c.supporting_docs}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Docs</a>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                              className="text-xs text-[#64748B] flex items-center gap-0.5 hover:text-[#2563EB]"
+                            >
+                              {expandedId === c.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              Details
+                            </button>
+                          </div>
+                        </TableCell>
                       </TableRow>
+                      {expandedId === c.id && (
+                        <TableRow key={`${c.id}-detail`} className="bg-[#F0F9FF]">
+                          <TableCell colSpan={10} className="px-6 py-4 border-b border-[#60A5FA]">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
+                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Address</span><span className="text-[#0F172A]">{c.address || '-'}</span></div>
+                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Date of Incident</span><span className="text-[#0F172A]">{c.incident_date || '-'}</span></div>
+                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Email</span><span className="text-[#0F172A]">{c.complainant_email || '-'}</span></div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </React.Fragment>
                     ))
                   )}
                 </TableBody>

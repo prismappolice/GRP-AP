@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Building2, ChevronDown, Download, FileText, RefreshCw, Search, X, Check } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronDown, ChevronUp, Download, FileText, RefreshCw, Search, X, Check } from 'lucide-react';
 import { stationAPI, complaintsAPI } from '@/lib/api';
 
 const STATUS_COLORS = {
@@ -59,6 +59,7 @@ const StationComplaintsPage = () => {
   const [crimeFilter, setCrimeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [rejectingId, setRejectingId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [inlineReason, setInlineReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -227,10 +228,12 @@ const StationComplaintsPage = () => {
                 <TableRow className="bg-[#EFF6FF]">
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">S.No</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Tracking #</TableHead>
+                  <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Complainant</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Type</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Description</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Location</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Date</TableHead>
+                  <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Documents</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Status</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Actions</TableHead>
                 </TableRow>
@@ -238,7 +241,7 @@ const StationComplaintsPage = () => {
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-[#94A3B8]">
+                    <TableCell colSpan={10} className="text-center py-12 text-[#94A3B8]">
                       No complaints found for this station.
                     </TableCell>
                   </TableRow>
@@ -248,10 +251,25 @@ const StationComplaintsPage = () => {
                     <TableRow className="border-b border-[#60A5FA] hover:bg-[#F8FAFC]">
                       <TableCell className="px-4 py-3 text-sm font-semibold text-[#0F172A]">{index + 1}</TableCell>
                       <TableCell className="px-4 py-3 font-mono text-xs text-[#2563EB] font-semibold">{c.tracking_number}</TableCell>
+                      <TableCell className="px-4 py-3 text-sm">
+                        <div className="font-semibold text-[#0F172A]">{c.complainant_name || '-'}</div>
+                        <div className="text-xs text-[#64748B]">{c.complainant_phone || ''}</div>
+                        <div className="text-xs text-[#64748B]">{c.complainant_email || ''}</div>
+                      </TableCell>
                       <TableCell className="px-4 py-3 capitalize text-sm">{c.complaint_type?.replace(/_/g, ' ')}</TableCell>
                       <TableCell className="px-4 py-3 text-sm max-w-[220px] whitespace-normal break-words text-[#475569]">{c.description || '-'}</TableCell>
                       <TableCell className="px-4 py-3 text-sm max-w-[160px] truncate">{c.location}</TableCell>
                       <TableCell className="px-4 py-3 text-sm">{c.incident_date}</TableCell>
+                      <TableCell className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          {c.aadhar_file ? (
+                            <a href={`http://localhost:8001${c.aadhar_file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Aadhar</a>
+                          ) : <span className="text-xs text-[#94A3B8]">-</span>}
+                          {c.supporting_docs ? (
+                            <a href={`http://localhost:8001${c.supporting_docs}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Docs</a>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell className="px-4 py-3">
                         <div className="space-y-1">
                           <span className={`inline-flex text-xs font-semibold px-2 py-1 rounded-full capitalize ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}>
@@ -284,6 +302,9 @@ const StationComplaintsPage = () => {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
+                          {expandedId === c.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </Button>
                       </TableCell>
                     </TableRow>
                     {rejectingId === c.id && (
@@ -314,6 +335,18 @@ const StationComplaintsPage = () => {
                                 <X className="h-3.5 w-3.5" /> Cancel
                               </Button>
                             </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {expandedId === c.id && (
+                      <TableRow key={`${c.id}-detail`} className="bg-[#F0F9FF]">
+                        <TableCell colSpan={10} className="px-6 py-4 border-b border-[#60A5FA]">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
+                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Address</span><span className="text-[#0F172A]">{c.address || '-'}</span></div>
+                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Date of Incident</span><span className="text-[#0F172A]">{c.incident_date || '-'}</span></div>
+                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Email</span><span className="text-[#0F172A]">{c.complainant_email || '-'}</span></div>
                           </div>
                         </TableCell>
                       </TableRow>
