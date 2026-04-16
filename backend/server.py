@@ -872,7 +872,7 @@ def _managed_station_names_for_irp(current_user: User) -> List[str]:
     stations: List[str] = []
     for circle in managed_circles:
         for s in IRP_CIRCLE_STATIONS.get(circle, []):
-            if s not in stations:
+            if s not in stations and not s.upper().endswith("RPOP"):
                 stations.append(s)
     return stations
 
