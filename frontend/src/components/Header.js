@@ -42,11 +42,7 @@ export const Header = () => {
     { to: '/organization', label: 'Organization', testId: 'organization-link' },
     { to: '/awareness', label: 'Awareness', testId: 'awareness-link' },
     { to: '/services', label: 'Services', testId: 'services-link' },
-  ];
-
-  const userLinks = [
-    { to: '/dashboard', label: 'Dashboard', testId: 'user-dashboard-link' },
-    { to: '/complaint', label: 'File Complaint', testId: 'user-complaint-link' },
+    { to: '/complaint', label: 'File Complaint', testId: 'file-complaint-link' },
   ];
 
   const irpPhones = [
@@ -143,7 +139,7 @@ export const Header = () => {
   const navLinks = effectiveIsAdmin
     ? adminLinks
     : (user
-      ? ((['police', 'officer', 'station', 'srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'].includes(user.role)) ? policeLinks : userLinks)
+      ? ((['police', 'officer', 'station', 'srp', 'dsrp', 'irp', 'dgp', 'adgp', 'dig'].includes(user.role)) ? policeLinks : publicLinks)
       : publicLinks);
 
   return (
@@ -224,7 +220,7 @@ export const Header = () => {
               </a>
             )}
 
-            {effectiveIsAdmin || user ? (
+            {(effectiveIsAdmin || isPoliceSession) ? (
               <div className="flex items-center">
                 {loggedInDisplayName ? (
                   <Button
@@ -260,7 +256,7 @@ export const Header = () => {
       {mobileMenuOpen && (
         <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-b border-gray-200 lg:hidden z-50" data-testid="mobile-menu">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-3">
-              {effectiveIsAdmin || user ? (
+              {(effectiveIsAdmin || isPoliceSession) ? (
                 <div className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A]">
                   <User className="w-4 h-4" />
                   <span>{loggedInDisplayName}</span>
@@ -272,7 +268,7 @@ export const Header = () => {
                   {link.label}
                 </NavLink>
               ))}
-              {effectiveIsAdmin || user ? (
+              {(effectiveIsAdmin || isPoliceSession) ? (
                 <button onClick={() => { handleSessionLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
                   <User className="w-4 h-4" />
                   <span>{loggedInDisplayName}</span>

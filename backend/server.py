@@ -128,6 +128,8 @@ class ComplaintORM(Base):
     __tablename__ = "complaints"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False)
+    complainant_name = Column(String, nullable=True)
+    complainant_phone = Column(String, nullable=True)
     complaint_type = Column(String, nullable=False)
     description = Column(String, nullable=False)
     location = Column(String, nullable=False)
@@ -447,6 +449,8 @@ class Complaint(BaseModel):
     model_config = ConfigDict(extra="ignore")  # type: ignore[call-overload]
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
+    complainant_name: Optional[str] = None
+    complainant_phone: Optional[str] = None
     complaint_type: str
     description: str
     location: str
@@ -461,6 +465,8 @@ class Complaint(BaseModel):
 
 
 class ComplaintCreate(BaseModel):
+    complainant_name: str
+    complainant_phone: str
     complaint_type: str
     description: str
     location: str
@@ -973,6 +979,12 @@ async def ensure_complaints_table_columns(session: AsyncSession) -> None:
     await session.execute(
         text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS rejection_reason VARCHAR")
     )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS complainant_name VARCHAR")
+    )
+    await session.execute(
+        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS complainant_phone VARCHAR")
+    )
     await session.commit()
 
 
@@ -1279,53 +1291,6 @@ async def get_gallery_items() -> Any:
 
 
 # ==================== AUTH ROUTES ====================
-@api_router.post("/auth/register", response_model=TokenResponse)
-async def register(user_data: UserCreate, session: AsyncSession = Depends(get_async_session)) -> TokenResponse:
-    result = await session.execute(select(UserORM).where(UserORM.email == user_data.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    user_orm = UserORM(
-        id=str(uuid.uuid4()),
-        email=user_data.email,
-        name=user_data.name,
-        phone=user_data.phone,
-        role=user_data.role,
-        created_at=datetime.now(timezone.utc),
-        password=hash_password(user_data.password),
-    )
-    session.add(user_orm)
-    await session.commit()
-    await session.refresh(user_orm)
-    access_token = create_access_token({"sub": str(user_orm.id)})
-    user_obj = User(
-        id=str(user_orm.id),
-        email=str(user_orm.email),
-        name=str(user_orm.name),
-        phone=str(user_orm.phone) if user_orm.phone else None,
-        role=str(user_orm.role.value if hasattr(user_orm.role, "value") else user_orm.role),
-        created_at=user_orm.created_at,
-    )
-    return TokenResponse(access_token=access_token, user=user_obj)
-
-
-@api_router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin, session: AsyncSession = Depends(get_async_session)) -> TokenResponse:
-    result = await session.execute(select(UserORM).where(UserORM.email == credentials.email))
-    user_orm = result.scalar_one_or_none()
-    if not user_orm or not verify_password(credentials.password, str(user_orm.password)):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    user = User(
-        id=str(user_orm.id),
-        email=str(user_orm.email),
-        name=str(user_orm.name),
-        phone=str(user_orm.phone) if user_orm.phone else None,
-        role=str(user_orm.role.value if hasattr(user_orm.role, "value") else user_orm.role),
-        created_at=user_orm.created_at,
-    )
-    access_token = create_access_token({"sub": str(user.id)})
-    return TokenResponse(access_token=access_token, user=user)
-
-
 @api_router.post("/admin/login")
 async def admin_login(credentials: AdminLogin, session: AsyncSession = Depends(get_async_session)) -> Any:
     await ensure_admin_password_patterns(session)
@@ -1485,6 +1450,8 @@ async def create_srp_credential(
 def _complaint_to_schema(c: ComplaintORM) -> Complaint:
     return Complaint(
         id=str(c.id), user_id=str(c.user_id),
+        complainant_name=c.complainant_name,
+        complainant_phone=c.complainant_phone,
         complaint_type=str(c.complaint_type), description=str(c.description),
         location=str(c.location), station=str(c.station),
         incident_date=str(c.incident_date),
@@ -1498,13 +1465,14 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
 @api_router.post("/complaints", response_model=Complaint)
 async def create_complaint(
     complaint_data: ComplaintCreate,
-    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
     await ensure_complaints_table_columns(session)
     evidence_urls = ",".join(complaint_data.evidence_urls) if complaint_data.evidence_urls else ""
     complaint_orm = ComplaintORM(
-        id=str(uuid.uuid4()), user_id=current_user.id,
+        id=str(uuid.uuid4()), user_id="anonymous",
+        complainant_name=complaint_data.complainant_name,
+        complainant_phone=complaint_data.complainant_phone,
         complaint_type=complaint_data.complaint_type, description=complaint_data.description,
         location=complaint_data.location, station=complaint_data.station,
         incident_date=complaint_data.incident_date, evidence_urls=evidence_urls,
@@ -1960,28 +1928,6 @@ async def get_dgp_lost_items(
         raise HTTPException(status_code=403, detail="DGP access only")
     result = await session.execute(select(LostItemORM))
     return [LostItem(**item.__dict__) for item in result.scalars().all()]
-
-
-# ==================== ADMIN USERS ====================
-@api_router.get("/users", response_model=List[AdminUserView])
-async def get_all_users(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[AdminUserView]:
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admins only")
-    result = await session.execute(
-        select(UserORM).where(UserORM.role == UserRole.public).order_by(desc(UserORM.created_at), UserORM.name)
-    )
-    return [
-        AdminUserView(
-            id=str(u.id), email=str(u.email or ""), name=str(u.name),
-            phone=str(u.phone or "N/A"),
-            role=str(u.role.value if hasattr(u.role, "value") else u.role),
-            created_at=u.created_at or datetime.now(timezone.utc),
-        )
-        for u in result.scalars().all()
-    ]
 
 
 # ==================== ADMIN CREDENTIALS ====================

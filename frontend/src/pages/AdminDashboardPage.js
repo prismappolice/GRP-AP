@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { MapPin, Users, Image, Newspaper, HelpCircle, LogIn, FileText } from 'lucide-react';
+import { MapPin, Image, Newspaper, HelpCircle, FileText } from 'lucide-react';
 import api from '@/lib/api';
 // import removed: getAdminHierarchyCounts
 
@@ -42,19 +42,11 @@ const adminServices = [
     link: '/admin/stations',
     color: 'bg-[#16A34A]'
   },
-    {
-    icon: Users,
-    title: 'Public Users',
-    description: 'View all registered public users',
-    link: '/admin-users',
-    color: 'bg-[#0EA5E9]'
-  },
 
 ];
 
 const AdminDashboardPage = () => {
   const [counts, setCounts] = useState({
-    users: 0,
     gallery: 0,
     policeUsers: 0,
     latestNews: 0,
@@ -64,8 +56,7 @@ const AdminDashboardPage = () => {
   useEffect(() => {
     const loadCounts = async () => {
       try {
-        const [usersRes, galleryRes, policeUsersRes, newsRes, complaintsRes] = await Promise.all([
-          api.get('/users'),
+        const [galleryRes, policeUsersRes, newsRes, complaintsRes] = await Promise.all([
           api.get('/gallery-items'),
           api.get('/admin/credentials'),
           api.get('/news-items'),
@@ -73,7 +64,6 @@ const AdminDashboardPage = () => {
         ]);
 
         setCounts({
-          users: Array.isArray(usersRes.data) ? usersRes.data.length : 0,
           gallery: Array.isArray(galleryRes.data) ? galleryRes.data.length : 0,
           policeUsers: Array.isArray(policeUsersRes.data) ? policeUsersRes.data.length : 0,
           latestNews: Array.isArray(newsRes.data) ? newsRes.data.length : 0,
@@ -89,8 +79,6 @@ const AdminDashboardPage = () => {
 
   const getCountForCard = (title) => {
     switch (title) {
-      case 'Public Users':
-        return counts.users;
       case 'Gallery':
         return counts.gallery;
       case 'Police Users':

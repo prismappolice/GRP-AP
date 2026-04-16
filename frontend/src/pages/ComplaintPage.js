@@ -1,56 +1,64 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, AlertCircle } from 'lucide-react';
+import { FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { complaintsAPI } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
-import { getAllStations, getOfficerScope } from '@/lib/policeScope';
 import { toast } from 'sonner';
 
 export const ComplaintPage = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState(null);
   const [formData, setFormData] = useState({
+    complainant_name: '',
+    complainant_phone: '',
     complaint_type: '',
     description: '',
     location: '',
-    station: user?.role === 'police' ? '' : 'Unassigned',
+    station: 'Unassigned',
     incident_date: '',
   });
-
-  const allStations = useMemo(() => getAllStations(), []);
-  const officerScope = useMemo(() => getOfficerScope(user), [user]);
-  const stationOptions = useMemo(() => {
-    if (user?.role !== 'police') return allStations;
-    return officerScope.stations.length > 0 ? officerScope.stations : allStations;
-  }, [allStations, officerScope, user]);
-
-  useEffect(() => {
-    if (user?.role !== 'police') return;
-    if (formData.station) return;
-    if (!officerScope.defaultStation) return;
-    setFormData((prev) => ({ ...prev, station: officerScope.defaultStation }));
-  }, [formData.station, officerScope.defaultStation, user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const response = await complaintsAPI.create(formData);
-      toast.success(`Complaint registered! Tracking number: ${response.data.tracking_number}`);
-      navigate(officerScope.dashboardPath || '/dashboard');
+      setTrackingNumber(response.data.tracking_number);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to register complaint');
     } finally {
       setLoading(false);
     }
   };
+
+  if (trackingNumber) {
+    return (
+      <div className="min-h-screen pt-4 bg-[#F8FAFC] py-12">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Card className="p-10 border border-[#E2E8F0] bg-white text-center">
+            <CheckCircle className="w-16 h-16 text-[#16A34A] mx-auto mb-4" />
+            <h2 className="text-3xl font-extrabold heading-font text-[#0F172A] mb-2">Complaint Registered!</h2>
+            <p className="text-[#475569] mb-6">Your complaint has been submitted. Please save your tracking number.</p>
+            <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg px-6 py-4 inline-block mb-6">
+              <p className="text-sm text-[#16A34A] font-semibold mb-1">Tracking Number</p>
+              <p className="text-2xl font-extrabold text-[#15803D] tracking-widest">{trackingNumber}</p>
+            </div>
+            <p className="text-sm text-[#64748B] mb-6">Your complaint will be reviewed by the GRP admin and forwarded to the concerned police station.</p>
+            <Button
+              onClick={() => { setTrackingNumber(null); setFormData({ complainant_name: '', complainant_phone: '', complaint_type: '', description: '', location: '', station: 'Unassigned', incident_date: '' }); }}
+              className="bg-[#2563EB] hover:bg-[#1D4ED8]"
+            >
+              File Another Complaint
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-4 bg-[#F8FAFC] py-12">
@@ -63,6 +71,31 @@ export const ComplaintPage = () => {
 
         <Card className="p-8 border border-[#E2E8F0] bg-white">
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="complainant_name">Full Name *</Label>
+                <Input
+                  id="complainant_name"
+                  className="mt-2"
+                  placeholder="Your full name"
+                  value={formData.complainant_name}
+                  onChange={(e) => setFormData({...formData, complainant_name: e.target.value})}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="complainant_phone">Phone Number *</Label>
+                <Input
+                  id="complainant_phone"
+                  className="mt-2"
+                  placeholder="Your mobile number"
+                  value={formData.complainant_phone}
+                  onChange={(e) => setFormData({...formData, complainant_phone: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="complaint_type">Complaint Type *</Label>
               <Select value={formData.complaint_type} onValueChange={(val) => setFormData({...formData, complaint_type: val})} required>
@@ -77,25 +110,6 @@ export const ComplaintPage = () => {
                 </SelectContent>
               </Select>
             </div>
-
-            {user?.role === 'police' && (
-              <div>
-                <Label htmlFor="station">GRP Station *</Label>
-                <Select value={formData.station} onValueChange={(val) => setFormData({...formData, station: val})} required>
-                  <SelectTrigger className="mt-2" data-testid="station-select">
-                    <SelectValue placeholder="Select station" />
-                  </SelectTrigger>
-                  <SelectContent side="bottom" avoidCollisions={false}>
-                    {stationOptions.map((stationName, idx) => (
-                      <SelectItem key={stationName + idx} value={stationName}>{stationName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="mt-2 text-xs text-[#64748B]">
-                  Station list filtered by your assigned jurisdiction.
-                </p>
-              </div>
-            )}
 
             <div>
               <Label htmlFor="location">Location/Place of Incident *</Label>
@@ -139,10 +153,7 @@ export const ComplaintPage = () => {
             <div className="bg-[#F1F5F9] p-4 rounded-md flex gap-3">
               <AlertCircle className="w-5 h-5 text-[#D97706] flex-shrink-0 mt-0.5" />
               <p className="text-sm text-[#475569]">
-                {user?.role === 'police'
-                  ? 'You will receive a tracking number after submitting this complaint. Please save it for future reference.'
-                  : 'Your complaint will be reviewed by the GRP central admin and forwarded to the concerned police station. You will receive a tracking number — please save it.'
-                }
+                Your complaint will be reviewed by the GRP central admin and forwarded to the concerned police station. You will receive a tracking number — please save it.
               </p>
             </div>
 

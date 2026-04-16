@@ -8,7 +8,6 @@ import { ChatBot } from '@/components/ChatBot';
 import { HomePage } from '@/pages/HomePage';
 import { AboutPage } from '@/pages/AboutPage';
 import { HistoryPage } from '@/pages/HistoryPage';
-import { AuthPage } from '@/pages/AuthPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import { seedData } from '@/lib/api';
@@ -40,7 +39,6 @@ class ChunkErrorBoundary extends React.Component {
 
 // Lazy load heavy pages
 const ComplaintPage = React.lazy(() => import('@/pages/ComplaintPage').then(m => ({ default: m.ComplaintPage })));
-const UsersDashboardPage = React.lazy(() => import('@/pages/UsersDashboardPage').then(m => ({ default: m.UsersDashboardPage })));
 const WomenSafetyPage = React.lazy(() => import('@/pages/WomenSafetyPage').then(m => ({ default: m.WomenSafetyPage })));
 const HelpDeskPage = React.lazy(() => import('@/pages/HelpDeskPage').then(m => ({ default: m.HelpDeskPage })));
 const StationsPage = React.lazy(() => import('@/pages/StationsPage').then(m => ({ default: m.StationsPage })));
@@ -200,9 +198,9 @@ const AppContent = () => {
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/organization" element={<OrganizationPage />} />
           <Route path="/mobile-tracking" element={<MobileTrackingPage />} />
-          <Route path="/login" element={<AuthPage />} />
-          <Route path="/complaint" element={<ProtectedRoute><ComplaintPage /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><UsersDashboardPage /></ProtectedRoute>} />
+          <Route path="/complaint" element={<ComplaintPage />} />
+          <Route path="/login" element={<Navigate to="/complaint" replace />} />
+          <Route path="/dashboard" element={<Navigate to="/complaint" replace />} />
           <Route path="/station-dashboard" element={<PoliceRoute><StationDashboardPage /></PoliceRoute>} />
           <Route path="/irp-dashboard" element={<PoliceRoute><IRPDashboardPage /></PoliceRoute>} />
           <Route path="/dsrp-dashboard" element={<PoliceRoute><DSRPDashboardPage /></PoliceRoute>} />
