@@ -49,25 +49,25 @@ export default function NewsCard({
       </div>
 
       {/* Row 2 — Image */}
-      <div style={{overflow: 'hidden', backgroundColor: '#f3f4f6'}}>
+      <div style={{overflow: 'hidden', backgroundColor: '#f3f4f6', height: '100%', maxHeight: '210px'}}>
         {image ? (
           isVideoUrl(image) ? (
-            <video src={image} controls style={{width: '100%', height: '100%', objectFit: 'cover', display: 'block'}} />
+            <video src={image} controls style={{width: '100%', height: '210px', objectFit: 'cover', display: 'block'}} />
           ) : (
             <img
               src={image}
               alt={newsTitle}
-              style={{width: '100%', height: '100%', objectFit: 'cover', display: 'block'}}
+              style={{width: '100%', height: '210px', objectFit: 'cover', display: 'block'}}
               onError={handleImageError}
             />
           )
         ) : (
-          <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: '13px'}}>No Image</div>
+          <div style={{width: '100%', height: '210px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: '13px'}}>No Image</div>
         )}
       </div>
 
       {/* Row 3 — News Title + Summary */}
-      <div style={{padding: '12px 16px 8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '6px'}}>
+      <div style={{padding: '12px 16px 8px', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', gap: '6px'}}>
         <h2 style={{
           margin: 0, fontWeight: 700, fontSize: '15px', color: '#1a2236',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
