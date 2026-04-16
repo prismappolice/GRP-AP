@@ -336,7 +336,7 @@ export const AdminStationsPage = () => {
     'IRP Vijayawada', 'Vijayawada Circle',
     'IRP Guntur', 'Guntur Circle',
     'IRP Rajahmundry', 'Kakinada Circle', 'Bhimavaram Circle',
-    'IRP Visakhapatnam', 'Vizianagaram Circle',
+    'IRP Visakhapatnam', 'Visakhapatnam Circle',
     'Guntakal Circle', 'Kurnool Circle', 'Dharmavaram Circle',
     'Tirupati Circle', 'Renigunta Circle', 'Kadapa Circle',
     'Nellore Circle', 'Ongole Circle',
