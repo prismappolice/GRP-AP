@@ -162,7 +162,7 @@ const AppContent = () => {
   }, []);
 
   return (
-    <div className="App">
+    <div className="App" style={{overflowX: 'hidden', maxWidth: '100vw'}}>
       <ScrollManager />
       <Header />
       <ChunkErrorBoundary>
