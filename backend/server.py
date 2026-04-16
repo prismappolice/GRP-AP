@@ -384,19 +384,6 @@ class User(BaseModel):
     created_at: Optional[datetime] = None
 
 
-class UserCreate(BaseModel):
-    email: EmailStr
-    name: str
-    phone: Optional[str] = None
-    role: str = "public"
-    password: str
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-
 class AdminUserView(BaseModel):
     id: str
     email: str
@@ -2394,72 +2381,6 @@ async def admin_add_gallery_item(request: Request, current_user: User = Depends(
         return JSONResponse(content=data)
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to add gallery item: {e}"}, status_code=500)
-
-
-# ==================== PASSWORD RESET (OTP FLOW) ====================
-class SendOTPRequest(BaseModel):
-    email: EmailStr
-
-
-class VerifyOTPRequest(BaseModel):
-    email: EmailStr
-    otp: str
-
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
-
-@api_router.post("/auth/send-otp")
-async def send_otp(data: SendOTPRequest, session: AsyncSession = Depends(get_async_session)):
-    from backend.password_reset import generate_otp, store_otp, send_otp_email
-    result = await session.execute(select(UserORM).where(UserORM.email == data.email))
-    user = result.scalar_one_or_none()
-    # Always return success to prevent email enumeration
-    if not user:
-        return {"msg": "If this email exists, an OTP has been sent."}
-    otp = generate_otp()
-    store_otp(data.email, otp)
-    try:
-        await send_otp_email(data.email, otp)
-    except Exception as exc:
-        logging.error(f"Failed to send OTP email: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to send OTP. Please try again later.")
-    return {"msg": "If this email exists, an OTP has been sent."}
-
-
-@api_router.post("/auth/verify-otp")
-async def verify_otp(data: VerifyOTPRequest):
-    from backend.password_reset import verify_and_consume_otp, FRONTEND_URL
-    if not verify_and_consume_otp(data.email, data.otp):
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP.")
-    # Issue a short-lived token to authorize the password reset
-    token = jwt.encode(
-        {"sub": data.email, "purpose": "reset", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)},
-        SECRET_KEY,
-        algorithm=ALGORITHM,
-    )
-    return {"token": token}
-
-
-@api_router.post("/auth/reset-password")
-async def reset_password_endpoint(data: ResetPasswordRequest, session: AsyncSession = Depends(get_async_session)):
-    try:
-        payload = jwt.decode(data.token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-        purpose = payload.get("purpose")
-        if not email or purpose != "reset":
-            raise ValueError("Invalid token")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid or expired token.")
-    result = await session.execute(select(UserORM).where(UserORM.email == email))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
-    user.password = hash_password(data.new_password)
-    await session.commit()
-    return {"msg": "Password reset successful."}
 
 
 # ==================== INCLUDE ROUTER ====================

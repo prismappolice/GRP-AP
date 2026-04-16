@@ -42,7 +42,6 @@ export const Header = () => {
     { to: '/organization', label: 'Organization', testId: 'organization-link' },
     { to: '/awareness', label: 'Awareness', testId: 'awareness-link' },
     { to: '/services', label: 'Services', testId: 'services-link' },
-    { to: '/complaint', label: 'File Complaint', testId: 'file-complaint-link' },
   ];
 
   const irpPhones = [
@@ -114,8 +113,8 @@ export const Header = () => {
 
   const policeLinks = [
     { to: policeDashboardPath, label: 'Dashboard', testId: 'police-dashboard-link' },
-    { to: policeUnidentifiedBodiesPath, label: 'Unidentified Deadbodies', testId: 'police-unidentified-bodies-link' },
     { to: policeComplaintsPath, label: 'Complaints', testId: 'police-complaints-link' },
+    { to: policeUnidentifiedBodiesPath, label: 'Unidentified Bodies', testId: 'police-unidentified-link' },
   ];
 
   const adminLinks = [
