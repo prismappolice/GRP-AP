@@ -46,7 +46,7 @@ const adminServices = [
     icon: UserX,
     title: 'Unidentified Bodies',
     description: 'View and manage unidentified body records',
-    link: '/police-unidentified-bodies',
+    link: '/unidentified-bodies',
     color: 'bg-[#0F172A]'
   },
 ];
