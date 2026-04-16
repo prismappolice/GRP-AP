@@ -857,7 +857,7 @@ def _managed_station_names_for_irp(current_user: User) -> List[str]:
     normalized_name = _normalize_label(current_user.name)
     managed_circles: List[str] = []
     for circle_name in IRP_CIRCLE_STATIONS.keys():
-        if _normalize_label(circle_name) in normalized_name:
+        if _normalize_label(circle_name) == normalized_name:
             managed_circles.append(circle_name)
     phone_digits = _digits_only(current_user.phone or "")
     if phone_digits:
@@ -878,7 +878,7 @@ def _managed_station_names_for_dsrp(current_user: User) -> List[str]:
     normalized_name = _normalize_label(current_user.name)
     managed_subdivisions: List[str] = []
     for subdivision in DSRP_SUBDIVISION_STATIONS.keys():
-        if _normalize_label(subdivision) in normalized_name:
+        if _normalize_label(subdivision) == normalized_name:
             managed_subdivisions.append(subdivision)
     phone_digits = _digits_only(current_user.phone or "")
     if phone_digits:
