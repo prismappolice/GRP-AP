@@ -33,7 +33,7 @@ export const Header = () => {
   const isLoggedInSession = Boolean(effectiveIsAdmin || user);
 
   const navLinkClass = ({ isActive }) =>
-    `text-xs lg:text-sm font-semibold transition-colors px-1 lg:px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
+    `text-xs xl:text-sm font-semibold transition-colors px-1 xl:px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
 
   const publicLinks = [
     { to: '/', label: 'Home', testId: 'home-link' },
@@ -188,11 +188,11 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-10 h-10 md:w-12 md:h-12 lg:w-16 lg:h-16 object-contain"
+                  className="w-10 h-10 lg:w-14 lg:h-14 xl:w-16 xl:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-sm md:text-base lg:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
-                  <p className="text-xs md:text-xs lg:text-sm font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-sm lg:text-xl xl:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs lg:text-xs xl:text-sm font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </div>
             ) : (
@@ -200,17 +200,17 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-10 h-10 md:w-12 md:h-12 lg:w-16 lg:h-16 object-contain"
+                  className="w-10 h-10 lg:w-14 lg:h-14 xl:w-16 xl:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-sm md:text-base lg:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
-                  <p className="text-xs md:text-xs lg:text-sm font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-sm lg:text-xl xl:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs lg:text-xs xl:text-sm font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </Link>
             )}
           </div>
 
-          <div className="hidden md:flex items-center gap-1 lg:gap-4">
+          <div className="hidden lg:flex items-center gap-1 xl:gap-4">
             {navLinks.map((link) => (
               <NavLink key={link.to} to={link.to} className={navLinkClass} data-testid={link.testId}>
                 {link.label}
@@ -248,7 +248,7 @@ export const Header = () => {
           </div>
 
           <button
-            className="md:hidden p-2"
+            className="lg:hidden p-2"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             data-testid="mobile-menu-button"
           >
@@ -258,7 +258,7 @@ export const Header = () => {
       </div>
 
       {mobileMenuOpen && (
-        <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-b border-gray-200 md:hidden z-50" data-testid="mobile-menu">
+        <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-b border-gray-200 lg:hidden z-50" data-testid="mobile-menu">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-3">
               {effectiveIsAdmin || user ? (
                 <div className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A]">
