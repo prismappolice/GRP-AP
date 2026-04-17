@@ -587,12 +587,16 @@ def _digits_only(value: str) -> str:
 def _format_superior_officer_label(role: str, name: str) -> str:
     role_key = str(role or "").lower()
     role_upper = role_key.upper()
+    cleaned_name = str(name or "").strip()
+    # Avoid duplicated superior-rank tokens in labels, e.g.:
+    # "DIG DIG Railways" -> "DIG Railways"
+    # "ADGP ADGP Railways" -> "ADGP Railways"
+    cleaned_name = re.sub(r"^(dgp|adgp|dig)\b[\s:\-_/]*", "", cleaned_name, flags=re.IGNORECASE).strip()
     if role_key == "dgp":
-        cleaned_name = re.sub(r"^(dgp)\s+", "", str(name or ""), flags=re.IGNORECASE).strip()
         return f"DGP {cleaned_name}".strip()
     if role == "srp" and name.startswith("GRP "):
         return f"{role_upper} {name.replace('GRP ', '', 1)}"
-    return f"{role_upper} {name}"
+    return f"{role_upper} {cleaned_name}".strip()
 
 
 def _extract_js_object_literal(content: str, const_name: str) -> Optional[str]:

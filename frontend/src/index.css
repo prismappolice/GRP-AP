@@ -93,7 +93,8 @@ code {
 }
 
 .animate-marquee {
-  animation: marquee-left 60s linear infinite;
+  animation: marquee-gallery-loop 90s linear infinite;
+  will-change: transform;
 }
 
 .animate-marquee-news {
@@ -108,6 +109,11 @@ code {
 @keyframes marquee-left {
   0% { transform: translateX(0); }
   100% { transform: translateX(-100%); }
+}
+
+@keyframes marquee-gallery-loop {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-50% - 0.5rem)); }
 }
 
 /* ── Large-desktop responsive containers ───────────────────────────────────
