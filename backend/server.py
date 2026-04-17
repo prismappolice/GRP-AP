@@ -2,6 +2,9 @@
 import os
 import sys
 import json
+import smtplib
+import email.mime.text
+import email.mime.multipart
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 import ast
@@ -52,6 +55,13 @@ SECRET_KEY: str = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-pr
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 PASSWORD_NAME_STOPWORDS = {"grp", "sub", "division", "circle", "rps", "rpop", "port", "rs"}
+
+# ==================== EMAIL CONFIG ====================
+SMTP_HOST: str = os.environ.get("SMTP_HOST", "")
+SMTP_PORT: int = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER: str = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD: str = os.environ.get("SMTP_PASSWORD", "")
+ADMIN_ALERT_EMAIL: str = os.environ.get("ADMIN_ALERT_EMAIL", "")
 
 # ==================== FASTAPI APP ====================
 app = FastAPI()
@@ -117,7 +127,6 @@ class ComplaintORM(Base):
     station = Column(String, nullable=False)
     incident_date = Column(String, nullable=False)
     aadhar_number = Column(String, nullable=True)
-    aadhar_file = Column(String, nullable=True)
     address = Column(String, nullable=True)
     state = Column(String, nullable=True)
     complainant_email = Column(String, nullable=True)
@@ -405,11 +414,10 @@ class Complaint(BaseModel):
     station: str
     incident_date: str
     aadhar_number: Optional[str] = None
-    aadhar_file: Optional[str] = None
     address: Optional[str] = None
     state: Optional[str] = None
     complainant_email: Optional[str] = None
-    supporting_docs: Optional[str] = None
+    supporting_docs: List[str] = Field(default_factory=list)
     evidence_urls: List[str] = []
     status: str = "pending"
     rejection_reason: Optional[str] = None
@@ -421,8 +429,8 @@ class Complaint(BaseModel):
 class ComplaintCreate(BaseModel):
     complainant_name: str
     complainant_phone: str
-    complainant_email: str
     aadhar_number: str
+    complainant_email: str
     address: str
     state: Optional[str] = None
     complaint_type: str
@@ -440,6 +448,19 @@ class ComplaintAssignUpdate(BaseModel):
 class ComplaintStatusUpdate(BaseModel):
     status: str
     rejection_reason: Optional[str] = None
+
+
+class PublicComplaintTracking(BaseModel):
+    model_config = ConfigDict(extra="ignore")  # type: ignore[call-overload]
+    tracking_number: str
+    complaint_type: str
+    description: str
+    station: str
+    incident_date: str
+    status: str = "pending"
+    rejection_reason: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class UnidentifiedBodyRecord(BaseModel):
@@ -567,6 +588,32 @@ def build_auth_user_payload(user_id: str, email: str, name: str, phone: str, cre
         "role": "officer",
         "created_at": created_at or datetime.now(timezone.utc),
     }
+
+
+def _send_complaint_email_alert(tracking_number: str, complaint_type: str, station: str, incident_date: str) -> None:
+    """Send email alert to admin when a new complaint is filed. Fails silently if SMTP not configured."""
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, ADMIN_ALERT_EMAIL]):
+        return
+    try:
+        msg = email.mime.multipart.MIMEMultipart("alternative")
+        msg["Subject"] = f"[GRP Alert] New Complaint Filed – {tracking_number}"
+        msg["From"] = SMTP_USER
+        msg["To"] = ADMIN_ALERT_EMAIL
+        body = (
+            f"A new complaint has been filed on the GRP portal.\n\n"
+            f"Tracking Number : {tracking_number}\n"
+            f"Complaint Type  : {complaint_type}\n"
+            f"Station         : {station}\n"
+            f"Incident Date   : {incident_date}\n\n"
+            f"Please login to the admin panel to review and take action."
+        )
+        msg.attach(email.mime.text.MIMEText(body, "plain"))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, ADMIN_ALERT_EMAIL, msg.as_string())
+    except Exception:
+        pass  # Email alert is non-critical; do not block complaint submission
 
 
 def create_access_token(data: Dict[str, Any]) -> str:
@@ -877,9 +924,6 @@ async def ensure_complaints_table_columns(session: AsyncSession) -> None:
     )
     await session.execute(
         text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR")
-    )
-    await session.execute(
-        text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS aadhar_file VARCHAR")
     )
     await session.execute(
         text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS address VARCHAR")
@@ -1348,11 +1392,10 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
         complainant_name=c.complainant_name,
         complainant_phone=c.complainant_phone,
         aadhar_number=c.aadhar_number,
-        aadhar_file=c.aadhar_file,
         address=c.address,
         state=c.state,
         complainant_email=c.complainant_email,
-        supporting_docs=c.supporting_docs,
+        supporting_docs=[_normalize_media_url(item) for item in _decode_media_field(c.supporting_docs)],
         complaint_type=str(c.complaint_type), description=str(c.description),
         location=str(c.location), station=str(c.station),
         incident_date=str(c.incident_date),
@@ -1363,55 +1406,67 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
     )
 
 
+def _complaint_to_public_tracking_schema(c: ComplaintORM) -> PublicComplaintTracking:
+    return PublicComplaintTracking(
+        tracking_number=str(c.tracking_number),
+        complaint_type=str(c.complaint_type),
+        description=str(c.description),
+        station=str(c.station),
+        incident_date=str(c.incident_date),
+        status=str(c.status),
+        rejection_reason=c.rejection_reason,
+        created_at=c.created_at,
+        updated_at=c.updated_at,
+    )
+
+
 @api_router.post("/complaints", response_model=Complaint)
 async def create_complaint(
     complainant_name: str = Form(...),
     complainant_phone: str = Form(...),
-    complainant_email: str = Form(...),
     aadhar_number: str = Form(...),
+    complainant_email: str = Form(...),
     address: str = Form(...),
     state: Optional[str] = Form(None),
     complaint_type: str = Form(...),
     description: str = Form(...),
-    location: str = Form(...),
+    location: Optional[str] = Form(None),
     station: str = Form("Unassigned"),
     incident_date: str = Form(...),
-    aadhar_file: Optional[UploadFile] = File(None),
-    supporting_docs: Optional[UploadFile] = File(None),
+    supporting_docs: Optional[List[UploadFile]] = File(None),
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
+    normalized_phone = re.sub(r"\D+", "", str(complainant_phone or ""))
+    if not re.fullmatch(r"\d{10}", normalized_phone):
+        raise HTTPException(status_code=400, detail="Phone number must be exactly 10 digits")
+    normalized_email = str(complainant_email or "").strip()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", normalized_email):
+        raise HTTPException(status_code=400, detail="Please enter a valid email address")
     await ensure_complaints_table_columns(session)
     complaint_uploads_dir = ROOT_DIR / "complaint_uploads"
     complaint_uploads_dir.mkdir(parents=True, exist_ok=True)
-    aadhar_file_path = None
-    if aadhar_file and aadhar_file.filename:
-        ext = Path(aadhar_file.filename).suffix
-        aadhar_file_name = f"{uuid.uuid4().hex}{ext}"
-        dest = complaint_uploads_dir / aadhar_file_name
-        content = await aadhar_file.read()
-        dest.write_bytes(content)
-        aadhar_file_path = f"/complaint_uploads/{aadhar_file_name}"
-    supporting_docs_path = None
-    if supporting_docs and supporting_docs.filename:
-        ext = Path(supporting_docs.filename).suffix
+    supporting_doc_paths: List[str] = []
+    for supporting_doc in list(supporting_docs or []):
+        if not supporting_doc or not supporting_doc.filename:
+            continue
+        ext = Path(supporting_doc.filename).suffix
         supporting_docs_name = f"{uuid.uuid4().hex}{ext}"
         dest = complaint_uploads_dir / supporting_docs_name
-        content = await supporting_docs.read()
+        content = await supporting_doc.read()
         dest.write_bytes(content)
-        supporting_docs_path = f"/complaint_uploads/{supporting_docs_name}"
+        supporting_doc_paths.append(f"/complaint_uploads/{supporting_docs_name}")
     complaint_orm = ComplaintORM(
         id=str(uuid.uuid4()), user_id="anonymous",
         complainant_name=complainant_name,
-        complainant_phone=complainant_phone,
-        complainant_email=complainant_email,
+        complainant_phone=normalized_phone,
         aadhar_number=aadhar_number,
-        aadhar_file=aadhar_file_path,
+        complainant_email=normalized_email,
         address=address,
         state=state,
         complaint_type=complaint_type, description=description,
-        location=location, station=station,
+        location=(location or "Not Provided"), station=station,
         incident_date=incident_date, evidence_urls="",
-        supporting_docs=supporting_docs_path,
+        supporting_docs=_encode_media_field(supporting_doc_paths),
         status="pending", rejection_reason=None,
         tracking_number=f"GRP{uuid.uuid4().hex[:8].upper()}",
         created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
@@ -1419,6 +1474,31 @@ async def create_complaint(
     session.add(complaint_orm)
     await session.commit()
     await session.refresh(complaint_orm)
+
+    # Auto-create alert in alerts table
+    alert_orm = AlertORM(
+        id=str(uuid.uuid4()),
+        alert_type="complaint",
+        title=f"New Complaint Filed – {complaint_orm.tracking_number}",
+        description=(
+            f"Type: {complaint_type} | Station: {station} | "
+            f"Incident: {incident_date} | Tracking: {complaint_orm.tracking_number}"
+        ),
+        priority="high",
+        is_active="true",
+        created_at=datetime.now(timezone.utc),
+    )
+    session.add(alert_orm)
+    await session.commit()
+
+    # Send email alert to admin (non-blocking)
+    _send_complaint_email_alert(
+        tracking_number=str(complaint_orm.tracking_number),
+        complaint_type=complaint_type,
+        station=station,
+        incident_date=incident_date,
+    )
+
     return _complaint_to_schema(complaint_orm)
 
 
@@ -1433,14 +1513,14 @@ async def get_complaints(
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
 
-@api_router.get("/complaints/track/{tracking_number}", response_model=Complaint)
-async def track_complaint(tracking_number: str, session: AsyncSession = Depends(get_async_session)) -> Complaint:
+@api_router.get("/complaints/track/{tracking_number}", response_model=PublicComplaintTracking)
+async def track_complaint(tracking_number: str, session: AsyncSession = Depends(get_async_session)) -> PublicComplaintTracking:
     await ensure_complaints_table_columns(session)
     result = await session.execute(select(ComplaintORM).where(ComplaintORM.tracking_number == tracking_number))
     complaint = result.scalar_one_or_none()
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
-    return _complaint_to_schema(complaint)
+    return _complaint_to_public_tracking_schema(complaint)
 
 
 @api_router.get("/complaints/{complaint_id}", response_model=Complaint)

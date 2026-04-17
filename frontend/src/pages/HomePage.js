@@ -214,7 +214,7 @@ export const HomePage = () => {
               <img 
                 src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                 alt="AP Police Official Logo"
-                className="w-20 h-20 sm:w-48 sm:h-48 object-contain flex-shrink-0 [filter:contrast(1.12)_brightness(1.05)_drop-shadow(0_2px_4px_rgba(0,0,0,0.85))_drop-shadow(0_0_2px_rgba(255,255,255,0.35))]"
+                className="w-28 h-28 sm:w-48 sm:h-48 object-contain flex-shrink-0 [filter:contrast(1.12)_brightness(1.05)_drop-shadow(0_4px_12px_rgba(255,255,255,0.6))_drop-shadow(0_0_8px_rgba(255,255,255,0.5))]"
               />
               <div className="flex-1 flex flex-col justify-center items-center text-center">
                 <h1 className="text-3xl sm:text-6xl lg:text-7xl font-extrabold heading-font tracking-tighter leading-tight">
@@ -478,7 +478,7 @@ export const HomePage = () => {
               data-testid="cta-find-station-button"
             >
               <MapPin className="w-5 h-5 mr-2" />
-              Find Nearest Station
+              Find GRP Station
             </Button>
           </div>
         </div>

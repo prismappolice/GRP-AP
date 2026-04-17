@@ -36,6 +36,7 @@ class ChunkErrorBoundary extends React.Component {
 
 // Lazy load heavy pages
 const ComplaintPage = React.lazy(() => import('@/pages/ComplaintPage').then(m => ({ default: m.ComplaintPage })));
+const ComplaintTrackingPage = React.lazy(() => import('@/pages/ComplaintTrackingPage').then(m => ({ default: m.ComplaintTrackingPage })));
 const WomenSafetyPage = React.lazy(() => import('@/pages/WomenSafetyPage').then(m => ({ default: m.WomenSafetyPage })));
 const HelpDeskPage = React.lazy(() => import('@/pages/HelpDeskPage').then(m => ({ default: m.HelpDeskPage })));
 const StationsPage = React.lazy(() => import('@/pages/StationsPage').then(m => ({ default: m.StationsPage })));
@@ -168,6 +169,7 @@ const AppContent = () => {
           <Route path="/organization" element={<OrganizationPage />} />
           <Route path="/mobile-tracking" element={<MobileTrackingPage />} />
           <Route path="/complaint" element={<ComplaintPage />} />
+          <Route path="/track-complaint" element={<ComplaintTrackingPage />} />
           <Route path="/login" element={<Navigate to="/complaint" replace />} />
           <Route path="/dashboard" element={<Navigate to="/complaint" replace />} />
           <Route path="/station-dashboard" element={<PoliceRoute><StationDashboardPage /></PoliceRoute>} />

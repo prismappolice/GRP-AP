@@ -1,114 +1,85 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Languages } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { chatAPI } from '@/lib/api';
-import { v4 as uuidv4 } from 'uuid';
+
+import React from 'react';
+import { MessageCircle, X } from 'lucide-react';
+
+const FAQ_LIST = [
+  {
+    question: 'How do I file a complaint?',
+    answer: 'Go to the “File Complaint” page, fill in your details and incident information, and submit the form. You will get a tracking number.'
+  },
+  {
+    question: 'How can I track my complaint?',
+    answer: 'Use your tracking number on the “Track Complaint” page to see the current status of your complaint.'
+  },
+  {
+    question: 'What is the GRP helpline number?',
+    answer: 'The GRP 24x7 helpline is 139. Call for emergencies or assistance at railway stations.'
+  },
+  {
+    question: 'How do I find the nearest GRP station?',
+    answer: 'Visit the “Stations” section on the website to find contact details and locations for all GRP stations.'
+  },
+  {
+    question: 'What is Shakti / Women Safety?',
+    answer: 'Shakti is a GRP initiative for women’s safety. For help, use the Help Desk or call 139.'
+  },
+  {
+    question: 'How do I contact the Help Desk?',
+    answer: 'Go to the “Help Desk” page and submit your request. For urgent help, call 139.'
+  },
+  // Expanded questions
+  {
+    question: 'Can I file a complaint anonymously?',
+    answer: 'Yes, you can choose to file a complaint without providing your name. However, providing contact details helps us follow up if needed.'
+  },
+  {
+    question: 'What documents are required to file a complaint?',
+    answer: 'No documents are required for initial complaint filing. For certain cases, you may be asked for supporting documents during investigation.'
+  },
+  {
+    question: 'How long does it take to resolve a complaint?',
+    answer: 'Resolution time depends on the nature of the complaint. You can track progress online or contact the Help Desk for updates.'
+  },
+  {
+    question: 'Is my personal information safe?',
+    answer: 'Yes, your information is kept confidential and used only for complaint resolution purposes.'
+  },
+  {
+    question: 'Can I withdraw my complaint?',
+    answer: 'Yes, you can request to withdraw your complaint by contacting the Help Desk with your tracking number.'
+  },
+  {
+    question: 'What should I do in case of lost property?',
+    answer: 'File a complaint under the “Lost & Found” section and provide details of the lost item. GRP will assist in locating your property.'
+  },
+  {
+    question: 'How do I report a missing person?',
+    answer: 'Use the “File Complaint” page and select “Missing Person” as the complaint type. Provide all available details.'
+  },
+  {
+    question: 'How do I give feedback about GRP services?',
+    answer: 'You can submit feedback through the “Help Desk” page or contact us directly at the provided helpline.'
+  },
+  {
+    question: 'What if I forget my complaint tracking number?',
+    answer: 'Contact the Help Desk with your details. We will help you retrieve your tracking number.'
+  },
+  {
+    question: 'Are there any charges for filing a complaint?',
+    answer: 'No, filing a complaint with GRP is completely free of charge.'
+  },
+];
 
 export const ChatBot = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sessionId, setSessionId] = useState('');
-  const [language, setLanguage] = useState('en');
-  const messagesEndRef = useRef(null);
-  const chatRef = useRef(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleOutsideClick = (e) => {
-      if (chatRef.current && !chatRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('touchstart', handleOutsideClick);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('touchstart', handleOutsideClick);
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    let storedSessionId = localStorage.getItem('grp_chat_session');
-    if (!storedSessionId) {
-      storedSessionId = uuidv4();
-      localStorage.setItem('grp_chat_session', storedSessionId);
-    }
-    setSessionId(storedSessionId);
-
-    setMessages([{
-      type: 'bot',
-      text: language === 'te' 
-        ? 'నమస్కారం! నేను GRP AI సహాయకుడిని. నేను మీకు ఎలా సహాయం చేయగలను?' 
-        : 'Hello! I am GRP AI Assistant. How can I help you today?'
-    }]);
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      const welcomeMsg = language === 'te' 
-        ? 'నమస్కారం! నేను GRP AI సహాయకుడిని. నేను మీకు ఎలా సహాయం చేయగలను?' 
-        : 'Hello! I am GRP AI Assistant. How can I help you today?';
-      setMessages([{ type: 'bot', text: welcomeMsg }]);
-    }
-  }, [language]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleSend = async () => {
-    if (!inputMessage.trim() || loading) return;
-
-    const userMsg = inputMessage;
-    setInputMessage('');
-    setMessages(prev => [...prev, { type: 'user', text: userMsg }]);
-    setLoading(true);
-
-    try {
-      const response = await chatAPI.sendMessage({
-        message: userMsg,
-        session_id: sessionId,
-        language: language
-      });
-
-      setMessages(prev => [...prev, { type: 'bot', text: response.data.response }]);
-    } catch (error) {
-      setMessages(prev => [...prev, { 
-        type: 'bot', 
-        text: language === 'te' 
-          ? 'క్షమించండి, ఏదో తప్పు జరిగింది. దయచేసి మళ్లీ ప్రయత్నించండి.' 
-          : 'Sorry, something went wrong. Please try again.' 
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const toggleLanguage = () => {
-    setLanguage(prev => prev === 'en' ? 'te' : 'en');
-  };
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [openIdx, setOpenIdx] = React.useState(null);
 
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 w-16 h-16 bg-[#2563EB] text-white rounded-full shadow-lg hover:bg-[#1D4ED8] transition-colors flex items-center justify-center z-[9999]"
-        data-testid="chatbot-open-button"
-        aria-label="Open chat"
+        aria-label="Open FAQ"
       >
         <MessageCircle className="w-7 h-7" />
       </button>
@@ -117,94 +88,41 @@ export const ChatBot = () => {
 
   return (
     <>
-      {/* Backdrop for outside click on mobile */}
       <div className="fixed inset-0 z-[9998] sm:hidden" />
       <div
-        ref={chatRef}
-        className="fixed bottom-0 right-0 left-0 sm:bottom-6 sm:right-6 sm:left-auto w-full sm:w-96 h-[85vh] sm:h-[min(600px,calc(100vh-5rem))] bg-white sm:rounded-lg rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999]"
-        data-testid="chatbot-widget"
+        className="fixed bottom-0 right-0 left-0 sm:bottom-6 sm:right-6 sm:left-auto w-full sm:w-96 h-[85vh] sm:h-[min(500px,calc(100vh-5rem))] bg-white sm:rounded-lg rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999]"
       >
-      <div className="bg-[#0F172A] text-white p-4 rounded-t-lg flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <MessageCircle className="w-5 h-5" />
-          <div>
-            <h3 className="font-bold text-sm">GRP AI Assistant</h3>
-            <p className="text-xs text-gray-300">{language === 'te' ? 'తెలుగు' : 'English'}</p>
+        <div className="bg-[#0F172A] text-white p-4 rounded-t-lg flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <MessageCircle className="w-5 h-5" />
+            <h3 className="font-bold text-sm">GRP FAQ</h3>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={toggleLanguage}
-            className="p-2 hover:bg-white/10 rounded transition-colors"
-            data-testid="language-toggle-button"
-            aria-label="Toggle language"
-          >
-            <Languages className="w-4 h-4" />
-          </button>
           <button
             onClick={() => setIsOpen(false)}
             className="p-2 hover:bg-white/10 rounded transition-colors"
-            data-testid="chatbot-close-button"
-            aria-label="Close chat"
+            aria-label="Close FAQ"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#F8FAFC]">
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] p-3 rounded-lg ${
-                msg.type === 'user'
-                  ? 'bg-[#2563EB] text-white'
-                  : 'bg-white text-[#0F172A] border border-gray-200'
-              }`}
-            >
-              <p className="text-sm leading-relaxed">{msg.text}</p>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#F8FAFC]">
+          {FAQ_LIST.map((item, idx) => (
+            <div key={idx}>
+              <button
+                className="w-full text-left font-medium text-[#2563EB] hover:underline focus:outline-none"
+                onClick={() => setOpenIdx(openIdx === idx ? null : idx)}
+              >
+                {item.question}
+              </button>
+              {openIdx === idx && (
+                <div className="mt-2 mb-4 text-gray-700 text-sm bg-white border border-gray-200 rounded p-3">
+                  {item.answer}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="p-4 border-t border-gray-200 bg-white rounded-b-lg">
-        <div className="flex gap-2">
-          <Input
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={language === 'te' ? 'మీ సందేశాన్ని టైప్ చేయండి...' : 'Type your message...'}
-            className="flex-1"
-            disabled={loading}
-            data-testid="chatbot-input"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={loading || !inputMessage.trim()}
-            className="bg-[#2563EB] hover:bg-[#1D4ED8]"
-            data-testid="chatbot-send-button"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
+          ))}
         </div>
       </div>
-    </div>
     </>
   );
 };

@@ -1,4 +1,4 @@
-import { stations } from '@/data/stations';
+import { stations, stationsList } from '@/data/stations';
 
 const IRP_CIRCLE_STATIONS = {
   'IRP Vijayawada': ['Vijayawada RPS'],
@@ -109,7 +109,7 @@ const SUBDIVISION_TO_DIVISION = {
   'Nellore Sub Division': 'Guntakal Division',
 };
 
-const uniqueStationNames = Array.from(new Set(stations.map((s) => s.name)));
+const uniqueStationNames = Array.from(new Set(stationsList.map((s) => s.name)));
 
 const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 

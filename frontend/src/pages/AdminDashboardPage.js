@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { MapPin, Image, Newspaper, HelpCircle, FileText, UserX } from 'lucide-react';
+import { MapPin, Image, Newspaper, HelpCircle, FileText, UserX, AlertTriangle } from 'lucide-react';
 import api from '@/lib/api';
 // import removed: getAdminHierarchyCounts
 
@@ -57,6 +57,7 @@ const AdminDashboardPage = () => {
     policeUsers: 0,
     latestNews: 0,
     complaints: 0,
+    pendingComplaints: 0,
     helpRequests: 0,
     unidentifiedBodies: 0,
   });
@@ -78,6 +79,9 @@ const AdminDashboardPage = () => {
           policeUsers: Array.isArray(policeUsersRes.data) ? policeUsersRes.data.length : 0,
           latestNews: Array.isArray(newsRes.data) ? newsRes.data.length : 0,
           complaints: Array.isArray(complaintsRes.data) ? complaintsRes.data.length : 0,
+          pendingComplaints: Array.isArray(complaintsRes.data)
+            ? complaintsRes.data.filter(c => !c.station || c.station === 'Unassigned').length
+            : 0,
           helpRequests: Array.isArray(helpRes.data) ? helpRes.data.length : 0,
           unidentifiedBodies: Array.isArray(ubRes.data) ? ubRes.data.length : 0,
         });
@@ -119,6 +123,14 @@ const AdminDashboardPage = () => {
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          {counts.pendingComplaints > 0 && (
+            <Link to="/admin-complaints" className="col-span-full">
+              <div className="flex items-center gap-3 px-5 py-3 rounded-lg bg-[#FEF2F2] border border-[#FECACA] text-[#DC2626] font-semibold text-sm hover:bg-[#FEE2E2] transition-colors">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                {counts.pendingComplaints} new complaint{counts.pendingComplaints > 1 ? 's' : ''} waiting to be forwarded to a station
+              </div>
+            </Link>
+          )}
           {adminServices.map((service, idx) => {
             const Icon = service.icon;
             return (
@@ -127,6 +139,11 @@ const AdminDashboardPage = () => {
                   <div className="absolute top-6 right-6 min-w-10 h-10 px-3 rounded-full bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center text-lg font-extrabold shadow-sm">
                     {getCountForCard(service.title)}
                   </div>
+                  {service.title === 'Complaints' && counts.pendingComplaints > 0 && (
+                    <div className="absolute top-16 right-6 px-2 py-0.5 rounded-full bg-[#FEF2F2] border border-[#FECACA] text-[#DC2626] text-xs font-bold">
+                      {counts.pendingComplaints} unassigned
+                    </div>
+                  )}
                   <div className={`${service.color} w-14 h-14 rounded-md flex items-center justify-center mb-4`}>
                     <Icon className="w-7 h-7 text-white" strokeWidth={2} />
                   </div>

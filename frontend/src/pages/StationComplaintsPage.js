@@ -10,8 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Building2, ChevronDown, ChevronUp, Download, FileText, RefreshCw, Search, X, Check } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronDown, ChevronUp, Download, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
 import { stationAPI, complaintsAPI } from '@/lib/api';
+import SupportingDocsModal from '@/components/SupportingDocsModal';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -27,7 +28,7 @@ function exportToCSV(filename, rows) {
   const headers = [
     { key: 'tracking_number', label: 'Tracking #' },
     { key: 'complaint_type', label: 'Crime Type' },
-    { key: 'location', label: 'Location' },
+    { key: 'aadhar_number', label: 'Aadhaar Number' },
     { key: 'incident_date', label: 'Date' },
     { key: 'status', label: 'Status' },
     { key: 'rejection_reason', label: 'Rejection Reason' },
@@ -62,6 +63,7 @@ const StationComplaintsPage = () => {
   const [expandedId, setExpandedId] = useState(null);
   const [inlineReason, setInlineReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [docsModal, setDocsModal] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -113,7 +115,7 @@ const StationComplaintsPage = () => {
 
   const filtered = useMemo(() => {
     return complaints.filter(c => {
-      const matchSearch = [c.complaint_type, c.description, c.location, c.tracking_number, c.status]
+      const matchSearch = [c.complaint_type, c.description, c.tracking_number, c.status]
         .join(' ').toLowerCase().includes(searchText.toLowerCase());
       const matchDate = (!dateFrom || c.incident_date >= dateFrom) && (!dateTo || c.incident_date <= dateTo);
       const matchCrime = !crimeFilter || c.complaint_type === crimeFilter;
@@ -121,6 +123,16 @@ const StationComplaintsPage = () => {
       return matchSearch && matchDate && matchCrime && matchStatus;
     });
   }, [complaints, searchText, dateFrom, dateTo, crimeFilter, statusFilter]);
+
+  const stats = useMemo(() => ({
+    total: filtered.length,
+    pending: filtered.filter(c => String(c.status || '').toLowerCase() === 'pending').length,
+    investigating: filtered.filter(c => String(c.status || '').toLowerCase() === 'investigating').length,
+    resolved: filtered.filter(c => String(c.status || '').toLowerCase() === 'resolved').length,
+    approved: filtered.filter(c => String(c.status || '').toLowerCase() === 'approved').length,
+    rejected: filtered.filter(c => String(c.status || '').toLowerCase() === 'rejected').length,
+    closed: filtered.filter(c => String(c.status || '').toLowerCase() === 'closed').length,
+  }), [filtered]);
 
   if (loading) {
     return (
@@ -149,6 +161,27 @@ const StationComplaintsPage = () => {
         </div>
 
         {error && <Card className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
+          {[
+            { label: 'Total', value: stats.total, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]' },
+            { label: 'Pending', value: stats.pending, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]' },
+            { label: 'Investigating', value: stats.investigating, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]' },
+            { label: 'Resolved', value: stats.resolved, icon: CheckCircle2, color: 'bg-[#10B981]', text: 'text-[#10B981]' },
+            { label: 'Approved', value: stats.approved, icon: ThumbsUp, color: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]' },
+            { label: 'Rejected', value: stats.rejected, icon: ThumbsDown, color: 'bg-[#EF4444]', text: 'text-[#EF4444]' },
+            { label: 'Closed', value: stats.closed, icon: XCircle, color: 'bg-[#6B7280]', text: 'text-[#6B7280]' },
+          ].map(({ label, value, icon: Icon, color, text }) => (
+            <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
+              <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              <p className={`text-2xl font-extrabold ${text}`}>{value}</p>
+              <p className="text-xs text-[#64748B] mt-0.5">{label}</p>
+            </Card>
+          ))}
+        </div>
 
         {/* Filters */}
         <Card className="mb-4 p-4 border border-[#60A5FA] bg-white">
@@ -228,10 +261,10 @@ const StationComplaintsPage = () => {
                 <TableRow className="bg-[#EFF6FF]">
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">S.No</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Tracking #</TableHead>
-                  <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Complainant</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Type</TableHead>
-                  <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Description</TableHead>
+                  <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Complainant</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Location</TableHead>
+                  <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Description</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Date</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Documents</TableHead>
                   <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Status</TableHead>
@@ -251,23 +284,27 @@ const StationComplaintsPage = () => {
                     <TableRow className="border-b border-[#60A5FA] hover:bg-[#F8FAFC]">
                       <TableCell className="px-4 py-3 text-sm font-semibold text-[#0F172A]">{index + 1}</TableCell>
                       <TableCell className="px-4 py-3 font-mono text-xs text-[#2563EB] font-semibold">{c.tracking_number}</TableCell>
+                      <TableCell className="px-4 py-3 capitalize text-sm">{c.complaint_type?.replace(/_/g, ' ')}</TableCell>
                       <TableCell className="px-4 py-3 text-sm">
                         <div className="font-semibold text-[#0F172A]">{c.complainant_name || '-'}</div>
                         <div className="text-xs text-[#64748B]">{c.complainant_phone || ''}</div>
+                        <div className="text-xs text-[#64748B]">Aadhaar: {c.aadhar_number || '-'}</div>
                         <div className="text-xs text-[#64748B]">{c.complainant_email || ''}</div>
                       </TableCell>
-                      <TableCell className="px-4 py-3 capitalize text-sm">{c.complaint_type?.replace(/_/g, ' ')}</TableCell>
+                      <TableCell className="px-4 py-3 text-sm text-[#0F172A]">{c.location || '-'}</TableCell>
                       <TableCell className="px-4 py-3 text-sm max-w-[220px] whitespace-normal break-words text-[#475569]">{c.description || '-'}</TableCell>
-                      <TableCell className="px-4 py-3 text-sm max-w-[160px] truncate">{c.location}</TableCell>
                       <TableCell className="px-4 py-3 text-sm">{c.incident_date}</TableCell>
                       <TableCell className="px-4 py-3">
                         <div className="flex flex-col gap-1">
-                          {c.aadhar_file ? (
-                            <a href={`http://localhost:8001${c.aadhar_file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Aadhar</a>
-                          ) : <span className="text-xs text-[#94A3B8]">-</span>}
-                          {c.supporting_docs ? (
-                            <a href={`http://localhost:8001${c.supporting_docs}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Docs</a>
-                          ) : null}
+                          {c.supporting_docs?.length ? (
+                            <button
+                              type="button"
+                              onClick={() => setDocsModal(c.supporting_docs)}
+                              className="text-xs text-[#2563EB] underline text-left"
+                            >
+                              View Docs ({c.supporting_docs.length})
+                            </button>
+                          ) : <span className="text-xs text-[#94A3B8]">No Docs</span>}
                         </div>
                       </TableCell>
                       <TableCell className="px-4 py-3">
@@ -309,7 +346,7 @@ const StationComplaintsPage = () => {
                     </TableRow>
                     {rejectingId === c.id && (
                       <TableRow className="bg-red-50 border-b border-red-200">
-                        <TableCell colSpan={8} className="px-4 py-3">
+                        <TableCell colSpan={9} className="px-4 py-3">
                           <div className="flex items-start gap-2 flex-wrap">
                             <div className="flex-1 min-w-[240px]">
                               <p className="text-xs font-semibold text-red-700 mb-1">Rejection reason <span className="text-red-500">*</span> — visible to the public user on their dashboard</p>
@@ -341,9 +378,9 @@ const StationComplaintsPage = () => {
                     )}
                     {expandedId === c.id && (
                       <TableRow key={`${c.id}-detail`} className="bg-[#F0F9FF]">
-                        <TableCell colSpan={10} className="px-6 py-4 border-b border-[#60A5FA]">
+                        <TableCell colSpan={9} className="px-6 py-4 border-b border-[#60A5FA]">
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
+                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhaar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
                             <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Address</span><span className="text-[#0F172A]">{c.address || '-'}</span></div>
                             <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Date of Incident</span><span className="text-[#0F172A]">{c.incident_date || '-'}</span></div>
                             <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Email</span><span className="text-[#0F172A]">{c.complainant_email || '-'}</span></div>
@@ -360,6 +397,10 @@ const StationComplaintsPage = () => {
         </Card>
 
       </div>
+
+      {docsModal && (
+        <SupportingDocsModal title="Supporting Documents" docs={docsModal} onClose={() => setDocsModal(null)} />
+      )}
     </div>
   );
 };

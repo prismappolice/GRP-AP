@@ -2,7 +2,8 @@ import React from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Phone, Menu, LogOut, User } from 'lucide-react';
+import { Phone, Menu, LogOut, User, Bell } from 'lucide-react';
+import api from '@/lib/api';
 
 export const Header = () => {
   const { user, logout, isAdmin } = useAuth();
@@ -30,8 +31,25 @@ export const Header = () => {
     : '';
   const isLoggedInSession = Boolean(effectiveIsAdmin || user);
 
+  const [unassignedCount, setUnassignedCount] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!effectiveIsAdmin) return;
+    const fetchUnassigned = async () => {
+      try {
+        const res = await api.get('/complaints');
+        if (Array.isArray(res.data)) {
+          setUnassignedCount(res.data.filter(c => !c.station || c.station === 'Unassigned').length);
+        }
+      } catch {}
+    };
+    fetchUnassigned();
+    const interval = setInterval(fetchUnassigned, 60000);
+    return () => clearInterval(interval);
+  }, [effectiveIsAdmin]);
+
   const navLinkClass = ({ isActive }) =>
-    `text-xs xl:text-sm font-semibold transition-colors px-1 xl:px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
+    `whitespace-nowrap text-[11px] lg:text-xs xl:text-sm font-semibold transition-colors px-1 lg:px-1.5 xl:px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
 
   const publicLinks = [
     { to: '/', label: 'Home', testId: 'home-link' },
@@ -95,9 +113,9 @@ export const Header = () => {
       : publicLinks);
 
   return (
-    <header ref={menuRef} className="sticky top-0 left-0 right-0 w-full z-[1200] bg-white border-b border-gray-200 relative">
+    <header ref={menuRef} className="sticky top-0 left-0 right-0 w-full z-[1200] bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+        <div className="flex justify-between items-center h-20 lg:h-[76px] xl:h-20">
           <div className="flex items-center gap-3">
 
             {isLoggedInSession ? (
@@ -105,11 +123,11 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-10 h-10 lg:w-14 lg:h-14 xl:w-16 xl:h-16 object-contain"
+                  className="w-10 h-10 lg:w-12 lg:h-12 xl:w-16 xl:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-sm lg:text-xl xl:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
-                  <p className="text-xs lg:text-xs xl:text-sm font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-sm lg:text-lg xl:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs lg:text-[11px] xl:text-sm font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </div>
             ) : (
@@ -117,17 +135,17 @@ export const Header = () => {
                 <img 
                   src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
                   alt="AP Police Logo"
-                  className="w-10 h-10 lg:w-14 lg:h-14 xl:w-16 xl:h-16 object-contain"
+                  className="w-10 h-10 lg:w-12 lg:h-12 xl:w-16 xl:h-16 object-contain"
                 />
                 <div>
-                  <h1 className="text-sm lg:text-xl xl:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
-                  <p className="text-xs lg:text-xs xl:text-sm font-bold text-gray-900">Government Railway Police</p>
+                  <h1 className="text-sm lg:text-lg xl:text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">GRP-Andhra Pradesh</h1>
+                  <p className="text-xs lg:text-[11px] xl:text-sm font-bold text-gray-900">Government Railway Police</p>
                 </div>
               </Link>
             )}
           </div>
 
-          <div className="hidden lg:flex items-center gap-1 xl:gap-4">
+          <div className="hidden lg:flex items-center gap-0.5 xl:gap-4">
             {navLinks.map((link) => (
               <NavLink key={link.to} to={link.to} className={navLinkClass} data-testid={link.testId}>
                 {link.label}
@@ -135,10 +153,21 @@ export const Header = () => {
             ))}
 
             {!effectiveIsAdmin && !user && (
-              <a href="tel:139" className="flex items-center gap-2 px-4 py-2 bg-[#DC2626] text-white rounded-md hover:bg-[#B91C1C] transition-colors font-semibold" data-testid="emergency-call-button">
-                <Phone className="w-4 h-4" />
+              <a href="tel:139" className="flex items-center gap-2 whitespace-nowrap px-3 xl:px-4 py-2 bg-[#DC2626] text-white rounded-md hover:bg-[#B91C1C] transition-colors font-semibold text-sm xl:text-base" data-testid="emergency-call-button">
+                <Phone className="w-4 h-4 xl:w-5 xl:h-5" />
                 139
               </a>
+            )}
+
+            {effectiveIsAdmin && (
+              <Link to="/admin-complaints?unassigned=1" className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-[#EFF6FF] transition-colors" title="Unassigned Complaints">
+                <Bell className="w-5 h-5 text-[#0F172A]" />
+                {unassignedCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#DC2626] text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {unassignedCount > 99 ? '99+' : unassignedCount}
+                  </span>
+                )}
+              </Link>
             )}
 
             {(effectiveIsAdmin || isPoliceSession) ? (
@@ -158,7 +187,7 @@ export const Header = () => {
                 ) : null}
               </div>
             ) : (
-              <Button onClick={() => navigate('/admin-login')} variant="outline" size="sm" data-testid="admin-login-button">
+              <Button onClick={() => navigate('/admin-login')} variant="outline" size="sm" className="whitespace-nowrap text-xs xl:text-sm px-3 xl:px-4" data-testid="admin-login-button">
                 Admin Login
               </Button>
             )}

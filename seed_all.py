@@ -184,10 +184,10 @@ def _insert_if_missing(
 ADMIN_RECORDS = [
     {
         "id": _id(),
-        "email": "admin@grp.local",
+        "email": "andhrapradheshgrp@gmail.com",
         "name": "Admin User",
         "phone": "9000000100",
-        "password": _hash("Admin@2026"),
+        "password": _hash("#Admin@Grp$"),
         "created_at": _now(),
     },
 ]

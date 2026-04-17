@@ -19,7 +19,7 @@ export const normalizeMediaUrl = (inputUrl) => {
   if (legacyNewsMatch) {
     return `${baseUrl}/news_uploads/${legacyNewsMatch[1]}`;
   }
-  const match = cleanedUrl.match(/\/(gallery_uploads|news_uploads|unidentified_uploads)\/.+$/i);
+  const match = cleanedUrl.match(/\/(gallery_uploads|news_uploads|unidentified_uploads|complaint_uploads)\/.+$/i);
   if (match) {
     return `${baseUrl}${match[0]}`;
   }

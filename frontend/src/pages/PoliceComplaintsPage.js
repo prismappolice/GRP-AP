@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, ChevronDown, ChevronUp, FileText, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
+import SupportingDocsModal from '@/components/SupportingDocsModal';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -20,8 +21,8 @@ const STATUS_COLORS = {
 const COMPLAINT_COLS = [
   { key: 'tracking_number', label: 'Tracking #' },
   { key: 'complaint_type', label: 'Crime Type' },
+  { key: 'aadhar_number', label: 'Aadhaar Number' },
   { key: 'station', label: 'Station' },
-  { key: 'location', label: 'Location' },
   { key: 'incident_date', label: 'Date' },
   { key: 'status', label: 'Status' },
   { key: 'description', label: 'Description' },
@@ -68,6 +69,7 @@ export const PoliceComplaintsPage = () => {
   const [stationFilter, setStationFilter] = useState('');
   const [searchText, setSearchText] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [docsModal, setDocsModal] = useState(null);
 
   const scope = useMemo(() => getOfficerScope(user), [user]);
   const role = user?.role || '';
@@ -182,11 +184,20 @@ export const PoliceComplaintsPage = () => {
       const q = searchText.toLowerCase();
       const inTracking = (c.tracking_number || '').toLowerCase().includes(q);
       const inDesc = (c.description || '').toLowerCase().includes(q);
-      const inLocation = (c.location || '').toLowerCase().includes(q);
-      if (!inTracking && !inDesc && !inLocation) return false;
+      if (!inTracking && !inDesc) return false;
     }
     return true;
   }), [complaints, dateFrom, dateTo, crimeTypeFilter, statusFilter, divisionFilter, subdivisionFilter, circleFilter, stationFilter, searchText]);
+
+  const stats = useMemo(() => ({
+    total: filtered.length,
+    pending: filtered.filter(c => String(c.status || '').toLowerCase() === 'pending').length,
+    investigating: filtered.filter(c => String(c.status || '').toLowerCase() === 'investigating').length,
+    resolved: filtered.filter(c => String(c.status || '').toLowerCase() === 'resolved').length,
+    approved: filtered.filter(c => String(c.status || '').toLowerCase() === 'approved').length,
+    rejected: filtered.filter(c => String(c.status || '').toLowerCase() === 'rejected').length,
+    closed: filtered.filter(c => String(c.status || '').toLowerCase() === 'closed').length,
+  }), [filtered]);
 
   const handleReset = () => {
     setDateFrom('');
@@ -226,6 +237,27 @@ export const PoliceComplaintsPage = () => {
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          {[
+            { label: 'Total', value: stats.total, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]' },
+            { label: 'Pending', value: stats.pending, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]' },
+            { label: 'Investigating', value: stats.investigating, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]' },
+            { label: 'Resolved', value: stats.resolved, icon: CheckCircle2, color: 'bg-[#10B981]', text: 'text-[#10B981]' },
+            { label: 'Approved', value: stats.approved, icon: ThumbsUp, color: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]' },
+            { label: 'Rejected', value: stats.rejected, icon: ThumbsDown, color: 'bg-[#EF4444]', text: 'text-[#EF4444]' },
+            { label: 'Closed', value: stats.closed, icon: XCircle, color: 'bg-[#6B7280]', text: 'text-[#6B7280]' },
+          ].map(({ label, value, icon: Icon, color, text }) => (
+            <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
+              <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              <p className={`text-2xl font-extrabold ${text}`}>{value}</p>
+              <p className="text-xs text-[#64748B] mt-0.5">{label}</p>
+            </Card>
+          ))}
         </div>
 
         <Card className="p-5 border border-[#60A5FA]">
@@ -375,11 +407,11 @@ export const PoliceComplaintsPage = () => {
                   <TableRow className="bg-[#F1F5F9]">
                     <TableHead className="text-xs font-bold text-[#64748B]">S.No</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Tracking #</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Complainant</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Crime Type</TableHead>
+                    <TableHead className="text-xs font-bold text-[#64748B]">Complainant</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Station</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Location</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Date</TableHead>
+                    <TableHead className="text-xs font-bold text-[#64748B]">Location</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Status</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Description</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Documents</TableHead>
@@ -398,15 +430,16 @@ export const PoliceComplaintsPage = () => {
                       <TableRow className="hover:bg-[#F8FAFC]">
                         <TableCell className="text-sm text-[#64748B]">{i + 1}</TableCell>
                         <TableCell className="text-sm font-mono font-semibold text-[#2563EB]">{c.tracking_number || '-'}</TableCell>
+                        <TableCell className="text-sm text-[#0F172A]">{(c.complaint_type || '-').replace(/_/g, ' ')}</TableCell>
                         <TableCell className="text-sm">
                           <div className="font-semibold text-[#0F172A]">{c.complainant_name || '-'}</div>
                           <div className="text-xs text-[#64748B]">{c.complainant_phone || ''}</div>
+                          <div className="text-xs text-[#64748B]">Aadhaar: {c.aadhar_number || '-'}</div>
                           <div className="text-xs text-[#64748B]">{c.complainant_email || ''}</div>
                         </TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{(c.complaint_type || '-').replace(/_/g, ' ')}</TableCell>
                         <TableCell className="text-sm text-[#0F172A]">{c.station || '-'}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{c.location || '-'}</TableCell>
                         <TableCell className="text-sm text-[#0F172A]">{c.incident_date || '-'}</TableCell>
+                        <TableCell className="text-sm text-[#0F172A]">{c.location || '-'}</TableCell>
                         <TableCell>
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}>
                             {c.status || '-'}
@@ -417,12 +450,15 @@ export const PoliceComplaintsPage = () => {
                         </TableCell>
                         <TableCell className="text-sm">
                           <div className="flex flex-col gap-1">
-                            {c.aadhar_file ? (
-                              <a href={`http://localhost:8001${c.aadhar_file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Aadhar</a>
-                            ) : <span className="text-xs text-[#94A3B8]">-</span>}
-                            {c.supporting_docs ? (
-                              <a href={`http://localhost:8001${c.supporting_docs}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#2563EB] underline">Docs</a>
-                            ) : null}
+                            {c.supporting_docs?.length ? (
+                              <button
+                                type="button"
+                                onClick={() => setDocsModal(c.supporting_docs)}
+                                className="text-xs text-[#2563EB] underline text-left"
+                              >
+                                View Docs ({c.supporting_docs.length})
+                              </button>
+                            ) : <span className="text-xs text-[#94A3B8]">No Docs</span>}
                             <button
                               type="button"
                               onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
@@ -436,9 +472,9 @@ export const PoliceComplaintsPage = () => {
                       </TableRow>
                       {expandedId === c.id && (
                         <TableRow key={`${c.id}-detail`} className="bg-[#F0F9FF]">
-                          <TableCell colSpan={10} className="px-6 py-4 border-b border-[#60A5FA]">
+                          <TableCell colSpan={9} className="px-6 py-4 border-b border-[#60A5FA]">
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
+                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhaar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
                               <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Address</span><span className="text-[#0F172A]">{c.address || '-'}</span></div>
                               <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Date of Incident</span><span className="text-[#0F172A]">{c.incident_date || '-'}</span></div>
                               <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Email</span><span className="text-[#0F172A]">{c.complainant_email || '-'}</span></div>
@@ -455,6 +491,10 @@ export const PoliceComplaintsPage = () => {
           )}
         </Card>
       </div>
+
+      {docsModal && (
+        <SupportingDocsModal title="Supporting Documents" docs={docsModal} onClose={() => setDocsModal(null)} />
+      )}
     </div>
   );
 };
