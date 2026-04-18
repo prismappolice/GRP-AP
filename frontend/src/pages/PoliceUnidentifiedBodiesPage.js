@@ -62,14 +62,6 @@ function getAPIForRole(role) {
 }
 
 export const PoliceUnidentifiedBodiesPage = () => {
-    // Date preset filter logic
-    const applyDatePreset = (val) => {
-      const today = new Date();
-      const fmt = (d) => d.toISOString().slice(0, 10);
-      if (val === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
-      else if (val === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
-      else { setDateFrom(''); setDateTo(''); }
-    };
   const { user } = useAuth();
   const navigate = useNavigate();
   const [records, setRecords] = useState([]);
@@ -269,7 +261,51 @@ export const PoliceUnidentifiedBodiesPage = () => {
             Back to Dashboard
           </button>
         </div>
-
+            {/* Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#2563EB]">{filtered.length}</p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Total Records</p>
+                </div>
+              </Card>
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#F59E0B] rounded-lg flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#F59E0B]">
+                    {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 7 * 24 * 60 * 60 * 1000; }).length}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
+                </div>
+              </Card>
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#8B5CF6] rounded-lg flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#8B5CF6]">
+                    {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 30 * 24 * 60 * 60 * 1000; }).length}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Last 30 Days</p>
+                </div>
+              </Card>
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#10B981] rounded-lg flex items-center justify-center shrink-0">
+                  <ImageIcon className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#10B981]">
+                    {filtered.reduce((sum, r) => sum + (r.mediaUrls?.length || 0), 0)}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Total Media Files</p>
+                </div>
+              </Card>
+            </div>
         <Card className="p-5 border border-[#60A5FA]">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
             <div>
@@ -286,47 +322,7 @@ export const PoliceUnidentifiedBodiesPage = () => {
             </button>
           </div>
 
-          {/* Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
-            <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
-                <FileText className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-[#2563EB]">{filtered.length}</p>
-                <p className="text-xs text-[#64748B] mt-0.5">Total Records</p>
-              </div>
-            </Card>
-            <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#F59E0B] rounded-lg flex items-center justify-center shrink-0">
-                <Clock className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-[#F59E0B]">{filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 7 * 24 * 60 * 60 * 1000; }).length}</p>
-                <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
-              </div>
-            </Card>
-            <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#8B5CF6] rounded-lg flex items-center justify-center shrink-0">
-                <Clock className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-[#8B5CF6]">{filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 30 * 24 * 60 * 60 * 1000; }).length}</p>
-                <p className="text-xs text-[#64748B] mt-0.5">Last 30 Days</p>
-              </div>
-            </Card>
-            <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#10B981] rounded-lg flex items-center justify-center shrink-0">
-                <ImageIcon className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-[#10B981]">{filtered.reduce((sum, r) => sum + (r.mediaUrls?.length || 0), 0)}</p>
-                <p className="text-xs text-[#64748B] mt-0.5">Total Media Files</p>
-              </div>
-            </Card>
-          </div>
-
-          {/* Filter bar with date preset buttons */}
+          {/* Filter bar */}
           <div className="flex flex-wrap items-end gap-3 mb-5">
             <div className="flex flex-col">
               <span className={labelCls}>From</span>
@@ -335,16 +331,6 @@ export const PoliceUnidentifiedBodiesPage = () => {
             <div className="flex flex-col">
               <span className={labelCls}>To</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={inputCls} />
-            </div>
-            <div className="flex flex-row gap-1 items-end mb-2">
-              {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
-                <button key={val} type="button" onClick={() => applyDatePreset(val)}
-                  className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
-                    val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
-                  }`}>
-                  {lbl}
-                </button>
-              ))}
             </div>
 
             {/* Division — DGP only */}
@@ -446,51 +432,6 @@ export const PoliceUnidentifiedBodiesPage = () => {
 
           {!loading && !error && (
             <>
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
-                  <FileText className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-3xl font-extrabold text-[#2563EB]">{filtered.length}</p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Total Records</p>
-                </div>
-              </Card>
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#F59E0B] rounded-lg flex items-center justify-center shrink-0">
-                  <Clock className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-3xl font-extrabold text-[#F59E0B]">
-                    {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 7 * 24 * 60 * 60 * 1000; }).length}
-                  </p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
-                </div>
-              </Card>
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#8B5CF6] rounded-lg flex items-center justify-center shrink-0">
-                  <Clock className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-3xl font-extrabold text-[#8B5CF6]">
-                    {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 30 * 24 * 60 * 60 * 1000; }).length}
-                  </p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Last 30 Days</p>
-                </div>
-              </Card>
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#10B981] rounded-lg flex items-center justify-center shrink-0">
-                  <ImageIcon className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-3xl font-extrabold text-[#10B981]">
-                    {filtered.reduce((sum, r) => sum + (r.mediaUrls?.length || 0), 0)}
-                  </p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Total Media Files</p>
-                </div>
-              </Card>
-            </div>
             <div className="overflow-x-auto rounded-lg border border-[#60A5FA]">
               <Table className="border-collapse w-full">
                 <TableHeader>
