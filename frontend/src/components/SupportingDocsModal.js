@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { PDFDocument } from 'pdf-lib';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Download, FileText, X } from 'lucide-react';
@@ -25,6 +26,59 @@ const isVideo = (url) => /\.(mp4|webm|ogg|mov|avi)$/i.test(url || '');
 const isImage = (url) => /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(url || '');
 const isPdf = (url) => /\.pdf$/i.test(url || '');
 
+const imageToBytes = (src) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || 800;
+    canvas.height = img.naturalHeight || 600;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    canvas.toBlob(async (blob) => {
+      try { resolve(await blob.arrayBuffer()); } catch (e) { reject(e); }
+    }, 'image/png');
+  };
+  img.onerror = reject;
+  img.src = src;
+});
+
+const downloadAllAsPdf = async (mediaUrls, trackingNumber) => {
+  const mergedPdf = await PDFDocument.create();
+
+  for (const url of mediaUrls) {
+    const normalized = normalizeMediaUrl(url);
+    try {
+      if (isImage(url)) {
+        const bytes = await imageToBytes(normalized);
+        const img = await mergedPdf.embedPng(bytes);
+        const { width, height } = img.scale(1);
+        const page = mergedPdf.addPage([width, height]);
+        page.drawImage(img, { x: 0, y: 0, width, height });
+      } else if (isPdf(url)) {
+        const resp = await fetch(normalized);
+        const bytes = await resp.arrayBuffer();
+        const srcDoc = await PDFDocument.load(bytes);
+        const copied = await mergedPdf.copyPages(srcDoc, srcDoc.getPageIndices());
+        copied.forEach((p) => mergedPdf.addPage(p));
+      }
+      // videos and other types are skipped
+    } catch {
+      // skip problematic files silently
+    }
+  }
+
+  const pdfBytes = await mergedPdf.save();
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = `${trackingNumber || 'documents'}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+};
+
 const parseDocs = (docs) => {
   if (!docs) return [];
   if (Array.isArray(docs)) return docs.filter(Boolean).map(String);
@@ -40,6 +94,7 @@ const parseDocs = (docs) => {
 export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trackingNumber, onClose }) => {
   const mediaUrls = useMemo(() => parseDocs(docs), [docs]);
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   if (!mediaUrls.length) return null;
 
@@ -124,7 +179,22 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
             </div>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {mediaUrls.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pdfLoading}
+                className="border-[#2563EB] text-[#2563EB] hover:bg-[#EFF6FF]"
+                onClick={async () => {
+                  setPdfLoading(true);
+                  try { await downloadAllAsPdf(mediaUrls, trackingNumber); } finally { setPdfLoading(false); }
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {pdfLoading ? 'Preparing PDF...' : 'Download All as PDF'}
+              </Button>
+            )}
             <Button
               type="button"
               className="bg-[#2563EB] hover:bg-[#1D4ED8]"
