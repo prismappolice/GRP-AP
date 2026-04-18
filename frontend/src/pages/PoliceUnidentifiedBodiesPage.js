@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, Eye, ChevronLeft, ChevronRight, FileText, Clock, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, Download, RefreshCw, Search, ShieldCheck, X, Eye, ChevronLeft, ChevronRight, FileText, Clock, Image as ImageIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI, normalizeMediaUrl } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
@@ -80,6 +80,8 @@ export const PoliceUnidentifiedBodiesPage = () => {
   const [viewGroup, setViewGroup] = useState(null);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [descModal, setDescModal] = useState(null);
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState('asc');
 
   const scope = useMemo(() => getOfficerScope(user), [user]);
   const role = user?.role || '';
@@ -187,6 +189,38 @@ export const PoliceUnidentifiedBodiesPage = () => {
     }
     return true;
   }), [grouped, dateFrom, dateTo, divisionFilter, subdivisionFilter, circleFilter, stationFilter, searchText]);
+
+  const handleSort = (key) => {
+    setSortKey(prev => {
+      if (prev === key) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); return key; }
+      setSortDir('asc'); return key;
+    });
+  };
+
+  const sortedFiltered = useMemo(() => {
+    if (!sortKey) return filtered;
+    return [...filtered].sort((a, b) => {
+      const av = String(a[sortKey] || '').toLowerCase();
+      const bv = String(b[sortKey] || '').toLowerCase();
+      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  function SortHead({ label, col, className = '' }) {
+    const active = sortKey === col;
+    return (
+      <TableHead
+        className={`text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3 cursor-pointer select-none hover:text-[#2563EB] ${className}`}
+        onClick={() => handleSort(col)}
+      >
+        <span className="flex items-center gap-1">
+          {label}
+          <ArrowUpDown className={`w-3 h-3 ${active ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} />
+        </span>
+      </TableHead>
+    );
+  }
+
 
   const handleReset = () => {
     setDateFrom('');
@@ -404,8 +438,8 @@ export const PoliceUnidentifiedBodiesPage = () => {
                 <TableHeader>
                   <TableRow className="bg-[#F1F5F9]">
                     <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 w-12 border border-[#60A5FA] px-3">S.No</TableHead>
-                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Station</TableHead>
-                    <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Reported Date</TableHead>
+                    <SortHead label="Station" col="station" />
+                    <SortHead label="Reported Date" col="reported_date" />
                     <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Description</TableHead>
                     <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Media</TableHead>
                     <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">View</TableHead>
@@ -414,12 +448,12 @@ export const PoliceUnidentifiedBodiesPage = () => {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-[#94A3B8] py-14 text-sm border border-[#60A5FA]">
+                      <TableCell colSpan={7} className="text-center text-[#94A3B8] py-14 text-sm border border-[#60A5FA]">
                         No records found.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((r, i) => (
+                    sortedFiltered.map((r, i) => (
                       <TableRow key={i} className="hover:bg-[#F8FAFC] transition-colors">
                         <TableCell className="text-sm text-[#94A3B8] py-3 text-center border border-[#60A5FA] px-3">{i + 1}</TableCell>
                         <TableCell className="font-medium text-[#0F172A] text-sm py-3 whitespace-nowrap border border-[#60A5FA] px-3">{r.station || '-'}</TableCell>

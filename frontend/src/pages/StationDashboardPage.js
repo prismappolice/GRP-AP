@@ -299,7 +299,7 @@ export const StationDashboardPage = () => {
         )}
 
         {/* Quick Navigation */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <button type="button" onClick={() => navigate('/station-complaints')} className="text-left">
             <Card className="p-4 border border-[#60A5FA] hover:border-[#60A5FA] hover:bg-[#F8FAFF] hover:shadow-md transition-all cursor-pointer">
               <div className="flex items-start justify-between gap-2">
@@ -312,6 +312,20 @@ export const StationDashboardPage = () => {
                 </span>
               </div>
               <p className="text-xs text-[#64748B] mt-1">Click to view, approve or reject complaints</p>
+            </Card>
+          </button>
+          <button type="button" onClick={() => navigate('/station-complaints?status=pending')} className="text-left">
+            <Card className="p-4 border border-[#FCD34D] hover:border-[#FBBF24] hover:bg-[#FFFBEB] hover:shadow-md transition-all cursor-pointer">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs text-[#92400E]">Pending Complaints</p>
+                  <p className="text-2xl font-bold text-[#B45309]">{complaints.filter(c => String(c.status || '').toLowerCase() === 'pending').length}</p>
+                </div>
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#B45309]">
+                  Review <ArrowUpRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <p className="text-xs text-[#92400E] mt-1">Click to view all pending complaints</p>
             </Card>
           </button>
           <button type="button" onClick={() => navigate('/station-unidentified-bodies')} className="text-left">

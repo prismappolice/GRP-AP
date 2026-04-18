@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, ChevronDown, ChevronUp, FileText, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, Download, Eye, RefreshCw, Search, ShieldCheck, X, ChevronDown, ChevronUp, FileText, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
@@ -72,6 +73,9 @@ export const PoliceComplaintsPage = () => {
   const [searchText, setSearchText] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [docsModal, setDocsModal] = useState(null);
+  const [viewComplaint, setViewComplaint] = useState(null);
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState('asc');
 
   const scope = useMemo(() => getOfficerScope(user), [user]);
   const role = user?.role || '';
@@ -191,14 +195,48 @@ export const PoliceComplaintsPage = () => {
     return true;
   }), [complaints, dateFrom, dateTo, crimeTypeFilter, statusFilter, divisionFilter, subdivisionFilter, circleFilter, stationFilter, searchText]);
 
-  const stats = useMemo(() => ({
-    total: filtered.length,
-    pending: filtered.filter(c => String(c.status || '').toLowerCase() === 'pending').length,
-    investigating: filtered.filter(c => String(c.status || '').toLowerCase() === 'investigating').length,
-    resolved: filtered.filter(c => String(c.status || '').toLowerCase() === 'resolved').length,
-    approved: filtered.filter(c => String(c.status || '').toLowerCase() === 'approved').length,
-    rejected: filtered.filter(c => String(c.status || '').toLowerCase() === 'rejected').length,
-  }), [filtered]);
+  const stats = useMemo(() => {
+    const APPROVED_STATUSES = ['approved', 'investigating', 'resolved'];
+    return {
+      total: filtered.length,
+      pending: filtered.filter(c => String(c.status || '').toLowerCase() === 'pending').length,
+      investigating: filtered.filter(c => String(c.status || '').toLowerCase() === 'investigating').length,
+      resolved: filtered.filter(c => String(c.status || '').toLowerCase() === 'resolved').length,
+      approved: filtered.filter(c => APPROVED_STATUSES.includes(String(c.status || '').toLowerCase())).length,
+      rejected: filtered.filter(c => String(c.status || '').toLowerCase() === 'rejected').length,
+    };
+  }, [filtered]);
+
+  const handleSort = (key) => {
+    setSortKey(prev => {
+      if (prev === key) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); return key; }
+      setSortDir('asc'); return key;
+    });
+  };
+
+  const sortedFiltered = useMemo(() => {
+    if (!sortKey) return filtered;
+    return [...filtered].sort((a, b) => {
+      const av = String(a[sortKey] || '').toLowerCase();
+      const bv = String(b[sortKey] || '').toLowerCase();
+      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  function SortHead({ label, col, className = '' }) {
+    const active = sortKey === col;
+    return (
+      <TableHead
+        className={`text-xs font-bold text-[#64748B] cursor-pointer select-none hover:text-[#2563EB] ${className}`}
+        onClick={() => handleSort(col)}
+      >
+        <span className="flex items-center gap-1">
+          {label}
+          <ArrowUpDown className={`w-3 h-3 ${active ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} />
+        </span>
+      </TableHead>
+    );
+  }
 
   const handleReset = () => {
     setDateFrom('');
@@ -244,7 +282,6 @@ export const PoliceComplaintsPage = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
           {[
             { label: 'Total', value: stats.total, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]' },
-            { label: 'Pending', value: stats.pending, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]' },
             { label: 'Pending', value: stats.pending, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]' },
             { label: 'Approved', value: stats.approved, icon: ThumbsUp, color: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]' },
             { label: 'Rejected', value: stats.rejected, icon: ThumbsDown, color: 'bg-[#EF4444]', text: 'text-[#EF4444]' },
@@ -407,13 +444,13 @@ export const PoliceComplaintsPage = () => {
                 <TableHeader>
                   <TableRow className="bg-[#F1F5F9]">
                     <TableHead className="text-xs font-bold text-[#64748B]">S.No</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Tracking #</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Crime Type</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Complainant</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Station</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Date</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Location</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Status</TableHead>
+                    <SortHead label="Tracking #" col="tracking_number" />
+                    <SortHead label="Crime Type" col="complaint_type" />
+                    <SortHead label="Complainant" col="complainant_name" />
+                    <SortHead label="Station" col="station" />
+                    <SortHead label="Date" col="incident_date" />
+                    <SortHead label="Location" col="location" />
+                    <SortHead label="Status" col="status" />
                     <TableHead className="text-xs font-bold text-[#64748B]">Description</TableHead>
                     <TableHead className="text-xs font-bold text-[#64748B]">Documents</TableHead>
                   </TableRow>
@@ -426,9 +463,9 @@ export const PoliceComplaintsPage = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((c, i) => (
+                    sortedFiltered.map((c, i) => (
                       <React.Fragment key={c.id || i}>
-                      <TableRow className="hover:bg-[#F8FAFC]">
+                      <TableRow className="hover:bg-[#F8FAFC] cursor-pointer" onClick={(e) => { if (e.target.closest('button,a,select')) return; setViewComplaint(c); }}>
                         <TableCell className="text-sm text-[#64748B]">{i + 1}</TableCell>
                         <TableCell className="text-sm font-mono font-semibold text-[#2563EB]">{c.tracking_number || '-'}</TableCell>
                         <TableCell className="text-sm text-[#0F172A]">{(c.complaint_type || '-').replace(/_/g, ' ')}</TableCell>
@@ -496,6 +533,57 @@ export const PoliceComplaintsPage = () => {
       {docsModal && (
         <SupportingDocsModal title="Supporting Documents" docs={docsModal?.docs} trackingNumber={docsModal?.tracking} onClose={() => setDocsModal(null)} />
       )}
+
+      {/* Complaint Detail Modal */}
+      <Dialog open={!!viewComplaint} onOpenChange={open => { if (!open) setViewComplaint(null); }}>
+        <DialogContent className="max-w-2xl w-full mt-10 max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#0F172A] flex items-center gap-2">
+              <Eye className="w-5 h-5 text-[#2563EB]" />
+              Complaint Details
+            </DialogTitle>
+          </DialogHeader>
+          {viewComplaint && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm font-bold text-[#2563EB]">{viewComplaint.tracking_number}</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[viewComplaint.status] || 'bg-gray-100 text-gray-700'}`}>{viewComplaint.status}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                {[
+                  ['Crime Type', (viewComplaint.complaint_type || '-').replace(/_/g, ' ')],
+                  ['Incident Date', viewComplaint.incident_date || '-'],
+                  ['Station', viewComplaint.station || '-'],
+                  ['Location', viewComplaint.location || '-'],
+                  ['Complainant Name', viewComplaint.complainant_name || '-'],
+                  ['Phone', viewComplaint.complainant_phone || '-'],
+                  ['Aadhaar Number', viewComplaint.aadhar_number || '-'],
+                  ['Email', viewComplaint.complainant_email || '-'],
+                  ['Address', viewComplaint.address || '-'],
+                ].map(([label, val]) => (
+                  <div key={label}>
+                    <span className="text-xs font-semibold text-[#64748B] block mb-0.5">{label}</span>
+                    <span className="text-[#0F172A]">{val}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-[#64748B] block mb-1">Description</span>
+                <p className="text-sm text-[#334155] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-3 whitespace-pre-wrap">{viewComplaint.description || '-'}</p>
+              </div>
+              {viewComplaint.supporting_docs?.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setDocsModal({ docs: viewComplaint.supporting_docs, tracking: viewComplaint.tracking_number }); setViewComplaint(null); }}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#2563EB] hover:underline"
+                >
+                  View Supporting Documents ({viewComplaint.supporting_docs.length})
+                </button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

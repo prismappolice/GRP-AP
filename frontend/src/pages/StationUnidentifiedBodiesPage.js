@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { stationAPI, unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
 import { stations } from '@/data/stations';
-import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight, Download, FileText, Clock } from 'lucide-react';
+import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight, Download, FileText, Clock, ArrowUpDown } from 'lucide-react';
 
 async function downloadMediaPDF(group, mediaIndex, normalizeMediaUrl) {
   const url = normalizeMediaUrl(group.mediaUrls[mediaIndex]);
@@ -157,6 +157,8 @@ const StationUnidentifiedBodiesPage = () => {
   const [error, setError] = useState('');
   const [viewGroup, setViewGroup] = useState(null);
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState('asc');
 
   const fetchRecords = async () => {
     try {
@@ -220,6 +222,24 @@ const StationUnidentifiedBodiesPage = () => {
   const filteredGrouped = useMemo(() => groupRecords(filtered), [filtered]);
 
   const clearFilters = () => { setSearchText(''); setDateFrom(''); setDateTo(''); };
+
+  const handleSort = (key) => {
+    setSortKey(prev => {
+      if (prev === key) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); return key; }
+      setSortDir('asc');
+      return key;
+    });
+  };
+
+  const sortedFilteredGrouped = useMemo(() => {
+    if (!sortKey) return filteredGrouped;
+    return [...filteredGrouped].sort((a, b) => {
+      const va = String(a[sortKey] || '').toLowerCase();
+      const vb = String(b[sortKey] || '').toLowerCase();
+      return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+  }, [filteredGrouped, sortKey, sortDir]);
+
 
   const applyDatePreset = (val) => {
     const today = new Date();
@@ -495,9 +515,13 @@ const StationUnidentifiedBodiesPage = () => {
             <TableHeader>
               <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF]">
                 <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">S.No</TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Reported Date</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F] cursor-pointer select-none hover:bg-[#DBEAFE]" onClick={() => handleSort('reported_date')}>
+                  <span className="inline-flex items-center gap-1">Reported Date<ArrowUpDown className={`w-3 h-3 ${sortKey === 'reported_date' ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} /></span>
+                </TableHead>
                 <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Description</TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Station</TableHead>
+                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F] cursor-pointer select-none hover:bg-[#DBEAFE]" onClick={() => handleSort('station')}>
+                  <span className="inline-flex items-center gap-1">Station<ArrowUpDown className={`w-3 h-3 ${sortKey === 'station' ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} /></span>
+                </TableHead>
                 <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Contact No</TableHead>
                 <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Images/Videos</TableHead>
                 <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Actions</TableHead>
@@ -506,16 +530,16 @@ const StationUnidentifiedBodiesPage = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-[#64748B]">Loading records...</TableCell>
+                  <TableCell colSpan={8} className="py-10 text-center text-[#64748B]">Loading records...</TableCell>
                 </TableRow>
-              ) : filteredGrouped.length === 0 ? (
+              ) : sortedFilteredGrouped.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-[#64748B]">
+                  <TableCell colSpan={8} className="py-10 text-center text-[#64748B]">
                     {records.length === 0 ? 'No unidentified deadbody records found.' : 'No records match your filters.'}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredGrouped.map((group, index) => (
+                sortedFilteredGrouped.map((group, index) => (
                   <TableRow key={`${group.station}-${group.reported_date}-${index}`}>
                     <TableCell className="px-4 py-3 font-semibold text-[#0F172A]">{index + 1}</TableCell>
                     <TableCell className="px-4 py-3">{group.reported_date}</TableCell>

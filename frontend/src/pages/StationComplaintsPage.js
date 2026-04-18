@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import * as XLSX from 'xlsx';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Building2, ChevronDown, Download, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, Building2, ChevronDown, Download, Eye, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { stationAPI } from '@/lib/api';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 
@@ -100,11 +101,15 @@ function ActionCell({ complaintId, pendingStatus, setPendingStatus, actionLoadin
 const STATION_EXPORT_COLS = [
   { key: 'tracking_number', label: 'Tracking #' },
   { key: 'complaint_type', label: 'Crime Type' },
+  { key: 'incident_date', label: 'Incident Date' },
+  { key: 'complainant_name', label: 'Name' },
+  { key: 'complainant_phone', label: 'Phone' },
   { key: 'aadhar_number', label: 'Aadhaar Number' },
-  { key: 'incident_date', label: 'Date' },
-  { key: 'status', label: 'Status' },
-  { key: 'rejection_reason', label: 'Rejection Reason' },
+  { key: 'complainant_email', label: 'Email' },
+  { key: 'address', label: 'Address' },
+  { key: 'location', label: 'Location' },
   { key: 'description', label: 'Description' },
+  { key: 'status', label: 'Status' },
 ];
 
 async function downloadComplaintPDF(c, index) {
@@ -233,15 +238,17 @@ async function downloadComplaintPDF(c, index) {
 
 function exportToExcel(filename, rows) {
   if (!rows.length) return;
-  const data = rows.map(row =>
-    STATION_EXPORT_COLS.reduce((obj, h) => {
+  const data = rows.map((row, i) => {
+    const obj = { 'S.No': i + 1 };
+    STATION_EXPORT_COLS.forEach(h => {
       obj[h.label] = String(row[h.key] || '').replace(/_/g, ' ');
-      return obj;
-    }, {})
-  );
-  const ws = XLSX.utils.json_to_sheet(data, { header: STATION_EXPORT_COLS.map(h => h.label) });
-  ws['!cols'] = STATION_EXPORT_COLS.map(h => ({
-    wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2
+    });
+    return obj;
+  });
+  const allLabels = ['S.No', ...STATION_EXPORT_COLS.map(h => h.label)];
+  const ws = XLSX.utils.json_to_sheet(data, { header: allLabels });
+  ws['!cols'] = allLabels.map(label => ({
+    wch: Math.max(label.length, ...data.map(r => String(r[label] || '').length)) + 2
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Complaints');
@@ -251,6 +258,7 @@ function exportToExcel(filename, rows) {
 const StationComplaintsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -258,12 +266,15 @@ const StationComplaintsPage = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [crimeFilter, setCrimeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [rejectingId, setRejectingId] = useState(null);
   const [inlineReason, setInlineReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [docsModal, setDocsModal] = useState(null);
   const [pendingStatus, setPendingStatus] = useState({});
+  const [viewComplaint, setViewComplaint] = useState(null);
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState('asc');
 
   const applyDatePreset = (preset) => {
     const today = new Date();
@@ -332,14 +343,43 @@ const StationComplaintsPage = () => {
     });
   }, [complaints, searchText, dateFrom, dateTo, crimeFilter, statusFilter]);
 
-  const stats = useMemo(() => ({
-    total: filtered.length,
-    pending: filtered.filter(c => String(c.status || '').toLowerCase() === 'pending').length,
-    investigating: filtered.filter(c => String(c.status || '').toLowerCase() === 'investigating').length,
-    resolved: filtered.filter(c => String(c.status || '').toLowerCase() === 'resolved').length,
-    approved: filtered.filter(c => String(c.status || '').toLowerCase() === 'approved').length,
-    rejected: filtered.filter(c => String(c.status || '').toLowerCase() === 'rejected').length,
-  }), [filtered]);
+  const handleSort = (key) => {
+    setSortKey(prev => {
+      if (prev === key) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); return key; }
+      setSortDir('asc');
+      return key;
+    });
+  };
+
+  const sortedFiltered = useMemo(() => {
+    if (!sortKey) return filtered;
+    return [...filtered].sort((a, b) => {
+      const va = String(a[sortKey] || '').toLowerCase();
+      const vb = String(b[sortKey] || '').toLowerCase();
+      return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const SortHead = ({ col, label, className }) => (
+    <TableHead
+      className={`border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] cursor-pointer select-none hover:bg-[#EFF6FF] ${className || ''}`}
+      onClick={() => handleSort(col)}
+    >
+      <span className="inline-flex items-center gap-1">{label}<ArrowUpDown className={`w-3 h-3 ${sortKey === col ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} /></span>
+    </TableHead>
+  );
+
+  const stats = useMemo(() => {
+    const APPROVED_STATUSES = ['approved', 'investigating', 'resolved'];
+    return {
+      total: filtered.length,
+      pending: filtered.filter(c => String(c.status || '').toLowerCase() === 'pending').length,
+      investigating: filtered.filter(c => String(c.status || '').toLowerCase() === 'investigating').length,
+      resolved: filtered.filter(c => String(c.status || '').toLowerCase() === 'resolved').length,
+      approved: filtered.filter(c => APPROVED_STATUSES.includes(String(c.status || '').toLowerCase())).length,
+      rejected: filtered.filter(c => String(c.status || '').toLowerCase() === 'rejected').length,
+    };
+  }, [filtered]);
 
   if (loading) {
     return (
@@ -496,9 +536,9 @@ const StationComplaintsPage = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((c, index) => (
+                  sortedFiltered.map((c, index) => (
                     <React.Fragment key={c.id}>
-                    <TableRow className="hover:bg-[#F8FAFC]">
+                    <TableRow className="hover:bg-[#F8FAFF] cursor-pointer" onClick={(e) => { if (e.target.closest('button,select,textarea,a')) return; setViewComplaint(c); }}>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left font-semibold text-[#0F172A]">{index + 1}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left font-mono text-xs text-[#2563EB] font-semibold whitespace-nowrap">{c.tracking_number}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left capitalize text-sm text-[#334155]">{c.complaint_type?.replace(/_/g, ' ')}</TableCell>
@@ -608,6 +648,65 @@ const StationComplaintsPage = () => {
 
       {docsModal && (
         <SupportingDocsModal title="Supporting Documents" docs={docsModal?.docs} trackingNumber={docsModal?.tracking} onClose={() => setDocsModal(null)} />
+      )}
+
+      {viewComplaint && (
+        <Dialog open onOpenChange={() => setViewComplaint(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-[#0F172A]">
+                <FileText className="w-5 h-5 text-[#2563EB]" />
+                Complaint Details
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="flex items-center gap-3 p-3 bg-[#EFF6FF] rounded-lg">
+                <span className="font-mono text-sm font-bold text-[#2563EB]">{viewComplaint.tracking_number}</span>
+                <span className={`ml-auto inline-flex text-xs font-semibold px-2 py-1 rounded-full capitalize ${STATUS_COLORS[viewComplaint.status] || 'bg-gray-100 text-gray-700'}`}>{viewComplaint.status}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[
+                  ['Crime Type', (viewComplaint.complaint_type || '').replace(/_/g, ' ')],
+                  ['Incident Date', viewComplaint.incident_date || '-'],
+                  ['Complainant Name', viewComplaint.complainant_name || '-'],
+                  ['Phone', viewComplaint.complainant_phone || '-'],
+                  ['Aadhaar Number', viewComplaint.aadhar_number || '-'],
+                  ['Email', viewComplaint.complainant_email || '-'],
+                  ['Location', viewComplaint.location || '-'],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-xs text-[#64748B] mb-0.5">{label}</p>
+                    <p className="font-medium text-[#0F172A]">{value}</p>
+                  </div>
+                ))}
+                <div className="col-span-2">
+                  <p className="text-xs text-[#64748B] mb-0.5">Address</p>
+                  <p className="font-medium text-[#0F172A]">{viewComplaint.address || '-'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-[#64748B] mb-0.5">Description</p>
+                  <p className="text-[#334155] whitespace-pre-wrap">{viewComplaint.description || '-'}</p>
+                </div>
+                {viewComplaint.rejection_reason && (
+                  <div className="col-span-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-xs text-red-600 font-semibold mb-0.5">Rejection Reason</p>
+                    <p className="text-red-700 text-sm">{viewComplaint.rejection_reason}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button size="sm" onClick={() => downloadComplaintPDF(viewComplaint, 1)} className="flex items-center gap-1.5 bg-[#2563EB] text-white hover:bg-[#1D4ED8]">
+                  <Download className="w-4 h-4" /> Download PDF
+                </Button>
+                {viewComplaint.supporting_docs?.length ? (
+                  <Button size="sm" variant="outline" onClick={() => { setDocsModal({ docs: viewComplaint.supporting_docs, tracking: viewComplaint.tracking_number }); setViewComplaint(null); }} className="border-[#2563EB] text-[#2563EB]">
+                    <Eye className="w-4 h-4 mr-1" /> View Documents
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

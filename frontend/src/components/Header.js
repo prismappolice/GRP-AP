@@ -53,17 +53,16 @@ export const Header = () => {
 
   React.useEffect(() => {
     if (!isStationUserRole) return;
-    const dismissed = (() => { try { return JSON.parse(localStorage.getItem('dismissed_station_alerts') || '[]'); } catch { return []; } })();
-    const fetchStationAlerts = async () => {
+    const fetchPendingComplaints = async () => {
       try {
-        const res = await api.get('/station/alerts');
+        const res = await api.get('/station/complaints');
         if (Array.isArray(res.data)) {
-          setStationAlertCount(res.data.filter(a => a.is_active && !dismissed.includes(a.id)).length);
+          setStationAlertCount(res.data.filter(c => String(c.status || '').toLowerCase() === 'pending').length);
         }
       } catch {}
     };
-    fetchStationAlerts();
-    const interval = setInterval(fetchStationAlerts, 60000);
+    fetchPendingComplaints();
+    const interval = setInterval(fetchPendingComplaints, 60000);
     return () => clearInterval(interval);
   }, [isStationUserRole]);
 
@@ -104,8 +103,10 @@ export const Header = () => {
 
   const policeLinks = [
     { to: policeDashboardPath, label: 'Dashboard', testId: 'police-dashboard-link' },
-    { to: policeComplaintsPath, label: 'Complaints', testId: 'police-complaints-link' },
-    { to: policeUnidentifiedBodiesPath, label: 'Unidentified Bodies', testId: 'police-unidentified-link' },
+    ...(!isStationUser ? [
+      { to: policeComplaintsPath, label: 'Complaints', testId: 'police-complaints-link' },
+      { to: policeUnidentifiedBodiesPath, label: 'Unidentified Bodies', testId: 'police-unidentified-link' },
+    ] : []),
   ];
 
   const adminLinks = [
@@ -190,7 +191,7 @@ export const Header = () => {
             )}
 
             {isStationUser && (
-              <Link to="/station-dashboard" className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-[#EFF6FF] transition-colors" title="Station Alerts">
+              <Link to="/station-complaints?status=pending" className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-[#EFF6FF] transition-colors" title="Pending Complaints">
                 <Bell className="w-5 h-5 text-[#0F172A]" />
                 {stationAlertCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#DC2626] text-white text-[10px] font-bold flex items-center justify-center leading-none">
