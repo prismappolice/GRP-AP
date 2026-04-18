@@ -452,7 +452,7 @@ const StationComplaintsPage = () => {
             <Button
               type="button"
               size="sm"
-              onClick={() => exportToExcel(`complaints_${new Date().toISOString().slice(0, 10)}.xlsx`, filtered)}
+              onClick={() => exportToExcel(`complaints_${(user?.name || 'station').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`, filtered)}
               className="ml-auto flex items-center gap-1.5 bg-[#2563EB] text-white hover:bg-[#1D4ED8]"
             >
               <Download className="w-4 h-4" /> Export Excel
