@@ -192,9 +192,17 @@ const AdminGalleryPage = () => {
   }, []);
 
   const handleImageChange = (e) => {
-    const files = Array.from(e.target.files || []);
-    setSelectedFiles(files);
-    setPreviews(files.map((file) => URL.createObjectURL(file)));
+    const newFiles = Array.from(e.target.files || []);
+    if (!newFiles.length) return;
+    setSelectedFiles((prev) => [...prev, ...newFiles]);
+    setPreviews((prev) => [...prev, ...newFiles.map((file) => URL.createObjectURL(file))]);
+    // reset input so same file can be re-added if needed
+    e.target.value = '';
+  };
+
+  const handleRemovePreview = (idx) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
+    setPreviews((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleClear = () => {
@@ -335,30 +343,44 @@ const AdminGalleryPage = () => {
                   />
                   <label
                     htmlFor="gallery-media-upload"
-                    className="inline-flex w-36 items-center justify-center rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white shadow-sm cursor-pointer hover:bg-[#1D4ED8]"
+                    className="inline-flex w-40 items-center justify-center rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white shadow-sm cursor-pointer hover:bg-[#1D4ED8]"
                   >
-                    Upload
+                    + Add Images
                   </label>
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-36 border border-[#16A34A] text-[#16A34A] hover:bg-[#DC2626] hover:text-white"
+                    className="w-36 border border-[#DC2626] text-[#DC2626] hover:bg-[#DC2626] hover:text-white"
                     onClick={handleClear}
+                    disabled={!selectedFiles.length}
                   >
-                    Clear
+                    Clear All
                   </Button>
                   <Button
                     type="button"
                     className="w-36 bg-[#16A34A] hover:bg-[#15803D] text-white border border-[#16A34A]"
                     onClick={handleDone}
+                    disabled={!selectedFiles.length}
                   >
                     Done
                   </Button>
+                  {selectedFiles.length > 0 && (
+                    <span className="text-sm font-semibold text-[#2563EB]">{selectedFiles.length} image{selectedFiles.length > 1 ? 's' : ''} selected → 1 row</span>
+                  )}
                 </div>
                 {previews.length > 0 && (
                   <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {previews.map((preview, i) => (
-                      <img key={i} src={preview} alt={`preview-${i}`} className="w-full h-24 object-cover rounded" />
+                      <div key={i} className="relative group">
+                        <img src={preview} alt={`preview-${i}`} className="w-full h-24 object-cover rounded" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePreview(i)}
+                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100"
+                          title="Remove"
+                        >✕</button>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">{selectedFiles[i]?.name}</p>
+                      </div>
                     ))}
                   </div>
                 )}
