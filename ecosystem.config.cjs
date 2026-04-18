@@ -16,16 +16,14 @@ module.exports = {
     {
       name: 'grp-frontend',
       cwd: '/home/prismappolice/GRP-AP/frontend',
-      script: 'npm',
-      args: 'start',
+      script: 'serve',
+      args: '-s build -l 3000',
       interpreter: 'none',
       autorestart: true,
       watch: false,
       max_restarts: 10,
       env: {
-        HOST: '0.0.0.0',
-        PORT: '3000',
-        BROWSER: 'none'
+        PORT: '3000'
       }
     }
   ]

@@ -44,6 +44,11 @@ done
 
 echo "==> Restarting services..."
 sudo systemctl restart postgresql
+
+echo "==> Building frontend..."
+cd "$APP_DIR/frontend" && npm run build
+cd "$APP_DIR"
+
 pm2 restart all --update-env
 pm2 save
 pm2 status
