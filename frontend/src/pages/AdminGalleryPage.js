@@ -433,15 +433,6 @@ const AdminGalleryPage = () => {
             <Card className="p-8 border border-[#60A5FA] shadow-sm bg-white">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold">Gallery Items</h2>
-                {gallery.length > 1 && (
-                  <Button
-                    type="button"
-                    className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-sm px-4 py-2"
-                    onClick={handleMergeAll}
-                  >
-                    Merge All into One Row ({gallery.length} rows → 1)
-                  </Button>
-                )}
               </div>
               {gallery.length === 0 ? (
                 <p className="text-gray-400">No gallery items yet.</p>
