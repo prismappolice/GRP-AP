@@ -79,6 +79,9 @@ backend/unidentified_uploads/*.png
 backend/unidentified_uploads/*.gif
 backend/unidentified_uploads/*.webp
 backend/unidentified_uploads/*.avif
+backend/managed_content/static_page_content.json
+backend/complaint_uploads/
+backend/static/
 
 # Python
 __pycache__/
