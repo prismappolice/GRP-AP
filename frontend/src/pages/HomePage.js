@@ -31,6 +31,8 @@ export const HomePage = () => {
   const [newsLightbox, setNewsLightbox] = useState(null); // { item }
   const fallbackLatestNews = [];
   const videoRefs = useRef(new Map());
+  const galleryMarqueeRef = useRef(null);
+  const newsMarqueeRef = useRef(null);
 
   const normalizeGalleryItem = (item, idx) => {
     const name = item?.name || item?.imageName || item?.heading || `gallery-item-${idx + 1}`;
@@ -133,6 +135,26 @@ export const HomePage = () => {
     loadGallery();
     loadLatestNews();
   }, []);
+
+  // Sync gallery marquee speed to match latest news marquee speed (px/s)
+  useEffect(() => {
+    const syncSpeed = () => {
+      const newsEl = newsMarqueeRef.current;
+      const galleryEl = galleryMarqueeRef.current;
+      if (!newsEl || !galleryEl) return;
+      // News scrolls -100% of its full width in 100s
+      const newsWidth = newsEl.scrollWidth;
+      if (newsWidth === 0) return;
+      const pxPerSecond = newsWidth / 100;
+      // Gallery scrolls -50% of its full width (duplicated items) per loop
+      const galleryHalfWidth = galleryEl.scrollWidth / 2;
+      const galleryDuration = galleryHalfWidth / pxPerSecond;
+      galleryEl.style.animationDuration = `${galleryDuration}s`;
+    };
+    // Run after images/content may have loaded
+    const timer = setTimeout(syncSpeed, 300);
+    return () => clearTimeout(timer);
+  }, [effectiveGalleryMedia, latestNews]);
 
   const handleMediaMouseEnter = (renderId, kind) => {
     if (kind !== 'video') return;
@@ -319,7 +341,7 @@ export const HomePage = () => {
           </div>
           {effectiveGalleryMedia.length > 0 ? (
             <div className="overflow-hidden rounded-lg border-2 border-black bg-white p-3">
-              <div className="flex w-max gap-4 px-2 animate-marquee">
+              <div ref={galleryMarqueeRef} className="flex w-max gap-4 px-2 animate-marquee">
                 {[...effectiveGalleryMedia, ...effectiveGalleryMedia].map((media, idx) => (
                   <div
                     key={`${media.id}-${idx}`}
@@ -456,7 +478,7 @@ export const HomePage = () => {
                   </div>
                 </div>
               ) : (
-                <div className="flex w-max gap-4 px-2 animate-marquee-news">
+                <div ref={newsMarqueeRef} className="flex w-max gap-4 px-2 animate-marquee-news">
                   {latestNews.map((item, idx) => (
                     <div key={`news-${item.id || idx}-${idx}`} className="min-w-[400px] max-w-[400px] flex-shrink-0 cursor-pointer" onClick={() => setNewsLightbox({ item })}>
                       <NewsCard
