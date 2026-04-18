@@ -4,29 +4,24 @@ set -euo pipefail
 APP_DIR="/home/prismappolice/GRP-AP"
 cd "$APP_DIR"
 
-# Backup all admin-managed JSONs — these are NOT in git, managed via admin panel
-backup_file() {
-    local src="$1" dst="$2"
-    [ -f "$src" ] && cp "$src" "$dst" && echo "==> Backed up $(basename $src)"
-}
-backup_file "$APP_DIR/backend/gallery_uploads/gallery_items.json"       /tmp/bk_gallery_items.json
-backup_file "$APP_DIR/backend/news_uploads/news_items.json"             /tmp/bk_news_items.json
-backup_file "$APP_DIR/backend/news_uploads/latest_news.json"            /tmp/bk_latest_news.json
-backup_file "$APP_DIR/backend/unidentified_uploads/unidentified_bodies.json" /tmp/bk_unidentified_bodies.json
+# Backup all admin-managed uploads (images + JSONs) — NOT in git, managed via admin panel
+echo "==> Backing up admin uploads..."
+rm -rf /tmp/bk_gallery_uploads /tmp/bk_news_uploads /tmp/bk_unidentified_uploads
+cp -r "$APP_DIR/backend/gallery_uploads"       /tmp/bk_gallery_uploads
+cp -r "$APP_DIR/backend/news_uploads"          /tmp/bk_news_uploads
+cp -r "$APP_DIR/backend/unidentified_uploads"  /tmp/bk_unidentified_uploads
+echo "==> Backed up gallery($(ls /tmp/bk_gallery_uploads | wc -l)), news($(ls /tmp/bk_news_uploads | wc -l)), unidentified($(ls /tmp/bk_unidentified_uploads | wc -l)) files"
 
 # Step 1: Pull latest code
 echo "==> Pulling latest code..."
 git pull origin main
 
-# Restore admin-managed JSONs after pull
-restore_file() {
-    local src="$1" dst="$2"
-    [ -f "$src" ] && cp "$src" "$dst" && echo "==> Restored $(basename $dst)"
-}
-restore_file /tmp/bk_gallery_items.json        "$APP_DIR/backend/gallery_uploads/gallery_items.json"
-restore_file /tmp/bk_news_items.json           "$APP_DIR/backend/news_uploads/news_items.json"
-restore_file /tmp/bk_latest_news.json          "$APP_DIR/backend/news_uploads/latest_news.json"
-restore_file /tmp/bk_unidentified_bodies.json  "$APP_DIR/backend/unidentified_uploads/unidentified_bodies.json"
+# Restore all admin-managed uploads after pull (git pull may delete previously-tracked files)
+echo "==> Restoring admin uploads..."
+cp -r /tmp/bk_gallery_uploads/.       "$APP_DIR/backend/gallery_uploads/"
+cp -r /tmp/bk_news_uploads/.          "$APP_DIR/backend/news_uploads/"
+cp -r /tmp/bk_unidentified_uploads/.  "$APP_DIR/backend/unidentified_uploads/"
+echo "==> Restored all uploads"
 
 echo "==> Restarting services..."
 sudo systemctl restart postgresql
