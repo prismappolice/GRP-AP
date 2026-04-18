@@ -51,9 +51,34 @@ dump.rdb
 .DS_Store
 *.pem
 
-# Runtime data files — now tracked in git (local edit → commit → deploy workflow)
-# Gallery JSON is managed by admin panel on server, NOT tracked in git
+# Runtime data files — all managed by admin panel on live server, NOT tracked in git
+# Images and JSONs uploaded/managed via admin login are server-only
 backend/gallery_uploads/gallery_items.json
+backend/gallery_uploads/*.jpeg
+backend/gallery_uploads/*.jpg
+backend/gallery_uploads/*.png
+backend/gallery_uploads/*.gif
+backend/gallery_uploads/*.webp
+backend/gallery_uploads/*.avif
+backend/gallery_uploads/*.mp4
+backend/gallery_uploads/*.webm
+backend/news_uploads/news_items.json
+backend/news_uploads/latest_news.json
+backend/news_uploads/*.jpeg
+backend/news_uploads/*.jpg
+backend/news_uploads/*.png
+backend/news_uploads/*.gif
+backend/news_uploads/*.webp
+backend/news_uploads/*.avif
+backend/news_uploads/*.mp4
+backend/news_uploads/*.webm
+backend/unidentified_uploads/unidentified_bodies.json
+backend/unidentified_uploads/*.jpeg
+backend/unidentified_uploads/*.jpg
+backend/unidentified_uploads/*.png
+backend/unidentified_uploads/*.gif
+backend/unidentified_uploads/*.webp
+backend/unidentified_uploads/*.avif
 
 # Python
 __pycache__/
