@@ -51,6 +51,13 @@ dump.rdb
 .DS_Store
 *.pem
 
+# Runtime data files (modified by admin panel — do not track)
+backend/news_uploads/news_items.json
+backend/news_uploads/latest_news.json
+backend/gallery_uploads/gallery_items.json
+backend/unidentified_uploads/unidentified_bodies.json
+backend/managed_content/static_page_content.json
+
 # Python
 __pycache__/
 *pyc*
