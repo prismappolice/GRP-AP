@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
@@ -11,6 +12,86 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { stationAPI, unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
 import { stations } from '@/data/stations';
 import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight, Download, FileText, Clock } from 'lucide-react';
+
+async function downloadMediaPDF(group, mediaIndex, normalizeMediaUrl) {
+  const url = normalizeMediaUrl(group.mediaUrls[mediaIndex]);
+  const isVideo = /\.(mp4|webm|ogg|mov|avi)$/i.test(url);
+  const dateStr = group.reported_date || 'unknown';
+  const station = group.station || 'station';
+  const filename = `unidentified_body_${station.replace(/\s+/g, '_')}_${dateStr}_media${mediaIndex + 1}.pdf`;
+
+  if (isVideo) {
+    // For videos, trigger direct download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.replace('.pdf', '.mp4');
+    a.click();
+    return;
+  }
+
+  try {
+    const imgBytes = await fetch(url).then(r => r.arrayBuffer());
+    const pdfDoc = await PDFDocument.create();
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const blue = rgb(0.145, 0.388, 0.922);
+    const gray = rgb(0.392, 0.455, 0.545);
+
+    // Embed image
+    let img;
+    try {
+      img = await pdfDoc.embedJpg(imgBytes);
+    } catch {
+      try { img = await pdfDoc.embedPng(imgBytes); } catch { img = null; }
+    }
+
+    const page = pdfDoc.addPage([595, 842]);
+    const { width, height } = page.getSize();
+
+    // Header
+    page.drawRectangle({ x: 0, y: height - 70, width, height: 70, color: blue });
+    page.drawText('GRP - Unidentified Body Record', { x: 40, y: height - 38, size: 18, font: fontBold, color: rgb(1,1,1) });
+    page.drawText('Government Railway Police, Andhra Pradesh', { x: 40, y: height - 56, size: 10, font: fontRegular, color: rgb(0.85,0.92,1) });
+
+    // Info
+    let y = height - 95;
+    page.drawText(`Station: ${station}`, { x: 40, y, size: 11, font: fontBold, color: rgb(0.06,0.09,0.16) });
+    y -= 18;
+    page.drawText(`Reported Date: ${dateStr}`, { x: 40, y, size: 10, font: fontRegular, color: gray });
+    y -= 14;
+    page.drawText(`Media: ${mediaIndex + 1} of ${group.mediaUrls.length}`, { x: 40, y, size: 10, font: fontRegular, color: gray });
+    y -= 20;
+    page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: rgb(0.376,0.647,0.980) });
+    y -= 16;
+
+    // Image
+    if (img) {
+      const maxW = width - 80;
+      const maxH = y - 60;
+      const scale = Math.min(maxW / img.width, maxH / img.height);
+      const imgW = img.width * scale;
+      const imgH = img.height * scale;
+      const imgX = (width - imgW) / 2;
+      page.drawImage(img, { x: imgX, y: y - imgH, width: imgW, height: imgH });
+    }
+
+    // Footer
+    page.drawLine({ start: { x: 40, y: 40 }, end: { x: width - 40, y: 40 }, thickness: 0.5, color: rgb(0.376,0.647,0.980) });
+    page.drawText('Government Railway Police, Andhra Pradesh  |  Confidential', { x: 40, y: 26, size: 8, font: fontRegular, color: gray });
+
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    console.error('PDF download failed:', err);
+    alert('Failed to generate PDF. Try again.');
+  }
+}
 
 function getStationPhone(stationName) {
   for (const div of stations) {
@@ -497,6 +578,21 @@ const StationUnidentifiedBodiesPage = () => {
                     <ChevronRight className="w-5 h-5" />
                   </button>
                 </>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-xs text-[#64748B]">
+                {viewGroup?.reported_date && `Reported: ${viewGroup.reported_date}`}
+              </span>
+              {viewGroup?.mediaUrls?.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => downloadMediaPDF(viewGroup, mediaIndex, normalizeMediaUrl)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2563EB] text-white font-medium rounded-md hover:bg-[#1D4ED8] transition-colors"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {/\.(mp4|webm|ogg|mov|avi)$/i.test(viewGroup.mediaUrls[mediaIndex]) ? 'Download Video' : 'Download as PDF'}
+                </button>
               )}
             </div>
             {viewGroup?.mediaUrls?.length > 1 && (
