@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
@@ -28,20 +29,21 @@ const COMPLAINT_COLS = [
   { key: 'description', label: 'Description' },
 ];
 
-function exportToCSV(filename, rows) {
+function exportToExcel(filename, rows) {
   if (!rows.length) return;
-  const headerRow = COMPLAINT_COLS.map(h => `"${h.label}"`).join(',');
-  const dataRows = rows.map(row =>
-    COMPLAINT_COLS.map(h => `"${String(row[h.key] || '').replace(/_/g, ' ').replace(/"/g, '""')}"`).join(',')
+  const data = rows.map(row =>
+    COMPLAINT_COLS.reduce((obj, h) => {
+      obj[h.label] = String(row[h.key] || '').replace(/_/g, ' ');
+      return obj;
+    }, {})
   );
-  const csv = [headerRow, ...dataRows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  const ws = XLSX.utils.json_to_sheet(data, { header: COMPLAINT_COLS.map(h => h.label) });
+  ws['!cols'] = COMPLAINT_COLS.map(h => ({
+    wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Complaints');
+  XLSX.writeFile(wb, filename);
 }
 
 function getAPIForRole(role) {
@@ -372,11 +374,11 @@ export const PoliceComplaintsPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => exportToCSV(`complaints_${new Date().toISOString().slice(0, 10)}.csv`, filtered)}
+              onClick={() => exportToExcel(`complaints_${new Date().toISOString().slice(0, 10)}.xlsx`, filtered)}
               className="self-end inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              Export CSV
+              Export Excel
             </button>
           </div>
 

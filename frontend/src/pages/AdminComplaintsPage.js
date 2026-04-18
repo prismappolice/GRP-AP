@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { AdminPageHero } from '@/components/AdminPageHero';
 import { Card } from '@/components/ui/card';
@@ -128,7 +129,7 @@ const AdminComplaintsPage = () => {
     closed: filteredComplaints.filter(c => String(c.status || '').toLowerCase() === 'closed').length,
   }), [filteredComplaints]);
 
-  function exportToCSV(filename, rows) {
+  function exportToExcel(filename, rows) {
     if (!rows.length) return;
     const headers = [
       { key: 'tracking_number', label: 'Tracking #' },
@@ -143,19 +144,23 @@ const AdminComplaintsPage = () => {
       { key: 'description', label: 'Description' },
       { key: 'station', label: 'Forwarded To' },
       { key: 'status', label: 'Status' },
+      { key: 'created_at', label: 'Submitted At' },
     ];
-    const headerRow = headers.map(h => `"${h.label}"`).join(',');
-    const dataRows = rows.map(row =>
-      headers.map(h => `"${String(row[h.key] || '').replace(/_/g, ' ').replace(/"/g, '""')}"`).join(',')
+    const data = rows.map(row =>
+      headers.reduce((obj, h) => {
+        obj[h.label] = String(row[h.key] || '').replace(/_/g, ' ');
+        return obj;
+      }, {})
     );
-    const csv = [headerRow, ...dataRows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
+    // Auto-width columns
+    const colWidths = headers.map(h => ({
+      wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2
+    }));
+    ws['!cols'] = colWidths;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Complaints');
+    XLSX.writeFile(wb, filename);
   }
 
   if (!isAdmin) return <div className="min-h-screen pt-4 px-4 text-center text-red-600">Access denied</div>;
@@ -203,10 +208,10 @@ const AdminComplaintsPage = () => {
               </button>
               <button
                 type="button"
-                onClick={() => exportToCSV(`complaints_${new Date().toISOString().slice(0,10)}.csv`, filteredComplaints)}
+                onClick={() => exportToExcel(`complaints_${new Date().toISOString().slice(0,10)}.xlsx`, filteredComplaints)}
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
               >
-                <Download className="w-3.5 h-3.5" /> Export CSV
+                <Download className="w-3.5 h-3.5" /> Export Excel
               </button>
             </div>
           </div>
@@ -278,7 +283,7 @@ const AdminComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Date</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Name</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Phone</TableHead>
-                  <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Aadhaar #</TableHead>
+                  <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Aadhaar</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Email</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A] min-w-[220px]">Address</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Location</TableHead>

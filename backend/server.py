@@ -2152,6 +2152,38 @@ async def create_help_request(
 
 
 # ==================== GALLERY / STATIC CONTENT ROUTES ====================
+
+MANAGED_CONTENT_DIR = ROOT_DIR / "managed_content"
+
+@api_router.get("/page-content/{page_key}")
+async def get_page_content(page_key: str) -> Any:
+    content_path = MANAGED_CONTENT_DIR / "static_page_content.json"
+    try:
+        with open(content_path, "r", encoding="utf-8") as f:
+            all_content = json.load(f)
+        return JSONResponse(content={"content": all_content.get(page_key, {})})
+    except FileNotFoundError:
+        return JSONResponse(content={"content": {}})
+
+@api_router.put("/admin/page-content/{page_key}")
+async def update_page_content(page_key: str, request: Request, current_user: User = Depends(get_current_user)) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    content_path = MANAGED_CONTENT_DIR / "static_page_content.json"
+    try:
+        data = await request.json()
+        try:
+            with open(content_path, "r", encoding="utf-8") as f:
+                all_content = json.load(f)
+        except FileNotFoundError:
+            all_content = {}
+        all_content[page_key] = data.get("content", {})
+        with open(content_path, "w", encoding="utf-8") as f:
+            json.dump(all_content, f, ensure_ascii=False, indent=2)
+        return JSONResponse(content={"content": all_content[page_key]})
+    except Exception as e:
+        return JSONResponse(content={"detail": f"Failed to update page content: {e}"}, status_code=500)
+
 @api_router.post("/admin/news/upload")
 async def admin_upload_news_media(file: UploadFile = File(...), current_user: User = Depends(get_current_user)) -> Any:
     if current_user.role != "admin":
