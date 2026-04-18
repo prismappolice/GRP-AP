@@ -37,7 +37,7 @@ const parseDocs = (docs) => {
   return [String(docs)];
 };
 
-export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, onClose }) => {
+export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trackingNumber, onClose }) => {
   const mediaUrls = useMemo(() => parseDocs(docs), [docs]);
   const [mediaIndex, setMediaIndex] = useState(0);
 
@@ -128,7 +128,12 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, onCl
             <Button
               type="button"
               className="bg-[#2563EB] hover:bg-[#1D4ED8]"
-              onClick={() => downloadFile(normalizedActiveUrl, activeUrl.split('/').pop())}
+              onClick={() => {
+                const ext = activeUrl.split('/').pop().split('.').pop();
+                const idx = mediaUrls.length > 1 ? `_${mediaIndex + 1}` : '';
+                const fname = trackingNumber ? `${trackingNumber}${idx}.${ext}` : activeUrl.split('/').pop();
+                downloadFile(normalizedActiveUrl, fname);
+              }}
             >
               <Download className="w-4 h-4 mr-2" /> Download
             </Button>

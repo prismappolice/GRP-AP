@@ -455,7 +455,7 @@ export const PoliceComplaintsPage = () => {
                             {c.supporting_docs?.length ? (
                               <button
                                 type="button"
-                                onClick={() => setDocsModal(c.supporting_docs)}
+                                onClick={() => setDocsModal({ docs: c.supporting_docs, tracking: c.tracking_number })}
                                 className="text-xs text-[#2563EB] underline text-left"
                               >
                                 View Docs ({c.supporting_docs.length})
@@ -495,7 +495,7 @@ export const PoliceComplaintsPage = () => {
       </div>
 
       {docsModal && (
-        <SupportingDocsModal title="Supporting Documents" docs={docsModal} onClose={() => setDocsModal(null)} />
+        <SupportingDocsModal title="Supporting Documents" docs={docsModal?.docs} trackingNumber={docsModal?.tracking} onClose={() => setDocsModal(null)} />
       )}
     </div>
   );

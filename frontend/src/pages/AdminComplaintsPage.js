@@ -375,7 +375,7 @@ const AdminComplaintsPage = () => {
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-center">
                         {c.supporting_docs?.length ? (
                           <button
-                            onClick={() => setDocsModal(c.supporting_docs)}
+                            onClick={() => setDocsModal({ docs: c.supporting_docs, tracking: c.tracking_number })}
                             className="px-3 py-1 bg-[#2563EB] text-white text-xs font-medium rounded hover:bg-[#1D4ED8] transition-colors"
                           >
                             View
@@ -439,7 +439,7 @@ const AdminComplaintsPage = () => {
       )}
 
       {docsModal && (
-        <SupportingDocsModal title="Supporting Documents" docs={docsModal} onClose={() => setDocsModal(null)} />
+        <SupportingDocsModal title="Supporting Documents" docs={docsModal?.docs} trackingNumber={docsModal?.tracking} onClose={() => setDocsModal(null)} />
       )}
     </div>
   );
