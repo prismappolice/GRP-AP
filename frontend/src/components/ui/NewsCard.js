@@ -19,7 +19,6 @@ export default function NewsCard({
   date = '',
   source = '',
 }) {
-  // Heights: heading=52, image=210, content=162, date=36 → total=460
   return (
     <div style={{
       width: '400px',
@@ -29,19 +28,21 @@ export default function NewsCard({
       border: '1px solid #e5e7eb',
       backgroundColor: '#fff',
       overflow: 'hidden',
-      display: 'grid',
-      gridTemplateRows: '52px 210px 162px 36px',
+      display: 'flex',
+      flexDirection: 'column',
       height: '460px',
     }}>
 
       {/* Row 1 — Heading */}
       <div style={{
+        flexShrink: 0,
+        height: '52px',
         backgroundColor: '#183153',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '0 20px',
-        overflow: 'hidden',
+        borderBottom: '2px solid #0f2040',
       }}>
         <span style={{color: '#fff', fontWeight: 700, letterSpacing: '0.1em', fontSize: '15px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
           {heading}
@@ -49,25 +50,25 @@ export default function NewsCard({
       </div>
 
       {/* Row 2 — Image */}
-      <div style={{overflow: 'hidden', backgroundColor: '#f3f4f6', height: '100%', maxHeight: '210px'}}>
+      <div style={{flexShrink: 0, height: '240px', backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb', overflow: 'hidden'}}>
         {image ? (
           isVideoUrl(image) ? (
-            <video src={image} controls style={{width: '100%', height: '210px', objectFit: 'cover', display: 'block'}} />
+            <video src={image} controls style={{width: '100%', height: '240px', objectFit: 'cover', display: 'block'}} />
           ) : (
             <img
               src={image}
               alt={newsTitle}
-              style={{width: '100%', height: '210px', objectFit: 'cover', display: 'block'}}
+              style={{width: '100%', height: '240px', objectFit: 'cover', display: 'block'}}
               onError={handleImageError}
             />
           )
         ) : (
-          <div style={{width: '100%', height: '210px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: '13px'}}>No Image</div>
+          <div style={{width: '100%', height: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d1d5db', fontSize: '13px'}}>No Image</div>
         )}
       </div>
 
       {/* Row 3 — News Title + Summary */}
-      <div style={{padding: '12px 16px 8px', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', gap: '6px'}}>
+      <div style={{flexShrink: 0, height: '140px', padding: '12px 16px 8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '6px', borderBottom: '1px solid #e5e7eb'}}>
         <h2 style={{
           margin: 0, fontWeight: 700, fontSize: '15px', color: '#1a2236',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
@@ -83,7 +84,7 @@ export default function NewsCard({
       </div>
 
       {/* Row 4 — Date */}
-      <div style={{borderTop: '1px solid #e5e7eb', padding: '0 16px', display: 'flex', alignItems: 'center'}}>
+      <div style={{flexShrink: 0, height: '36px', padding: '0 16px', display: 'flex', alignItems: 'center', backgroundColor: '#f9fafb'}}>
         <span style={{fontSize: '12px', color: '#9ca3af'}}>{date}</span>
       </div>
 

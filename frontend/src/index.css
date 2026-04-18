@@ -93,12 +93,13 @@ code {
 }
 
 .animate-marquee {
-  animation: marquee-gallery-loop 90s linear infinite;
+  animation: marquee-gallery-loop 100s linear infinite;
   will-change: transform;
 }
 
 .animate-marquee-news {
-  animation: marquee-left 18s linear infinite;
+  animation: marquee-left 100s linear infinite;
+  will-change: transform;
 }
 
 .animate-marquee:hover,

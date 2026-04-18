@@ -36,39 +36,39 @@ export const HistoryPage = () => {
 
       <section className="py-20 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">{pageContent.sectionEyebrow}</p>
-          <div className="bg-white border border-[#60A5FA] rounded-md p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              {pageContent.sections.map((section, index) => {
-                const meta = sectionMeta[index] || sectionMeta[0];
-                const Icon = meta.Icon;
-                return (
-                  <div key={section.title + index} className={`border-l-4 ${meta.border} pl-8`}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <Icon className="w-6 h-6 text-[#D97706]" />
-                      <h2 className="text-2xl font-bold heading-font text-[#0F172A]">{section.title}</h2>
-                    </div>
-                    {section.paragraphs.map((paragraph, paragraphIndex) => (
-                      <p key={paragraphIndex} className={`text-base text-[#475569] leading-relaxed ${paragraphIndex < section.paragraphs.length - 1 || section.bullets.length > 0 ? 'mb-4' : ''}`}>
-                        {paragraph}
-                      </p>
-                    ))}
-                    {section.bullets.length > 0 ? (
-                      <ul className="space-y-2 text-base text-[#475569] list-disc list-inside">
-                        {section.bullets.map((bullet, bulletIndex) => {
-                          const [label, ...rest] = bullet.split(':');
-                          return rest.length > 0 ? (
-                            <li key={bulletIndex}><strong>{label}:</strong>{rest.join(':')}</li>
-                          ) : (
-                            <li key={bulletIndex}>{bullet}</li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
+          <div className="mb-8">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">{pageContent.sectionEyebrow}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {pageContent.sections.map((section, index) => {
+              const meta = sectionMeta[index] || sectionMeta[0];
+              const Icon = meta.Icon;
+              return (
+                <Card key={section.title + index} className="p-6 border border-[#60A5FA] bg-white">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Icon className="w-10 h-10 text-[#2563EB]" />
+                    <h2 className="text-xl font-bold heading-font text-[#0F172A]">{section.title}</h2>
                   </div>
-                );
-              })}
-            </div>
+                  {section.paragraphs.map((paragraph, paragraphIndex) => (
+                    <p key={paragraphIndex} className={`text-sm text-[#475569] leading-relaxed ${paragraphIndex < section.paragraphs.length - 1 || section.bullets.length > 0 ? 'mb-3' : ''}`}>
+                      {paragraph}
+                    </p>
+                  ))}
+                  {section.bullets.length > 0 ? (
+                    <ul className="space-y-2 text-sm text-[#475569]">
+                      {section.bullets.map((bullet, bulletIndex) => {
+                        const [label, ...rest] = bullet.split(':');
+                        return rest.length > 0 ? (
+                          <li key={bulletIndex}>• <strong>{label}:</strong>{rest.join(':')}</li>
+                        ) : (
+                          <li key={bulletIndex}>• {bullet}</li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                </Card>
+              );
+            })}
           </div>
         </div>
       </section>

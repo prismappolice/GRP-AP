@@ -50,6 +50,7 @@ export const ComplaintPage = () => {
   });
   const [supportingDocs, setSupportingDocs] = useState([]);
   const supportingDocsRef = useRef(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const resetComplaintForm = () => {
     setTrackingNumber(null);
@@ -87,11 +88,28 @@ export const ComplaintPage = () => {
     setSupportingDocs((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
+  const validateForm = () => {
+    const errors = {};
+    if (!formData.complainant_name.trim()) errors.complainant_name = 'Please fill this field';
+    if (!formData.complaint_type) errors.complaint_type = 'Please select a complaint type';
+    if (!/^\d{10}$/.test(formData.complainant_phone || '')) errors.complainant_phone = 'Phone number must be exactly 10 digits';
+    if (!/^\d{12}$/.test(formData.aadhar_number || '')) errors.aadhar_number = 'Aadhaar number must be exactly 12 digits';
+    if (!EMAIL_REGEX.test((formData.complainant_email || '').trim())) errors.complainant_email = 'Please enter a valid email address';
+    if (!formData.incident_date) errors.incident_date = 'Please fill this field';
+    if (!formData.location.trim()) errors.location = 'Please fill this field';
+    if (!formData.address.trim()) errors.address = 'Please fill this field';
+    if (!formData.description.trim()) errors.description = 'Please fill this field';
+    return errors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!/^\d{10}$/.test(formData.complainant_phone || '')) { toast.error('Phone number must be exactly 10 digits'); return; }
-    if (!EMAIL_REGEX.test((formData.complainant_email || '').trim())) { toast.error('Please enter a valid email address'); return; }
-    if (!supportingDocs.length) { toast.error('Please upload supporting documents'); return; }
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
     setLoading(true);
     try {
       const data = new FormData();
@@ -159,16 +177,16 @@ export const ComplaintPage = () => {
                 <Label htmlFor="complainant_name">Full Name *</Label>
                 <Input
                   id="complainant_name"
-                  className="mt-2"
+                  className={`mt-2 ${fieldErrors.complainant_name ? 'border-[#DC2626]' : ''}`}
                   placeholder="Your full name"
                   value={formData.complainant_name}
-                  onChange={(e) => setFormData({...formData, complainant_name: e.target.value})}
-                  required
+                  onChange={(e) => { setFormData({...formData, complainant_name: e.target.value}); if (fieldErrors.complainant_name) setFieldErrors(p => ({...p, complainant_name: ''})); }}
                 />
+                {fieldErrors.complainant_name && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_name}</p>}
               </div>
               <div>
                 <Label htmlFor="complaint_type">Complaint Type *</Label>
-                <Select value={formData.complaint_type} onValueChange={(val) => setFormData({...formData, complaint_type: val})} required>
+                <Select value={formData.complaint_type} onValueChange={(val) => { setFormData({...formData, complaint_type: val}); if (fieldErrors.complaint_type) setFieldErrors(p => ({...p, complaint_type: ''})); }}>
                   <SelectTrigger className="mt-2" data-testid="complaint-type-select">
                     <SelectValue placeholder="Select complaint type" />
                   </SelectTrigger>
@@ -180,6 +198,7 @@ export const ComplaintPage = () => {
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+                {fieldErrors.complaint_type && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complaint_type}</p>}
                 {formData.complaint_type && (
                   <p className="mt-2 text-xs text-[#64748B]">
                     <span className="font-semibold text-[#0F172A]">Note:</span> Please upload supporting proofs (Images/Videos) in the Supporting Documentation upload section.
@@ -190,70 +209,62 @@ export const ComplaintPage = () => {
                 <Label htmlFor="complainant_phone">Phone Number *</Label>
                 <Input
                   id="complainant_phone"
-                  className="mt-2"
+                  className={`mt-2 ${fieldErrors.complainant_phone ? 'border-[#DC2626]' : ''}`}
                   placeholder="Your mobile number"
                   value={formData.complainant_phone}
-                  onChange={(e) => setFormData({...formData, complainant_phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
+                  onChange={(e) => { setFormData({...formData, complainant_phone: e.target.value.replace(/\D/g, '').slice(0, 10)}); if (fieldErrors.complainant_phone) setFieldErrors(p => ({...p, complainant_phone: ''})); }}
                   inputMode="numeric"
-                  pattern="[0-9]{10}"
                   maxLength={10}
-                  title="Phone number must be exactly 10 digits"
-                  required
                 />
+                {fieldErrors.complainant_phone && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_phone}</p>}
               </div>
               <div>
                 <Label htmlFor="aadhar_number">Aadhaar Number *</Label>
                 <Input
                   id="aadhar_number"
-                  className="mt-2"
+                  className={`mt-2 ${fieldErrors.aadhar_number ? 'border-[#DC2626]' : ''}`}
                   placeholder="12-digit Aadhaar number"
                   value={formData.aadhar_number}
-                  onChange={(e) => setFormData({...formData, aadhar_number: e.target.value.replace(/\D/g, '').slice(0, 12)})}
+                  onChange={(e) => { setFormData({...formData, aadhar_number: e.target.value.replace(/\D/g, '').slice(0, 12)}); if (fieldErrors.aadhar_number) setFieldErrors(p => ({...p, aadhar_number: ''})); }}
                   inputMode="numeric"
-                  pattern="[0-9]{12}"
                   maxLength={12}
-                  required
                 />
+                {fieldErrors.aadhar_number && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.aadhar_number}</p>}
               </div>
               <div>
                 <Label htmlFor="complainant_email">Email Address *</Label>
                 <Input
                   id="complainant_email"
                   type="email"
-                  className="mt-2"
+                  className={`mt-2 ${fieldErrors.complainant_email ? 'border-[#DC2626]' : ''}`}
                   placeholder="Your email address"
                   value={formData.complainant_email}
-                  onChange={(e) => setFormData({...formData, complainant_email: e.target.value})}
-                  pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
-                  title="Please enter a valid email address"
-                  required
+                  onChange={(e) => { setFormData({...formData, complainant_email: e.target.value}); if (fieldErrors.complainant_email) setFieldErrors(p => ({...p, complainant_email: ''})); }}
                 />
-                {formData.complainant_email && !EMAIL_REGEX.test(formData.complainant_email.trim()) && (
-                  <p className="mt-2 text-xs text-[#DC2626]">Please enter a valid email address.</p>
-                )}
+                {fieldErrors.complainant_email && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_email}</p>}
               </div>
               <div>
                 <Label htmlFor="incident_date">Date of Incident *</Label>
                 <Input
                   id="incident_date"
                   type="date"
-                  className="mt-2"
+                  className={`mt-2 ${fieldErrors.incident_date ? 'border-[#DC2626]' : ''}`}
                   value={formData.incident_date}
-                  onChange={(e) => setFormData({...formData, incident_date: e.target.value})}
-                  required
+                  onChange={(e) => { setFormData({...formData, incident_date: e.target.value}); if (fieldErrors.incident_date) setFieldErrors(p => ({...p, incident_date: ''})); }}
                   data-testid="incident-date-input"
                 />
+                {fieldErrors.incident_date && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.incident_date}</p>}
               </div>
               <div>
                 <Label htmlFor="location">Location *</Label>
                 <Input
                   id="location"
-                  className="mt-2"
+                  className={`mt-2 ${fieldErrors.location ? 'border-[#DC2626]' : ''}`}
                   placeholder="Incident location (station, train, etc.)"
                   value={formData.location}
-                  onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  required
+                  onChange={(e) => { setFormData({...formData, location: e.target.value}); if (fieldErrors.location) setFieldErrors(p => ({...p, location: ''})); }}
                 />
+                {fieldErrors.location && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.location}</p>}
               </div>
             </div>
 
@@ -261,29 +272,29 @@ export const ComplaintPage = () => {
               <Label htmlFor="address">Address *</Label>
               <Textarea
                 id="address"
-                className="mt-2 min-h-[100px]"
+                className={`mt-2 min-h-[100px] ${fieldErrors.address ? 'border-[#DC2626]' : ''}`}
                 placeholder="Your full address including state and pincode. This will help in directing your complaint to the correct police station."
                 value={formData.address}
-                onChange={(e) => setFormData({...formData, address: e.target.value})}
-                required
+                onChange={(e) => { setFormData({...formData, address: e.target.value}); if (fieldErrors.address) setFieldErrors(p => ({...p, address: ''})); }}
               />
+              {fieldErrors.address && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.address}</p>}
             </div>
 
             <div>
               <Label htmlFor="description">Description *</Label>
               <Textarea
                 id="description"
-                className="mt-2 min-h-[150px]"
+                className={`mt-2 min-h-[150px] ${fieldErrors.description ? 'border-[#DC2626]' : ''}`}
                 placeholder="Provide detailed description of the incident with correct location, date, and time. This will help the authorities in their investigation."
                 value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                required
+                onChange={(e) => { setFormData({...formData, description: e.target.value}); if (fieldErrors.description) setFieldErrors(p => ({...p, description: ''})); }}
                 data-testid="description-textarea"
               />
+              {fieldErrors.description && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.description}</p>}
             </div>
 
             <div>
-              <Label>Supporting Documents *</Label>
+              <Label>Supporting Documents</Label>
               <input
                 ref={supportingDocsRef}
                 type="file"
@@ -291,7 +302,6 @@ export const ComplaintPage = () => {
                 multiple
                 className="hidden"
                 onChange={handleSupportingDocsChange}
-                required
               />
               <button
                 type="button"

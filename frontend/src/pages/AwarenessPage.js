@@ -34,12 +34,21 @@ export const AwarenessPage = () => {
             >
               <X className="w-7 h-7" />
             </button>
-            <img
-              src={awarenessPosterSrc}
-              alt="Laptop Loss Theft Awareness"
-              className="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-2xl object-contain"
-              onClick={e => e.stopPropagation()}
-            />
+            <div className="flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+              <img
+                src={awarenessPosterSrc}
+                alt="Laptop Loss Theft Awareness"
+                className="max-h-[80vh] max-w-[90vw] rounded-2xl shadow-2xl object-contain"
+              />
+              <a
+                href={awarenessPosterSrc}
+                download="laptop-awareness-poster.png"
+                className="flex items-center gap-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold px-6 py-2 rounded-full transition text-sm shadow-lg"
+                onClick={e => e.stopPropagation()}
+              >
+                ⬇ Download Poster
+              </a>
+            </div>
           </div>
         )}
 

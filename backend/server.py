@@ -1124,9 +1124,8 @@ async def get_news_items() -> Any:
         if not isinstance(items, list) or not items:
             raise FileNotFoundError
         normalized_items = [_normalize_news_item(item) for item in items]
-        local_items = [item for item in normalized_items if str(item.get("image") or "").startswith("/news_uploads/") or not item.get("image")]
-        if local_items:
-            return JSONResponse(content=local_items)
+        if normalized_items:
+            return JSONResponse(content=normalized_items)
         derived_items = _news_items_from_upload_dir()
         if derived_items:
             return JSONResponse(content=derived_items)
@@ -1182,6 +1181,47 @@ async def admin_add_news_item(request: Request, current_user: User = Depends(get
         return JSONResponse(content=data)
     except Exception as e:
         return JSONResponse(content={"detail": f"Failed to add news item: {e}"}, status_code=500)
+
+
+@api_router.put("/admin/news-items/{item_id}")
+async def admin_update_news_item(item_id: str, request: Request, current_user: User = Depends(get_current_user)) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    items_path = ROOT_DIR / "news_uploads" / "news_items.json"
+    news_path = ROOT_DIR / "news_uploads" / "latest_news.json"
+    try:
+        data = await request.json()
+        with open(items_path, "r", encoding="utf-8") as f:
+            items = json.load(f)
+        updated_items = []
+        updated = None
+        for item in items:
+            if item.get("id") == item_id:
+                merged = {**item, **data, "id": item_id}
+                updated_items.append(merged)
+                updated = merged
+            else:
+                updated_items.append(item)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="News item not found")
+        with open(items_path, "w", encoding="utf-8") as f:
+            json.dump(updated_items, f, ensure_ascii=False, indent=2)
+        # Update latest_news.json if this was the first/active item
+        try:
+            with open(news_path, "r", encoding="utf-8") as f:
+                active = json.load(f)
+            if isinstance(active, list):
+                active = active[0] if active else {}
+            if active.get("id") == item_id:
+                with open(news_path, "w", encoding="utf-8") as f:
+                    json.dump(updated, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        return JSONResponse(content=updated)
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse(content={"detail": f"Failed to update news item: {e}"}, status_code=500)
 
 
 @api_router.delete("/admin/news-items/{item_id}")

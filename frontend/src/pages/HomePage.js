@@ -27,6 +27,8 @@ export const HomePage = () => {
   const [alerts, setAlerts] = useState([]);
   const [latestNews, setLatestNews] = useState([]);
   const [gallery, setGallery] = useState([]);
+  const [lightbox, setLightbox] = useState(null); // { url, alt, kind }
+  const [newsLightbox, setNewsLightbox] = useState(null); // { item }
   const fallbackLatestNews = [];
   const videoRefs = useRef(new Map());
 
@@ -98,10 +100,9 @@ export const HomePage = () => {
       const normalizeNewsItem = (item) => {
         const rawImage = item?.image || '';
         const normalizedImage = normalizeMediaUrl(rawImage);
-        const usesUploadedNewsMedia = !rawImage || rawImage.includes('news_uploads');
         return {
           ...item,
-          image: usesUploadedNewsMedia ? normalizedImage : '',
+          image: normalizedImage || rawImage,
         };
       };
 
@@ -322,9 +323,10 @@ export const HomePage = () => {
                 {[...effectiveGalleryMedia, ...effectiveGalleryMedia].map((media, idx) => (
                   <div
                     key={`${media.id}-${idx}`}
-                    className="h-[300px] sm:h-[300px] min-w-[280px] sm:min-w-[320px] px-3 py-2 overflow-hidden rounded-lg border-2 border-gray-500 bg-white flex items-center justify-center flex-shrink-0"
+                    className="h-[300px] sm:h-[300px] min-w-[280px] sm:min-w-[320px] px-3 py-2 overflow-hidden rounded-lg border-2 border-gray-500 bg-white flex items-center justify-center flex-shrink-0 cursor-pointer"
                     onMouseEnter={() => handleMediaMouseEnter(`${media.id}-${idx}`, media.kind)}
                     onMouseLeave={() => handleMediaMouseLeave(`${media.id}-${idx}`, media.kind)}
+                    onClick={() => setLightbox({ url: media.url, alt: media.alt, kind: media.kind })}
                   >
                     {media.kind === 'video' ? (
                       <video
@@ -340,10 +342,10 @@ export const HomePage = () => {
                         muted
                         loop
                         playsInline
-                        className="h-full w-auto max-w-full object-contain"
+                        className="h-full w-auto max-w-full object-contain pointer-events-none"
                       />
                     ) : (
-                      <img src={media.url} alt={media.alt} className="h-full w-auto max-w-full object-contain" />
+                      <img src={media.url} alt={media.alt} className="h-full w-auto max-w-full object-contain pointer-events-none" />
                     )}
                   </div>
                 ))}
@@ -354,6 +356,80 @@ export const HomePage = () => {
           )}
         </div>
       </section>
+
+      {/* Gallery Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setLightbox(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute -top-10 right-0 text-white text-3xl font-bold leading-none hover:text-gray-300"
+              onClick={() => setLightbox(null)}
+            >
+              &times;
+            </button>
+            {lightbox.kind === 'video' ? (
+              <video
+                src={lightbox.url}
+                controls
+                autoPlay
+                className="w-full max-h-[80vh] rounded-lg object-contain bg-black"
+              />
+            ) : (
+              <img
+                src={lightbox.url}
+                alt={lightbox.alt}
+                className="w-full max-h-[80vh] rounded-lg object-contain bg-black"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* News Lightbox */}
+      {newsLightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setNewsLightbox(null)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-3 right-3 z-10 text-gray-500 hover:text-red-500 text-2xl font-bold leading-none"
+              onClick={() => setNewsLightbox(null)}
+            >
+              &times;
+            </button>
+            {/* Header */}
+            <div className="bg-[#183153] px-5 py-3">
+              <span className="text-white font-bold tracking-widest text-sm uppercase">{newsLightbox.item.heading || 'DAILY NEWS UPDATE'}</span>
+            </div>
+            {/* Image */}
+            {newsLightbox.item.image && (
+              <div className="w-full bg-gray-100">
+                {/\.(mp4|webm|ogg|mov)$/i.test(newsLightbox.item.image)
+                  ? <video src={newsLightbox.item.image} controls autoPlay className="w-full max-h-64 object-cover" />
+                  : <img src={newsLightbox.item.image} alt={newsLightbox.item.newsTitle} className="w-full max-h-64 object-cover" />}
+              </div>
+            )}
+            {/* Content */}
+            <div className="p-5 flex flex-col gap-3">
+              <h2 className="font-extrabold text-lg text-[#1a2236] leading-tight">{newsLightbox.item.newsTitle}</h2>
+              <p className="text-sm text-[#4b5563] leading-relaxed">{newsLightbox.item.newsSummary}</p>
+              {newsLightbox.item.date && (
+                <p className="text-xs text-gray-400 border-t pt-3">{newsLightbox.item.date}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Latest News Section */}
       <section className="py-16 bg-[#F1F5F9]">
@@ -366,20 +442,35 @@ export const HomePage = () => {
           </div>
           {latestNews.length > 0 ? (
             <div className="overflow-hidden rounded-lg border-2 border-black bg-[#F1F5F9] p-3">
-              <div className="flex w-max gap-4 px-2 animate-marquee-news">
-                {(latestNews.length > 1 ? [...latestNews, ...latestNews] : latestNews).map((item, idx) => (
-                  <div key={`news-${item.id || idx}-${idx}`} className="min-w-[400px] max-w-[400px] flex-shrink-0">
+              {latestNews.length === 1 ? (
+                <div className="flex justify-center px-2">
+                  <div className="min-w-[400px] max-w-[400px] cursor-pointer" onClick={() => setNewsLightbox({ item: latestNews[0] })}>
                     <NewsCard
-                      heading={item.heading}
-                      image={item.image}
-                      newsTitle={item.newsTitle}
-                      newsSummary={item.newsSummary}
-                      date={item.date}
-                      source={item.source}
+                      heading={latestNews[0].heading}
+                      image={latestNews[0].image}
+                      newsTitle={latestNews[0].newsTitle}
+                      newsSummary={latestNews[0].newsSummary}
+                      date={latestNews[0].date}
+                      source={latestNews[0].source}
                     />
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="flex w-max gap-4 px-2 animate-marquee-news">
+                  {latestNews.map((item, idx) => (
+                    <div key={`news-${item.id || idx}-${idx}`} className="min-w-[400px] max-w-[400px] flex-shrink-0 cursor-pointer" onClick={() => setNewsLightbox({ item })}>
+                      <NewsCard
+                        heading={item.heading}
+                        image={item.image}
+                        newsTitle={item.newsTitle}
+                        newsSummary={item.newsSummary}
+                        date={item.date}
+                        source={item.source}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-left text-gray-400">No news available.</div>

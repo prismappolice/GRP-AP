@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Eye, Image, Newspaper } from 'lucide-react';
+import { Eye, Image, Newspaper, Pencil } from 'lucide-react';
 import api, { latestNewsAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -44,6 +44,64 @@ const AdminGalleryPage = () => {
   const [newsMediaUploading, setNewsMediaUploading] = useState(false);
   const [newsItems, setNewsItems] = useState([]);
   const [newsMediaFile, setNewsMediaFile] = useState(null);
+
+  // ── Edit News State ────────────────────────────────────────
+  const [editItem, setEditItem] = useState(null); // item being edited
+  const [editForm, setEditForm] = useState({});
+  const [editMediaPreview, setEditMediaPreview] = useState(null);
+  const [editMediaType, setEditMediaType] = useState('image');
+  const [editMediaFile, setEditMediaFile] = useState(null);
+  const [editMediaUploading, setEditMediaUploading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+
+  const handleEditOpen = (item) => {
+    setEditItem(item);
+    setEditForm({ ...item });
+    setEditMediaPreview(item.image || null);
+    setEditMediaType(item.image && /\.(mp4|webm|ogg|mov)$/i.test(item.image) ? 'video' : 'image');
+    setEditMediaFile(null);
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditMediaUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isVideo = file.type.startsWith('video/');
+    setEditMediaType(isVideo ? 'video' : 'image');
+    setEditMediaPreview(URL.createObjectURL(file));
+    setEditMediaFile(file);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      let submitForm = { ...editForm };
+      if (editMediaFile) {
+        setEditMediaUploading(true);
+        const formData = new FormData();
+        formData.append('file', editMediaFile);
+        const uploadRes = await api.post('/admin/news/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        submitForm = { ...submitForm, image: uploadRes.data.file_url };
+        setEditMediaUploading(false);
+      }
+      const res = await api.put(`/admin/news-items/${encodeURIComponent(editItem.id)}`, submitForm);
+      setNewsItems((prev) => prev.map((n) => n.id === editItem.id ? res.data : n));
+      setEditItem(null);
+      toast.success('News item updated!');
+    } catch {
+      toast.error('Failed to update news item');
+      setEditMediaUploading(false);
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   React.useEffect(() => {
     const fetchNewsItems = async () => {
@@ -399,6 +457,7 @@ const AdminGalleryPage = () => {
                     Clear
                   </button>
                 </div>
+                <p className="mt-2 text-xs text-[#D97706]">&#9432; Best results: Upload image/video in <strong>landscape (16:9)</strong> orientation for proper display in the news card.</p>
                 {newsMediaPreview && (
                   <div className="mt-3">
                     {newsMediaType === 'video' ? (
@@ -473,6 +532,7 @@ const AdminGalleryPage = () => {
                     <TableHead className="border border-[#CBD5E1] text-center font-semibold text-[#0F172A]">Date</TableHead>
                     <TableHead className="border border-[#CBD5E1] text-center font-semibold text-[#0F172A]">News Title</TableHead>
                     <TableHead className="border border-[#CBD5E1] text-center font-semibold text-[#0F172A]">View</TableHead>
+                    <TableHead className="border border-[#CBD5E1] text-center font-semibold text-[#0F172A]">Edit</TableHead>
                     <TableHead className="border border-[#CBD5E1] text-center font-semibold text-[#0F172A]">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -489,6 +549,12 @@ const AdminGalleryPage = () => {
                         </Button>
                       </TableCell>
                       <TableCell className="border border-[#CBD5E1] text-center">
+                        <Button type="button" size="sm" variant="outline" className="inline-flex items-center gap-2 border-[#2563EB] text-[#2563EB] hover:bg-[#EFF6FF]" onClick={() => handleEditOpen(item)}>
+                          <Pencil className="w-4 h-4" />
+                          Edit
+                        </Button>
+                      </TableCell>
+                      <TableCell className="border border-[#CBD5E1] text-center">
                         <Button variant="destructive" size="sm" onClick={() => handleNewsRemove(item.id)}>Remove</Button>
                       </TableCell>
                     </TableRow>
@@ -500,6 +566,60 @@ const AdminGalleryPage = () => {
           </Card>
           </>
         )}
+
+        {/* Edit News Dialog */}
+        <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) setEditItem(null); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit News Item</DialogTitle>
+            </DialogHeader>
+            {editItem && (
+              <form onSubmit={handleEditSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                <div>
+                  <label className="block font-semibold mb-1 text-sm">Heading</label>
+                  <input name="heading" value={editForm.heading || ''} onChange={handleEditChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-semibold mb-1 text-sm">Media (Image / Video)</label>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <input id="edit-media-upload" type="file" accept="image/*,video/*" onChange={handleEditMediaUpload} className="hidden" />
+                    <label htmlFor="edit-media-upload" className="inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded font-semibold text-sm text-white bg-[#D97706] hover:bg-[#B45309]">
+                      {editMediaUploading ? 'Uploading...' : 'Change Media'}
+                    </label>
+                    {editForm.image && <span className="text-xs text-green-600 font-semibold">✓ Media set</span>}
+                    <button type="button" onClick={() => { setEditMediaPreview(null); setEditForm(f => ({ ...f, image: '' })); const inp = document.getElementById('edit-media-upload'); if (inp) inp.value = ''; }} className="px-3 py-2 rounded text-sm font-semibold text-white bg-gray-400 hover:bg-red-500 transition">Clear</button>
+                  </div>
+                  <p className="mt-2 text-xs text-[#D97706]">&#9432; Best results: Upload image/video in <strong>landscape (16:9)</strong> orientation for proper display in the news card.</p>
+                  {editMediaPreview && (
+                    <div className="mt-3">
+                      {editMediaType === 'video'
+                        ? <video src={editMediaPreview} controls className="w-full max-h-40 rounded border" />
+                        : <img src={editMediaPreview} alt="preview" className="w-full max-h-40 object-cover rounded border" />}
+                    </div>
+                  )}
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-semibold mb-1 text-sm">News Title</label>
+                  <input name="newsTitle" value={editForm.newsTitle || ''} onChange={handleEditChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-semibold mb-1 text-sm">News Summary</label>
+                  <textarea name="newsSummary" value={editForm.newsSummary || ''} onChange={handleEditChange} className="w-full border rounded px-3 py-2 text-sm min-h-[80px]" required />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-sm">Date</label>
+                  <input type="date" name="date" value={editForm.date || ''} onChange={handleEditChange} className="w-full border rounded px-3 py-2 text-sm" required />
+                </div>
+                <div className="md:col-span-2 flex gap-3 mt-2">
+                  <Button type="submit" className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-8" disabled={editLoading || editMediaUploading}>
+                    {editLoading ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setEditItem(null)}>Cancel</Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* News Preview Dialog */}
         <Dialog open={newsPreviewOpen} onOpenChange={setNewsPreviewOpen}>
