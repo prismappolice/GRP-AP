@@ -176,6 +176,8 @@ const AdminGalleryPage = () => {
   const [previews, setPreviews] = useState([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
+  const [previewImages, setPreviewImages] = useState([]);
+  const [previewSaving, setPreviewSaving] = useState(false);
   const [newsPreviewOpen, setNewsPreviewOpen] = useState(false);
   const [newsPreviewItem, setNewsPreviewItem] = useState(null);
 
@@ -264,7 +266,48 @@ const AdminGalleryPage = () => {
 
   const handleView = (item) => {
     setPreviewItem(item);
+    setPreviewImages(Array.isArray(item.images) ? [...item.images] : []);
     setPreviewOpen(true);
+  };
+
+  const handleRemovePreviewImage = (idx) => {
+    setPreviewImages((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSaveGalleryItemImages = async () => {
+    if (!previewItem) return;
+    setPreviewSaving(true);
+    try {
+      const res = await api.put(`/admin/gallery-items/${encodeURIComponent(previewItem.id)}`, { images: previewImages });
+      const updated = res.data;
+      setGallery((prev) => previewImages.length === 0
+        ? prev.filter((item) => item.id !== previewItem.id)
+        : prev.map((item) => item.id === previewItem.id ? { ...item, images: previewImages } : item)
+      );
+      toast.success('Changes saved');
+      setPreviewOpen(false);
+    } catch {
+      toast.error('Failed to save changes');
+    } finally {
+      setPreviewSaving(false);
+    }
+  };
+
+  const handleMergeAll = async () => {
+    const allImages = gallery.flatMap((item) => Array.isArray(item.images) ? item.images : []);
+    if (allImages.length === 0) return;
+    const mergedItem = {
+      heading: `Gallery Upload - ${new Date().toLocaleString()}`,
+      images: allImages,
+      content: '',
+    };
+    try {
+      const created = await api.post('/admin/gallery-items', mergedItem);
+      setGallery([created.data]);
+      toast.success(`Merged ${gallery.length} rows → 1 row (${allImages.length} images)`);
+    } catch {
+      toast.error('Failed to merge gallery items');
+    }
   };
 
   const handleNewsView = (item) => {
@@ -388,7 +431,18 @@ const AdminGalleryPage = () => {
             </Card>
 
             <Card className="p-8 border border-[#60A5FA] shadow-sm bg-white">
-              <h2 className="text-xl font-bold mb-4">Gallery Items</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Gallery Items</h2>
+                {gallery.length > 1 && (
+                  <Button
+                    type="button"
+                    className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-sm px-4 py-2"
+                    onClick={handleMergeAll}
+                  >
+                    Merge All into One Row ({gallery.length} rows → 1)
+                  </Button>
+                )}
+              </div>
               {gallery.length === 0 ? (
                 <p className="text-gray-400">No gallery items yet.</p>
               ) : (
@@ -665,25 +719,52 @@ const AdminGalleryPage = () => {
         </Dialog>
 
         {/* Image Preview Dialog */}
-        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) setPreviewOpen(false); }}>
           <DialogContent className="max-w-4xl">
             <DialogHeader>
-              <DialogTitle>{previewItem?.heading || 'Gallery Images'}</DialogTitle>
+              <DialogTitle>{previewItem?.heading || 'Gallery Images'} ({previewImages.length} images)</DialogTitle>
             </DialogHeader>
-            <div className="max-h-[70vh] overflow-y-auto pr-1">
-              {Array.isArray(previewItem?.images) && previewItem.images.length > 0 ? (
+            <div className="max-h-[65vh] overflow-y-auto pr-1">
+              {previewImages.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {previewItem.images.map((image, i) => (
-                    <img
-                      key={`${previewItem.id || 'preview'}-${i}`}
-                      src={image?.url}
-                      alt={image?.name || `gallery-${i}`}
-                      className="w-full h-64 object-cover rounded border border-[#60A5FA]"
-                    />
+                  {previewImages.map((image, i) => (
+                    <div key={`${previewItem?.id || 'preview'}-${i}`} className="relative group">
+                      <img
+                        src={image?.url}
+                        alt={image?.name || `gallery-${i}`}
+                        className="w-full h-64 object-cover rounded border border-[#60A5FA]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePreviewImage(i)}
+                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg opacity-80 hover:opacity-100 transition-opacity"
+                        title="Remove this image"
+                      >✕</button>
+                    </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">No images available for this item.</p>
+                <p className="text-sm text-gray-400 text-center py-8">All images removed. Click Save Changes to confirm.</p>
+              )}
+            </div>
+            <div className="flex items-center gap-3 pt-3 border-t">
+              <Button
+                type="button"
+                className="bg-[#16A34A] hover:bg-[#15803D] text-white px-6"
+                onClick={handleSaveGalleryItemImages}
+                disabled={previewSaving}
+              >
+                {previewSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPreviewOpen(false)}
+              >
+                Cancel
+              </Button>
+              {previewImages.length === 0 && (
+                <span className="text-xs text-red-500 font-semibold">Saving will remove this row entirely</span>
               )}
             </div>
           </DialogContent>

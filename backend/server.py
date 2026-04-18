@@ -2173,6 +2173,39 @@ async def admin_upload_news_media(file: UploadFile = File(...), current_user: Us
     return {"file_url": file_url, "file_name": file_name, "media_type": media_type}
 
 
+@api_router.put("/admin/gallery-items/{item_id}")
+async def admin_update_gallery_item(item_id: str, request: Request, current_user: User = Depends(get_current_user)) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    items_path = ROOT_DIR / "gallery_uploads" / "gallery_items.json"
+    try:
+        data = await request.json()
+        try:
+            with open(items_path, "r", encoding="utf-8") as f:
+                items = json.load(f)
+        except FileNotFoundError:
+            items = []
+        target_idx = next((i for i, item in enumerate(items) if str(item.get("id")) == item_id), None)
+        if target_idx is None:
+            raise HTTPException(status_code=404, detail="Gallery item not found")
+        old_item = items[target_idx]
+        new_images = data.get("images", [])
+        old_names = {img.get("storedFileName") for img in old_item.get("images", []) if img.get("storedFileName")}
+        new_names = {img.get("storedFileName") for img in new_images if img.get("storedFileName")}
+        for stored in old_names - new_names:
+            img_file = ROOT_DIR / "gallery_uploads" / stored
+            if img_file.exists():
+                img_file.unlink()
+        items[target_idx] = {**old_item, "images": new_images}
+        with open(items_path, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+        return JSONResponse(content=items[target_idx])
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse(content={"detail": f"Failed to update gallery item: {e}"}, status_code=500)
+
+
 @api_router.delete("/admin/gallery-items/{item_id}")
 async def admin_delete_gallery_item(item_id: str, current_user: User = Depends(get_current_user)) -> Any:
     if current_user.role != "admin":
