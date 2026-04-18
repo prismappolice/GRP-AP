@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search, RefreshCw, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search, RefreshCw, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
 import api, { complaintsAPI, getAuthToken } from '@/lib/api';
 import { getAllStations } from '@/lib/policeScope';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
@@ -25,6 +25,8 @@ const AdminComplaintsPage = () => {
   const [addrModal, setAddrModal] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [docsModal, setDocsModal] = useState(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -56,6 +58,19 @@ const AdminComplaintsPage = () => {
       setError('Failed to fetch complaints');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/admin/complaints/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setDeleteConfirmId(null);
+      fetchComplaints();
+    } catch (err) {
+      alert('Failed to delete complaint');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -291,12 +306,13 @@ const AdminComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Forwarded To</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Status</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Documents</TableHead>
+                  <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A] w-20 text-center">Delete</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredComplaints.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-10 text-center text-[#64748B]">
+                    <TableCell colSpan={15} className="border border-[#60A5FA] px-4 py-10 text-center text-[#64748B]">
                       No complaints found.
                     </TableCell>
                   </TableRow>
@@ -366,6 +382,27 @@ const AdminComplaintsPage = () => {
                           </button>
                         ) : (
                           <span className="text-xs text-[#94A3B8]">No Docs</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="border border-[#60A5FA] px-3 py-2 text-center">
+                        {deleteConfirmId === c.id ? (
+                          <div className="flex gap-1 items-center justify-center">
+                            <button
+                              onClick={() => handleDelete(c.id)}
+                              disabled={deleteLoading}
+                              className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
+                            >{deleteLoading ? '...' : 'Yes'}</button>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-medium rounded hover:bg-gray-300 transition-colors"
+                            >No</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteConfirmId(c.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                            title="Delete complaint"
+                          ><Trash2 className="w-4 h-4" /></button>
                         )}
                       </TableCell>
                     </TableRow>

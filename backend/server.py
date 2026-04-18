@@ -16,7 +16,7 @@ import secrets
 import traceback
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 import bcrypt
 import jwt
@@ -1473,7 +1473,7 @@ async def create_complaint(
     location: Optional[str] = Form(None),
     station: str = Form("Unassigned"),
     incident_date: str = Form(...),
-    supporting_docs: Optional[List[UploadFile]] = File(None),
+    supporting_docs: Annotated[Optional[List[UploadFile]], File()] = None,
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
     normalized_phone = re.sub(r"\D+", "", str(complainant_phone or ""))
@@ -1632,6 +1632,23 @@ async def assign_complaint_to_station(
     await session.commit()
     await session.refresh(complaint)
     return _complaint_to_schema(complaint)
+
+
+@api_router.delete("/admin/complaints/{complaint_id}")
+async def delete_complaint(
+    complaint_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    result = await session.execute(select(ComplaintORM).where(ComplaintORM.id == complaint_id))
+    complaint = result.scalar_one_or_none()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    await session.delete(complaint)
+    await session.commit()
+    return JSONResponse(content={"detail": "Complaint deleted"})
 
 
 # ==================== STATION OFFICER ROUTES ====================
