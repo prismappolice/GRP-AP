@@ -1473,7 +1473,7 @@ async def create_complaint(
     location: Optional[str] = Form(None),
     station: str = Form("Unassigned"),
     incident_date: str = Form(...),
-    supporting_docs: Annotated[Optional[List[UploadFile]], File()] = None,
+    supporting_docs: List[UploadFile] = File(default=[]),
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
     normalized_phone = re.sub(r"\D+", "", str(complainant_phone or ""))
