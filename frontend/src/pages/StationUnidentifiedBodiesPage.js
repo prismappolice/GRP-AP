@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
@@ -139,6 +140,34 @@ const StationUnidentifiedBodiesPage = () => {
 
   const clearFilters = () => { setSearchText(''); setDateFrom(''); setDateTo(''); };
 
+  const applyDatePreset = (val) => {
+    const today = new Date();
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    if (val === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
+    else if (val === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
+    else { setDateFrom(''); setDateTo(''); }
+  };
+
+  const exportToExcel = () => {
+    if (!filteredGrouped.length) return;
+    const headers = [
+      { key: 'reported_date', label: 'Reported Date' },
+      { key: 'description', label: 'Description' },
+      { key: 'station', label: 'Station' },
+    ];
+    const data = filteredGrouped.map(row =>
+      headers.reduce((obj, h) => {
+        obj[h.label] = String(row[h.key] || '');
+        return obj;
+      }, {})
+    );
+    const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
+    ws['!cols'] = headers.map(h => ({ wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'UnidentifiedBodies');
+    XLSX.writeFile(wb, `unidentified_bodies_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const handleDeleteGroup = async (group) => {
     if (!window.confirm(`Delete this record (${group.ids.length} file${group.ids.length > 1 ? 's' : ''}) from ${group.station}? This cannot be undone.`)) return;
     try {
@@ -277,10 +306,33 @@ const StationUnidentifiedBodiesPage = () => {
 
 
           {/* Filter Bar */}
-          <div className="border-b border-[#60A5FA] bg-white px-6 py-3">
+          <div className="border-b border-[#60A5FA] bg-white px-4 py-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 text-[#94A3B8] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                title="From date"
+                className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+              />
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={e => setDateTo(e.target.value)}
+                title="To date"
+                className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+              />
+              {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+                <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                  className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
+                    val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
+                  }`}>
+                  {lbl}
+                </button>
+              ))}
+              <div className="relative flex-1 min-w-[140px]">
+                <Search className="w-4 h-4 text-[#94A3B8] absolute left-2 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchText}
@@ -289,32 +341,19 @@ const StationUnidentifiedBodiesPage = () => {
                   className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
                 />
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-[#64748B] font-medium whitespace-nowrap">From</span>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={e => setDateFrom(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-[#64748B] font-medium whitespace-nowrap">To</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  min={dateFrom || undefined}
-                  onChange={e => setDateTo(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-                />
-              </div>
-              {(searchText || dateFrom || dateTo) && (
-                <Button type="button" size="sm" variant="ghost" onClick={clearFilters} className="flex items-center gap-1 text-[#64748B]">
-                  <X className="w-3.5 h-3.5" /> Clear
-                </Button>
-              )}
-              <span className="ml-auto text-xs text-[#94A3B8]">{filteredGrouped.length} record{filteredGrouped.length !== 1 ? 's' : ''}</span>
+              <Button type="button" size="sm" variant="outline" onClick={fetchRecords} disabled={loading} className="flex items-center gap-1.5 border border-[#CBD5E1]">
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={exportToExcel}
+                className="ml-auto flex items-center gap-1.5 bg-[#2563EB] text-white hover:bg-[#1D4ED8]"
+              >
+                <Download className="w-4 h-4" /> Export Excel
+              </Button>
             </div>
+            <p className="text-xs text-[#64748B] mt-2">{filteredGrouped.length} record{filteredGrouped.length !== 1 ? 's' : ''} found</p>
           </div>
 
           <div className="overflow-x-auto">
