@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { stationAPI, unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
 import { stations } from '@/data/stations';
-import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight, Download, FileText, Clock } from 'lucide-react';
 
 function getStationPhone(stationName) {
   for (const div of stations) {
@@ -219,6 +219,45 @@ const StationUnidentifiedBodiesPage = () => {
               <p className="text-sm text-[#64748B]">Welcome, <span className="font-semibold text-[#2563EB]">{user?.name}</span></p>
             </div>
           </div>
+        </div>
+
+        {/* Stats Card */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+            <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
+              <FileText className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-[#2563EB]">{filteredGrouped.length}</p>
+              <p className="text-xs text-[#64748B] mt-0.5">Total Records</p>
+            </div>
+          </Card>
+          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+            <div className="w-12 h-12 bg-[#F59E0B] rounded-lg flex items-center justify-center shrink-0">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-[#F59E0B]">
+                {filteredGrouped.filter(r => {
+                  const d = new Date(r.reported_date);
+                  const now = new Date();
+                  return !isNaN(d) && (now - d) <= 7 * 24 * 60 * 60 * 1000;
+                }).length}
+              </p>
+              <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
+            </div>
+          </Card>
+          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+            <div className="w-12 h-12 bg-[#10B981] rounded-lg flex items-center justify-center shrink-0">
+              <ImageIcon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-[#10B981]">
+                {filteredGrouped.reduce((sum, r) => sum + (r.mediaUrls?.length || 0), 0)}
+              </p>
+              <p className="text-xs text-[#64748B] mt-0.5">Total Media Files</p>
+            </div>
+          </Card>
         </div>
 
         {/* Records Table */}
