@@ -16,8 +16,9 @@ cd "$APP_DIR/frontend" && npm run build
 cd "$APP_DIR"
 
 echo "==> Copying build to nginx root..."
-sudo rm -rf /var/www/grp/*
+sudo find /var/www/grp -mindepth 1 -delete
 sudo cp -r "$APP_DIR/frontend/build/." /var/www/grp/
+echo "    Done. Files: $(ls /var/www/grp/static/js/ | wc -l) JS chunks"
 
 pm2 restart all --update-env
 pm2 save
