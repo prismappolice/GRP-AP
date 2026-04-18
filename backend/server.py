@@ -590,7 +590,7 @@ def build_auth_user_payload(user_id: str, email: str, name: str, phone: str, cre
     }
 
 
-def _send_complaint_email_alert(tracking_number: str, complaint_type: str, station: str, incident_date: str) -> None:
+def _send_complaint_email_alert(tracking_number: str, complaint_type: str, station: str, incident_date: str, complainant_name: str = "", complainant_phone: str = "", aadhar_number: str = "", address: str = "") -> None:
     """Send email alert to admin when a new complaint is filed. Fails silently if SMTP not configured."""
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, ADMIN_ALERT_EMAIL]):
         return
@@ -603,8 +603,13 @@ def _send_complaint_email_alert(tracking_number: str, complaint_type: str, stati
             f"A new complaint has been filed on the GRP portal.\n\n"
             f"Tracking Number : {tracking_number}\n"
             f"Complaint Type  : {complaint_type}\n"
-            f"Station         : {station}\n"
             f"Incident Date   : {incident_date}\n\n"
+            f"Complainant Details\n"
+            f"-------------------\n"
+            f"Name            : {complainant_name}\n"
+            f"Phone           : {complainant_phone}\n"
+            f"Aadhaar         : {aadhar_number}\n"
+            f"Address         : {address}\n\n"
             f"Please login to the admin panel to review and take action."
         )
         msg.attach(email.mime.text.MIMEText(body, "plain"))
@@ -1537,6 +1542,10 @@ async def create_complaint(
         complaint_type=complaint_type,
         station=station,
         incident_date=incident_date,
+        complainant_name=complainant_name,
+        complainant_phone=normalized_phone,
+        aadhar_number=aadhar_number,
+        address=address,
     )
 
     return _complaint_to_schema(complaint_orm)
