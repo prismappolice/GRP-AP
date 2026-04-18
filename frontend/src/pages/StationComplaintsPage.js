@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import * as XLSX from 'xlsx';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
@@ -105,6 +106,130 @@ const STATION_EXPORT_COLS = [
   { key: 'rejection_reason', label: 'Rejection Reason' },
   { key: 'description', label: 'Description' },
 ];
+
+async function downloadComplaintPDF(c, index) {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595, 842]); // A4
+  const { width, height } = page.getSize();
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const blue = rgb(0.145, 0.388, 0.922);
+  const dark = rgb(0.059, 0.090, 0.165);
+  const gray = rgb(0.392, 0.455, 0.545);
+  const red = rgb(0.863, 0.196, 0.184);
+  const lightBlue = rgb(0.376, 0.647, 0.980);
+
+  // Header bar
+  page.drawRectangle({ x: 0, y: height - 70, width, height: 70, color: blue });
+  page.drawText('GRP - Complaint Report', { x: 40, y: height - 38, size: 20, font: fontBold, color: rgb(1,1,1) });
+  page.drawText('Government Railway Police, Andhra Pradesh', { x: 40, y: height - 56, size: 10, font: fontRegular, color: rgb(0.85,0.92,1) });
+
+  // Tracking number badge
+  page.drawRectangle({ x: width - 200, y: height - 62, width: 160, height: 24, color: rgb(1,1,1), opacity: 0.15 });
+  page.drawText(`Tracking: ${c.tracking_number || '-'}`, { x: width - 196, y: height - 54, size: 9, font: fontBold, color: rgb(1,1,1) });
+
+  let y = height - 95;
+
+  // S.No and generated date
+  page.drawText(`S.No: ${index}`, { x: 40, y, size: 9, font: fontRegular, color: gray });
+  page.drawText(`Generated: ${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}`, { x: width - 200, y, size: 9, font: fontRegular, color: gray });
+  y -= 18;
+
+  // Divider
+  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 1, color: lightBlue });
+  y -= 20;
+
+  const fields = [
+    ['Tracking Number', c.tracking_number],
+    ['Crime Type', (c.complaint_type || '').replace(/_/g, ' ')],
+    ['Incident Date', c.incident_date],
+    ['Status', (c.status || '').toUpperCase()],
+    ['Complainant Name', c.complainant_name],
+    ['Phone', c.complainant_phone],
+    ['Aadhaar Number', c.aadhar_number],
+    ['Email', c.complainant_email],
+    ['Address', c.address],
+    ['Location / Station', c.location],
+  ];
+
+  // Two-column layout for fields
+  const col1x = 40;
+  const col2x = 310;
+  let leftY = y;
+  let rightY = y;
+
+  fields.forEach(([label, value], i) => {
+    const isLeft = i % 2 === 0;
+    const cx = isLeft ? col1x : col2x;
+    const cy = isLeft ? leftY : rightY;
+    const displayVal = value ? String(value) : '-';
+
+    page.drawText(label, { x: cx, y: cy, size: 8, font: fontBold, color: gray });
+    // Wrap long values
+    const maxChars = 38;
+    const lines = [];
+    let remaining = displayVal;
+    while (remaining.length > maxChars) {
+      lines.push(remaining.slice(0, maxChars));
+      remaining = remaining.slice(maxChars);
+    }
+    lines.push(remaining);
+    lines.forEach((line, li) => {
+      page.drawText(line, { x: cx, y: cy - 12 - li * 12, size: 10, font: fontRegular, color: dark });
+    });
+    const rowHeight = 14 + lines.length * 12;
+    if (isLeft) leftY -= rowHeight;
+    else rightY -= rowHeight;
+  });
+
+  y = Math.min(leftY, rightY) - 16;
+
+  // Description section
+  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightBlue });
+  y -= 16;
+  page.drawText('Description', { x: 40, y, size: 9, font: fontBold, color: gray });
+  y -= 14;
+  const desc = c.description || '-';
+  const descWords = desc.split(' ');
+  let descLine = '';
+  const descLines = [];
+  descWords.forEach(word => {
+    const test = descLine ? `${descLine} ${word}` : word;
+    if (test.length > 90) { descLines.push(descLine); descLine = word; }
+    else descLine = test;
+  });
+  if (descLine) descLines.push(descLine);
+  descLines.forEach(line => {
+    page.drawText(line, { x: 40, y, size: 10, font: fontRegular, color: dark });
+    y -= 14;
+  });
+
+  // Rejection reason (if any)
+  if (c.rejection_reason) {
+    y -= 8;
+    page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightBlue });
+    y -= 16;
+    page.drawText('Rejection Reason', { x: 40, y, size: 9, font: fontBold, color: red });
+    y -= 14;
+    page.drawText(c.rejection_reason, { x: 40, y, size: 10, font: fontRegular, color: red });
+    y -= 14;
+  }
+
+  // Footer
+  page.drawLine({ start: { x: 40, y: 40 }, end: { x: width - 40, y: 40 }, thickness: 0.5, color: lightBlue });
+  page.drawText('Government Railway Police, Andhra Pradesh  |  Confidential', { x: 40, y: 26, size: 8, font: fontRegular, color: gray });
+  page.drawText(`Page 1 of 1`, { x: width - 80, y: 26, size: 8, font: fontRegular, color: gray });
+
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `complaint_${c.tracking_number || c.id}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function exportToExcel(filename, rows) {
   if (!rows.length) return;
@@ -360,12 +485,13 @@ const StationComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[110px]">Documents</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px]">Status</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px]">Actions</TableHead>
+                  <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[160px]">Download Complaint</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-10 text-center text-[#94A3B8]">
+                    <TableCell colSpan={15} className="border border-[#60A5FA] px-4 py-10 text-center text-[#94A3B8]">
                       No complaints found for this station.
                     </TableCell>
                   </TableRow>
@@ -428,10 +554,19 @@ const StationComplaintsPage = () => {
                           />
                         )}
                       </TableCell>
+                      <TableCell className="border border-[#60A5FA] px-4 py-2 text-left">
+                        <button
+                          type="button"
+                          onClick={() => downloadComplaintPDF(c, index + 1)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-[#2563EB] text-[#2563EB] font-medium rounded-md hover:bg-[#EFF6FF] transition-colors whitespace-nowrap"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download PDF
+                        </button>
+                      </TableCell>
                     </TableRow>
                     {rejectingId === c.id && (
                       <TableRow className="bg-red-50">
-                        <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-3">
+                        <TableCell colSpan={15} className="border border-[#60A5FA] px-4 py-3">
                           <div className="flex items-start gap-2 flex-wrap">
                             <div className="flex-1 min-w-[240px]">
                               <p className="text-xs font-semibold text-red-700 mb-1">Rejection reason <span className="text-red-500">*</span> — visible to the public user on their dashboard</p>
