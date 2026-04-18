@@ -136,20 +136,32 @@ export const HomePage = () => {
     loadLatestNews();
   }, []);
 
-  // Sync gallery marquee speed to match latest news marquee speed (px/s)
+  // Control marquee speed from one place — change MARQUEE_DURATION to adjust both
+  const MARQUEE_DURATION = 80; // seconds
   useEffect(() => {
     const syncSpeed = () => {
       const newsEl = newsMarqueeRef.current;
       const galleryEl = galleryMarqueeRef.current;
       if (!newsEl || !galleryEl) return;
-      // News scrolls -100% of its full width in 100s
       const newsWidth = newsEl.scrollWidth;
       if (newsWidth === 0) return;
-      const pxPerSecond = newsWidth / 100;
-      // Gallery scrolls -50% of its full width (duplicated items) per loop
+
+      // Force animation restart so new duration takes effect immediately
+      const applyDuration = (el, duration) => {
+        el.style.animationName = 'none';
+        el.style.animationDuration = `${duration}s`;
+        // eslint-disable-next-line no-unused-expressions
+        el.offsetHeight; // trigger reflow
+        el.style.animationName = '';
+      };
+
+      // Set news duration directly
+      applyDuration(newsEl, MARQUEE_DURATION);
+      // Sync gallery to same px/s speed
+      const pxPerSecond = newsWidth / MARQUEE_DURATION;
       const galleryHalfWidth = galleryEl.scrollWidth / 2;
       const galleryDuration = galleryHalfWidth / pxPerSecond;
-      galleryEl.style.animationDuration = `${galleryDuration}s`;
+      applyDuration(galleryEl, galleryDuration);
     };
     // Run after images/content may have loaded
     const timer = setTimeout(syncSpeed, 300);
