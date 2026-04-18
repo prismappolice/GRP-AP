@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, Search, ShieldCheck, X, Eye, ChevronLeft, ChevronRight, FileText, Clock, Image as ImageIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI, normalizeMediaUrl } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
@@ -353,6 +353,52 @@ export const PoliceUnidentifiedBodiesPage = () => {
           )}
 
           {!loading && !error && (
+            <>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#2563EB]">{filtered.length}</p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Total Records</p>
+                </div>
+              </Card>
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#F59E0B] rounded-lg flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#F59E0B]">
+                    {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 7 * 24 * 60 * 60 * 1000; }).length}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
+                </div>
+              </Card>
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#8B5CF6] rounded-lg flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#8B5CF6]">
+                    {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 30 * 24 * 60 * 60 * 1000; }).length}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Last 30 Days</p>
+                </div>
+              </Card>
+              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#10B981] rounded-lg flex items-center justify-center shrink-0">
+                  <ImageIcon className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-3xl font-extrabold text-[#10B981]">
+                    {filtered.reduce((sum, r) => sum + (r.mediaUrls?.length || 0), 0)}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">Total Media Files</p>
+                </div>
+              </Card>
+            </div>
             <div className="overflow-x-auto rounded-lg border border-[#60A5FA]">
               <Table className="border-collapse w-full">
                 <TableHeader>
@@ -404,6 +450,7 @@ export const PoliceUnidentifiedBodiesPage = () => {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </Card>
       </div>
