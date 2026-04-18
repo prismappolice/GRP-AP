@@ -62,6 +62,14 @@ function getAPIForRole(role) {
 }
 
 export const PoliceUnidentifiedBodiesPage = () => {
+    // Date preset filter logic
+    const applyDatePreset = (val) => {
+      const today = new Date();
+      const fmt = (d) => d.toISOString().slice(0, 10);
+      if (val === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
+      else if (val === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
+      else { setDateFrom(''); setDateTo(''); }
+    };
   const { user } = useAuth();
   const navigate = useNavigate();
   const [records, setRecords] = useState([]);
@@ -261,6 +269,7 @@ export const PoliceUnidentifiedBodiesPage = () => {
             Back to Dashboard
           </button>
         </div>
+
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
               <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
@@ -306,11 +315,11 @@ export const PoliceUnidentifiedBodiesPage = () => {
                 </div>
               </Card>
             </div>
+
         <Card className="p-5 border border-[#60A5FA]">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
             <div>
               <h1 className="text-xl font-extrabold text-[#0F172A]">Unidentified Dead Bodies</h1>
-              <p className="text-sm text-[#64748B] mt-0.5">{filtered.length} record{filtered.length !== 1 ? 's' : ''} found</p>
             </div>
             <button
               type="button"
@@ -368,14 +377,27 @@ export const PoliceUnidentifiedBodiesPage = () => {
               </div>
             )}
 
+
             {/* Station — all roles */}
             {availableStations.length > 0 && (
-              <div className="flex flex-col">
-                <span className={labelCls}>Station</span>
-                <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className={inputCls}>
-                  <option value="">All Stations</option>
-                  {availableStations.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+              <div className="flex flex-row items-end gap-2">
+                <div className="flex flex-col">
+                  <span className={labelCls}>Station</span>
+                  <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className={inputCls}>
+                    <option value="">All Stations</option>
+                    {availableStations.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-row gap-1 mb-1">
+                  {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+                    <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                      className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
+                        val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
+                      }`}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
