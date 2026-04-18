@@ -222,7 +222,7 @@ const StationUnidentifiedBodiesPage = () => {
         </div>
 
         {/* Stats Card */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
             <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
               <FileText className="w-6 h-6 text-white" />
@@ -245,6 +245,21 @@ const StationUnidentifiedBodiesPage = () => {
                 }).length}
               </p>
               <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
+            </div>
+          </Card>
+          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
+            <div className="w-12 h-12 bg-[#8B5CF6] rounded-lg flex items-center justify-center shrink-0">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-3xl font-extrabold text-[#8B5CF6]">
+                {filteredGrouped.filter(r => {
+                  const d = new Date(r.reported_date);
+                  const now = new Date();
+                  return !isNaN(d) && (now - d) <= 30 * 24 * 60 * 60 * 1000;
+                }).length}
+              </p>
+              <p className="text-xs text-[#64748B] mt-0.5">Last 30 Days</p>
             </div>
           </Card>
           <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
