@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  Building2, FileText, CheckCircle, Clock, Search as SearchIcon, RefreshCw, Download, ArrowUpRight, Upload, X, Check, Search, LogIn,
+  Building2, FileText, CheckCircle, Clock, Search as SearchIcon, RefreshCw, Download, ArrowUpRight, Upload, X, Check, Search, LogIn, Bell,
 } from 'lucide-react';
 import { stationAPI, complaintsAPI } from '@/lib/api';
 import {
@@ -18,7 +18,6 @@ const PIE_COLORS = {
   resolved: '#10B981',
   approved: '#059669',
   rejected: '#EF4444',
-  closed: '#6B7280',
 };
 const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#78716C'];
 
@@ -55,7 +54,6 @@ const STATUS_COLORS = {
   resolved: 'bg-green-100 text-green-800',
   approved: 'bg-emerald-100 text-emerald-800',
   rejected: 'bg-red-100 text-red-800',
-  closed: 'bg-gray-100 text-gray-700',
 };
 
 export const StationDashboardPage = () => {
@@ -68,10 +66,15 @@ export const StationDashboardPage = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [crimeTypeFilter, setCrimeTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [tableSearch, setTableSearch] = useState('');
   const [rejectingId, setRejectingId] = useState(null);
   const [inlineReason, setInlineReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [stationAlerts, setStationAlerts] = useState([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dismissed_station_alerts') || '[]'); } catch { return []; }
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -83,6 +86,10 @@ export const StationDashboardPage = () => {
         const ubRes = await stationAPI.getUnidentifiedBodies();
         setUbRecords(Array.isArray(ubRes.data) ? ubRes.data : []);
       } catch { setUbRecords([]); }
+      try {
+        const alertsRes = await stationAPI.getAlerts();
+        setStationAlerts(Array.isArray(alertsRes.data) ? alertsRes.data : []);
+      } catch { setStationAlerts([]); }
     } catch {
       setError('Failed to load dashboard data. Please try again.');
     } finally {
@@ -90,18 +97,50 @@ export const StationDashboardPage = () => {
     }
   };
 
+  const dismissAlert = (alertId) => {
+    const updated = [...dismissedAlerts, alertId];
+    setDismissedAlerts(updated);
+    localStorage.setItem('dismissed_station_alerts', JSON.stringify(updated));
+  };
+
   useEffect(() => { fetchData(); }, []);
 
-  const crimeTypeOptions = useMemo(() => (
-    [...new Set(complaints.map(c => c.complaint_type).filter(Boolean))]
-  ), [complaints]);
+  // Poll for new alerts every 30 seconds
+  useEffect(() => {
+    const pollAlerts = async () => {
+      try {
+        const alertsRes = await stationAPI.getAlerts();
+        setStationAlerts(Array.isArray(alertsRes.data) ? alertsRes.data : []);
+      } catch { /* silent */ }
+    };
+    const interval = setInterval(pollAlerts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const crimeTypeOptions = [
+    { value: 'theft', label: 'Theft' },
+    { value: 'harassment', label: 'Harassment' },
+    { value: 'missing_person', label: 'Missing Person' },
+    { value: 'nuisance', label: 'Nuisance' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const applyDatePreset = (preset) => {
+    const today = new Date();
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if (preset === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
+    else if (preset === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
+    else if (preset === 'month') { setDateFrom(fmt(new Date(today.getFullYear(), today.getMonth(), 1))); setDateTo(fmt(today)); }
+    else { setDateFrom(''); setDateTo(''); }
+  };
 
   const filteredComplaints = useMemo(() => complaints.filter(c => {
     const matchCrime = !crimeTypeFilter || c.complaint_type === crimeTypeFilter;
+    const matchStatus = !statusFilter || c.status === statusFilter;
     const matchFrom = !dateFrom || c.incident_date >= dateFrom;
     const matchTo = !dateTo || c.incident_date <= dateTo;
-    return matchCrime && matchFrom && matchTo;
-  }), [complaints, crimeTypeFilter, dateFrom, dateTo]);
+    return matchCrime && matchStatus && matchFrom && matchTo;
+  }), [complaints, crimeTypeFilter, statusFilter, dateFrom, dateTo]);
 
   const filteredUbRecords = useMemo(() => ubRecords.filter(r => {
     const matchFrom = !dateFrom || r.reported_date >= dateFrom;
@@ -233,37 +272,31 @@ export const StationDashboardPage = () => {
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card className="p-4 flex items-center gap-3 border-l-4 border-l-[#2563EB]">
-            <FileText className="w-8 h-8 text-[#2563EB]" />
-            <div>
-              <p className="text-xs text-[#64748B]">Total Complaints</p>
-              <p className="text-2xl font-bold text-[#1E3A5F]">{filteredComplaints.length}</p>
-            </div>
-          </Card>
-          <Card className="p-4 flex items-center gap-3 border-l-4 border-l-yellow-400">
-            <Clock className="w-8 h-8 text-yellow-500" />
-            <div>
-              <p className="text-xs text-[#64748B]">Pending</p>
-              <p className="text-2xl font-bold text-[#1E3A5F]">{pendingCount}</p>
-            </div>
-          </Card>
-          <Card className="p-4 flex items-center gap-3 border-l-4 border-l-blue-400">
-            <SearchIcon className="w-8 h-8 text-blue-500" />
-            <div>
-              <p className="text-xs text-[#64748B]">Investigating</p>
-              <p className="text-2xl font-bold text-[#1E3A5F]">{investigatingCount}</p>
-            </div>
-          </Card>
-          <Card className="p-4 flex items-center gap-3 border-l-4 border-l-green-400">
-            <CheckCircle className="w-8 h-8 text-green-500" />
-            <div>
-              <p className="text-xs text-[#64748B]">Resolved</p>
-              <p className="text-2xl font-bold text-[#1E3A5F]">{resolvedCount}</p>
-            </div>
-          </Card>
-        </div>
+        {/* Station Alerts */}
+        {stationAlerts.filter(a => !dismissedAlerts.includes(a.id) && a.is_active).length > 0 && (
+          <div className="mb-6 space-y-3">
+            {stationAlerts
+              .filter(a => !dismissedAlerts.includes(a.id) && a.is_active)
+              .map(alert => (
+                <div key={alert.id} className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 shadow-sm">
+                  <Bell className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-amber-900 text-sm">{alert.title}</p>
+                    <p className="text-amber-700 text-xs mt-0.5">{alert.description}</p>
+                    <p className="text-amber-500 text-xs mt-1">{new Date(alert.created_at).toLocaleString('en-IN')}</p>
+                  </div>
+                  <button
+                    onClick={() => dismissAlert(alert.id)}
+                    className="text-amber-400 hover:text-amber-600 flex-shrink-0 mt-0.5"
+                    title="Dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            }
+          </div>
+        )}
 
         {/* Quick Navigation */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -271,7 +304,7 @@ export const StationDashboardPage = () => {
             <Card className="p-4 border border-[#60A5FA] hover:border-[#60A5FA] hover:bg-[#F8FAFF] hover:shadow-md transition-all cursor-pointer">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs text-[#64748B]">Complaints</p>
+                  <p className="text-xs text-[#64748B]">Total Complaints</p>
                   <p className="text-2xl font-bold text-[#0F172A]">{complaints.length}</p>
                 </div>
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB]">
@@ -285,7 +318,7 @@ export const StationDashboardPage = () => {
             <Card className="p-4 border border-[#60A5FA] hover:border-[#60A5FA] hover:bg-[#F8FAFF] hover:shadow-md transition-all cursor-pointer">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs text-[#64748B]">Unidentified Bodies</p>
+                  <p className="text-xs text-[#64748B]">Total Unidentified Bodies</p>
                   <p className="text-2xl font-bold text-[#0F172A]">{groupUbRecords(ubRecords).length}</p>
                 </div>
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#7C3AED]">
@@ -310,18 +343,41 @@ export const StationDashboardPage = () => {
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
             </div>
             <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Quick Select</label>
+              <div className="flex gap-1">
+                {[['7d','Last 7d'],['30d','Last 30d'],['month','This Month'],['','All']].map(([val, lbl]) => (
+                  <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                    className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
+                      (val === '' && !dateFrom && !dateTo) || (val !== '' && dateFrom === new Date(val === '7d' ? Date.now()-7*86400000 : val === '30d' ? Date.now()-30*86400000 : new Date(new Date().getFullYear(), new Date().getMonth(), 1)).toISOString().slice(0,10))
+                        ? 'bg-[#2563EB] text-white border-[#2563EB]'
+                        : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
+                    }`}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
               <label className="text-xs text-[#64748B]">Crime Type</label>
               <select value={crimeTypeFilter} onChange={e => setCrimeTypeFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
                 <option value="">All Types</option>
-                {crimeTypeOptions.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                {crimeTypeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Status</label>
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="investigating">Investigating</option>
+                <option value="approved">Approved</option>
+                <option value="resolved">Resolved</option>
+                <option value="rejected">Rejected</option>
               </select>
             </div>
             <div className="flex items-end gap-2 ml-auto">
               <Button type="button" size="sm" variant="outline" onClick={fetchData} className="flex items-center gap-1.5">
                 <RefreshCw className="w-4 h-4" /> Refresh
-              </Button>
-              <Button type="button" size="sm" onClick={handleExportComplaints} className="flex items-center gap-1.5 bg-[#2563EB] text-white hover:bg-[#1D4ED8]">
-                <Download className="w-4 h-4" /> Export CSV
               </Button>
             </div>
           </div>

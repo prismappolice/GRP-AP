@@ -32,6 +32,7 @@ export const Header = () => {
   const isLoggedInSession = Boolean(effectiveIsAdmin || user);
 
   const [unassignedCount, setUnassignedCount] = React.useState(0);
+  const [stationAlertCount, setStationAlertCount] = React.useState(0);
 
   React.useEffect(() => {
     if (!effectiveIsAdmin) return;
@@ -47,6 +48,24 @@ export const Header = () => {
     const interval = setInterval(fetchUnassigned, 60000);
     return () => clearInterval(interval);
   }, [effectiveIsAdmin]);
+
+  const isStationUserRole = user?.role === 'station';
+
+  React.useEffect(() => {
+    if (!isStationUserRole) return;
+    const dismissed = (() => { try { return JSON.parse(localStorage.getItem('dismissed_station_alerts') || '[]'); } catch { return []; } })();
+    const fetchStationAlerts = async () => {
+      try {
+        const res = await api.get('/station/alerts');
+        if (Array.isArray(res.data)) {
+          setStationAlertCount(res.data.filter(a => a.is_active && !dismissed.includes(a.id)).length);
+        }
+      } catch {}
+    };
+    fetchStationAlerts();
+    const interval = setInterval(fetchStationAlerts, 60000);
+    return () => clearInterval(interval);
+  }, [isStationUserRole]);
 
   const navLinkClass = ({ isActive }) =>
     `whitespace-nowrap text-[11px] lg:text-xs xl:text-sm font-semibold transition-colors px-1 lg:px-1.5 xl:px-2 py-1 rounded-md ${isActive ? 'text-[#2563EB] bg-[#DBEAFE]' : 'text-[#0F172A] hover:text-[#2563EB]'}`;
@@ -165,6 +184,17 @@ export const Header = () => {
                 {unassignedCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#DC2626] text-white text-[10px] font-bold flex items-center justify-center leading-none">
                     {unassignedCount > 99 ? '99+' : unassignedCount}
+                  </span>
+                )}
+              </Link>
+            )}
+
+            {isStationUser && (
+              <Link to="/station-dashboard" className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-[#EFF6FF] transition-colors" title="Station Alerts">
+                <Bell className="w-5 h-5 text-[#0F172A]" />
+                {stationAlertCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#DC2626] text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {stationAlertCount > 99 ? '99+' : stationAlertCount}
                   </span>
                 )}
               </Link>

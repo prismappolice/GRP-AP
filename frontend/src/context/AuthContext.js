@@ -19,6 +19,12 @@ export const AuthProvider = ({ children }) => {
   const detectAdminFromStorage = () => {
     if (typeof window === 'undefined') return false;
 
+    // If admin_remember is set and token exists, persist admin session
+    if (localStorage.getItem('admin_remember') === 'true' && localStorage.getItem('grp_auth_token')) {
+      localStorage.setItem('isAdmin', 'true');
+      return true;
+    }
+
     if (localStorage.getItem('isAdmin') === 'true') {
       return true;
     }

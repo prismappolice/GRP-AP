@@ -71,24 +71,22 @@ const UnidentifiedBodiesPage = () => {
     <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-16 px-4">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Page heading */}
-        <div className="bg-white border border-[#60A5FA] rounded-2xl shadow-sm px-8 py-6 flex flex-col items-center text-center gap-3">
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#FEF2F2] border border-[#FECACA]">
-            <AlertTriangle className="w-6 h-6 text-[#DC2626]" />
+        {/* Redesigned Page heading */}
+        <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-2xl shadow-xl px-8 py-7 flex flex-col items-center text-center gap-2 mb-2">
+          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-red-100 border border-red-200 shadow mb-2">
+            <AlertTriangle className="w-9 h-9 text-red-500" />
           </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-[#0F172A] heading-font leading-tight">Unidentified Deadbodies</h1>
-            <p className="text-sm text-[#64748B] mt-1">
-              Records reported by AP Government Railway Police stations.
-              {!loading && grouped.length > 0 && (
-                <span className="ml-2 inline-flex items-center bg-[#EFF6FF] text-[#1D4ED8] text-xs font-bold px-2 py-0.5 rounded-full border border-[#60A5FA]">
-                  {grouped.length} case{grouped.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </p>
-          </div>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">Unidentified Deadbodies</h1>
+          <p className="text-base text-gray-500 mb-2 font-medium flex flex-wrap items-center justify-center gap-2">
+            Records reported by AP Government Railway Police stations.
+            {!loading && grouped.length > 0 && (
+              <span className="inline-flex items-center bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-300 ml-1">
+                {grouped.length} case{grouped.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </p>
           <Button type="button" variant="outline" size="sm" onClick={fetchRecords} disabled={loading}
-            className="border-[#CBD5E1] text-[#475569]">
+            className="border-blue-200 text-blue-700 hover:bg-blue-50 shadow-sm font-semibold px-5 py-2 mt-2">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>

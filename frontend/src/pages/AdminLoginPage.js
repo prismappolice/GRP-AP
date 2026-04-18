@@ -17,7 +17,12 @@ export default function AdminLoginPage() {
   const [selectedIdentifier, setSelectedIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('admin_remember') === 'true';
+    }
+    return false;
+  });
   const [loading, setLoading] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -125,7 +130,7 @@ export default function AdminLoginPage() {
         </div>
         <div className="p-8 border border-[#60A5FA] bg-white rounded-lg">
           <h2 className="text-2xl font-bold mb-6 text-center">Admin Login</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             <div>
               <Label htmlFor="admin-account">Select Account</Label>
               <select
@@ -158,6 +163,7 @@ export default function AdminLoginPage() {
               <div className="relative">
                 <Input
                   id="admin-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter admin password"
                   value={password}

@@ -141,7 +141,6 @@ const AdminComplaintsPage = () => {
     resolved: filteredComplaints.filter(c => String(c.status || '').toLowerCase() === 'resolved').length,
     approved: filteredComplaints.filter(c => String(c.status || '').toLowerCase() === 'approved').length,
     rejected: filteredComplaints.filter(c => String(c.status || '').toLowerCase() === 'rejected').length,
-    closed: filteredComplaints.filter(c => String(c.status || '').toLowerCase() === 'closed').length,
   }), [filteredComplaints]);
 
   function exportToExcel(filename, rows) {
@@ -191,15 +190,14 @@ const AdminComplaintsPage = () => {
             ← Back to Dashboard
           </button>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
           {[
             { label: 'Total', value: stats.total, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]' },
             { label: 'Pending', value: stats.pending, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]' },
-            { label: 'Investigating', value: stats.investigating, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]' },
-            { label: 'Resolved', value: stats.resolved, icon: CheckCircle2, color: 'bg-[#10B981]', text: 'text-[#10B981]' },
             { label: 'Approved', value: stats.approved, icon: ThumbsUp, color: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]' },
             { label: 'Rejected', value: stats.rejected, icon: ThumbsDown, color: 'bg-[#EF4444]', text: 'text-[#EF4444]' },
-            { label: 'Closed', value: stats.closed, icon: XCircle, color: 'bg-[#6B7280]', text: 'text-[#6B7280]' },
+            { label: 'Investigating', value: stats.investigating, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]' },
+            { label: 'Resolved', value: stats.resolved, icon: CheckCircle2, color: 'bg-[#10B981]', text: 'text-[#10B981]' },
           ].map(({ label, value, icon: Icon, color, text }) => (
             <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
               <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
@@ -251,7 +249,7 @@ const AdminComplaintsPage = () => {
               <span className="text-xs font-semibold text-[#64748B] mb-1">Status</span>
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
                 <option value="">All Status</option>
-                {['pending','investigating','resolved','approved','rejected','closed'].map(s => (
+                {['pending','approved','rejected','investigating','resolved'].map(s => (
                   <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                 ))}
               </select>

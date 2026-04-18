@@ -9,7 +9,7 @@ import { srpAPI } from '@/lib/api';
 import { getStationHierarchy, getSRPScopeDetails } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
 
-const PIE_COLORS = { pending: '#F59E0B', investigating: '#3B82F6', resolved: '#10B981', approved: '#059669', rejected: '#EF4444', closed: '#6B7280' };
+const PIE_COLORS = { pending: '#F59E0B', investigating: '#3B82F6', resolved: '#10B981', approved: '#059669', rejected: '#EF4444' };
 const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#78716C'];
 
 function exportToCSV(filename, colDefs, rows) {

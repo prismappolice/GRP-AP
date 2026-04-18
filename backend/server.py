@@ -1672,6 +1672,40 @@ async def get_station_complaints(
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
 
+@api_router.patch("/station/complaints/{complaint_id}", response_model=Complaint)
+async def station_update_complaint_status(
+    complaint_id: str,
+    update_data: ComplaintStatusUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Complaint:
+    if current_user.role not in ("police", "station"):
+        raise HTTPException(status_code=403, detail="Station access only")
+    result = await session.execute(
+        select(ComplaintORM).where(
+            ComplaintORM.id == complaint_id,
+            ComplaintORM.station == current_user.name,
+        )
+    )
+    complaint = result.scalar_one_or_none()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    normalized_status = str(update_data.status or "").strip().lower()
+    if normalized_status not in {"pending", "investigating", "resolved", "approved", "rejected"}:
+        raise HTTPException(status_code=400, detail="Invalid complaint status")
+    if normalized_status == "rejected":
+        rejection_reason = str(update_data.rejection_reason or "").strip()
+        if not rejection_reason:
+            raise HTTPException(status_code=400, detail="Rejection reason is required")
+        complaint.rejection_reason = rejection_reason  # type: ignore[assignment]
+    else:
+        complaint.rejection_reason = None  # type: ignore[assignment]
+    complaint.status = normalized_status  # type: ignore[assignment]
+    complaint.updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    await session.commit()
+    await session.refresh(complaint)
+    return _complaint_to_schema(complaint)
+
 
 def _ub_orm_to_dict(r: UnidentifiedBodyORM) -> dict:
     media_urls = [_normalize_media_url(item) for item in _decode_media_field(r.image_url)]
@@ -2056,6 +2090,32 @@ async def update_credential_password(
 
 
 # ==================== ALERTS ROUTES ====================
+@api_router.get("/station/alerts", response_model=List[Alert])
+async def get_station_alerts(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> List[Alert]:
+    """Return alerts targeted at the current station."""
+    if current_user.role not in ("police", "station"):
+        raise HTTPException(status_code=403, detail="Station access only")
+    await ensure_alerts_table_columns(session)
+    result = await session.execute(
+        select(AlertORM)
+        .where(AlertORM.target_station == current_user.name)
+        .order_by(desc(AlertORM.created_at))
+    )
+    alerts = result.scalars().all()
+    return [
+        Alert(
+            id=str(a.id), alert_type=str(a.alert_type), title=str(a.title),
+            description=str(a.description), priority=str(a.priority),
+            is_active=bool(a.is_active) if isinstance(a.is_active, bool) else str(a.is_active).lower() == "true",
+            created_at=a.created_at,
+        )
+        for a in alerts
+    ]
+
+
 @api_router.get("/alerts", response_model=List[Alert])
 async def get_alerts(session: AsyncSession = Depends(get_async_session)) -> List[Alert]:
     result = await session.execute(select(AlertORM).order_by(desc(AlertORM.created_at)))

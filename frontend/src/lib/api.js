@@ -83,7 +83,9 @@ export const complaintsAPI = {
 
 export const stationAPI = {
   getComplaints: () => api.get('/station/complaints'),
+  updateStatus: (id, data) => api.patch(`/station/complaints/${id}`, data),
   getUnidentifiedBodies: () => api.get('/station/unidentified-bodies'),
+  getAlerts: () => api.get('/station/alerts'),
 };
 
 export const irpAPI = {
