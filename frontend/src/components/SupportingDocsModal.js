@@ -4,6 +4,23 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Download, FileText, X } from 'lucide-react';
 import { normalizeMediaUrl } from '@/lib/api';
 
+const downloadFile = async (url, filename) => {
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || url.split('/').pop() || 'download';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, '_blank');
+  }
+};
+
 const isVideo = (url) => /\.(mp4|webm|ogg|mov|avi)$/i.test(url || '');
 const isImage = (url) => /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(url || '');
 const isPdf = (url) => /\.pdf$/i.test(url || '');
@@ -108,10 +125,12 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, onCl
           )}
 
           <div className="flex justify-end">
-            <Button type="button" asChild className="bg-[#2563EB] hover:bg-[#1D4ED8]">
-              <a href={normalizedActiveUrl} download>
-                <Download className="w-4 h-4 mr-2" /> Download
-              </a>
+            <Button
+              type="button"
+              className="bg-[#2563EB] hover:bg-[#1D4ED8]"
+              onClick={() => downloadFile(normalizedActiveUrl, activeUrl.split('/').pop())}
+            >
+              <Download className="w-4 h-4 mr-2" /> Download
             </Button>
           </div>
         </div>
