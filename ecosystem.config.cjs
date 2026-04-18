@@ -16,7 +16,7 @@ module.exports = {
     {
       name: 'grp-frontend',
       cwd: '/home/prismappolice/GRP-AP/frontend',
-      script: 'serve',
+      script: '/usr/local/bin/serve',
       args: '-s build -l 3000',
       interpreter: 'none',
       autorestart: true,
