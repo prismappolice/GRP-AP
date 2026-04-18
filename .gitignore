@@ -52,6 +52,8 @@ dump.rdb
 *.pem
 
 # Runtime data files — now tracked in git (local edit → commit → deploy workflow)
+# Gallery JSON is managed by admin panel on server, NOT tracked in git
+backend/gallery_uploads/gallery_items.json
 
 # Python
 __pycache__/
