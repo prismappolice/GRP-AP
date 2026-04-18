@@ -15,6 +15,10 @@ echo "==> Building frontend..."
 cd "$APP_DIR/frontend" && npm run build
 cd "$APP_DIR"
 
+echo "==> Copying build to nginx root..."
+sudo rm -rf /var/www/grp/*
+sudo cp -r "$APP_DIR/frontend/build/." /var/www/grp/
+
 pm2 restart all --update-env
 pm2 save
 pm2 status
