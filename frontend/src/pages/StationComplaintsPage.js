@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
@@ -6,8 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Building2, ChevronDown, ChevronUp, Download, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
-import { stationAPI, complaintsAPI } from '@/lib/api';
+import { ArrowLeft, Building2, ChevronDown, Download, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { stationAPI } from '@/lib/api';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 
 const STATUS_COLORS = {
@@ -135,7 +135,6 @@ const StationComplaintsPage = () => {
   const [crimeFilter, setCrimeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [rejectingId, setRejectingId] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
   const [inlineReason, setInlineReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [docsModal, setDocsModal] = useState(null);
@@ -458,18 +457,6 @@ const StationComplaintsPage = () => {
                                 <X className="h-3.5 w-3.5" /> Cancel
                               </Button>
                             </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {expandedId === c.id && (
-                      <TableRow key={`${c.id}-detail`} className="bg-[#F0F9FF]">
-                        <TableCell colSpan={14} className="border border-[#60A5FA] px-6 py-4">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhaar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
-                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Address</span><span className="text-[#0F172A]">{c.address || '-'}</span></div>
-                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Date of Incident</span><span className="text-[#0F172A]">{c.incident_date || '-'}</span></div>
-                            <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Email</span><span className="text-[#0F172A]">{c.complainant_email || '-'}</span></div>
                           </div>
                         </TableCell>
                       </TableRow>
