@@ -392,7 +392,6 @@ const StationUnidentifiedBodiesPage = () => {
                 <Download className="w-4 h-4" /> Export Excel
               </Button>
             </div>
-            <p className="text-xs text-[#64748B] mt-2">{filteredGrouped.length} record{filteredGrouped.length !== 1 ? 's' : ''} found</p>
           </div>
 
           <div className="overflow-x-auto">
