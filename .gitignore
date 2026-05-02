@@ -1,0 +1,121 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# IDE and editors
+.idea/
+.vscode/
+.emergent/
+
+# Dependencies
+node_modules/
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Production builds
+/build
+dist/
+dist
+
+# Environment files (comprehensive coverage)
+.env
+.env.*
+**/.env
+**/.env.*
+
+*token.json*
+*credentials.json*
+
+# Logs and debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dump.rdb
+
+# System files
+.DS_Store
+*.pem
+
+# Runtime data files — all managed by admin panel on live server, NOT tracked in git
+# Images and JSONs uploaded/managed via admin login are server-only
+backend/gallery_uploads/gallery_items.json
+backend/gallery_uploads/*.jpeg
+backend/gallery_uploads/*.jpg
+backend/gallery_uploads/*.png
+backend/gallery_uploads/*.gif
+backend/gallery_uploads/*.webp
+backend/gallery_uploads/*.avif
+backend/gallery_uploads/*.mp4
+backend/gallery_uploads/*.webm
+backend/news_uploads/news_items.json
+backend/news_uploads/latest_news.json
+backend/news_uploads/*.jpeg
+backend/news_uploads/*.jpg
+backend/news_uploads/*.png
+backend/news_uploads/*.gif
+backend/news_uploads/*.webp
+backend/news_uploads/*.avif
+backend/news_uploads/*.mp4
+backend/news_uploads/*.webm
+backend/unidentified_uploads/unidentified_bodies.json
+backend/unidentified_uploads/*.jpeg
+backend/unidentified_uploads/*.jpg
+backend/unidentified_uploads/*.png
+backend/unidentified_uploads/*.gif
+backend/unidentified_uploads/*.webp
+backend/unidentified_uploads/*.avif
+backend/managed_content/static_page_content.json
+backend/complaint_uploads/
+backend/static/
+
+# Python
+__pycache__/
+*pyc*
+venv/
+.venv/
+
+# Development tools
+chainlit.md
+.chainlit
+.ipynb_checkpoints/
+.ac
+
+# Deployment
+.vercel
+
+# Data and databases
+agenthub/agents/youtube/db
+*.db
+backend/grp.db
+
+# Archive files and large assets
+**/*.zip
+**/*.tar.gz
+**/*.tar
+**/*.tgz
+*.pack
+*.deb
+*.dylib
+
+# Build caches
+.cache/
+
+memory/test_credentials.md
+
+# Mobile development
+android-sdk/

@@ -1,0 +1,110 @@
+{
+  "project_name": "Government Railway Police (GRP) Website",
+  "theme": "light",
+  "archetype": "4 - Swiss & High-Contrast",
+  "global_design_rules": {
+    "emotion": "Authority, Trust, Immediate Action, Clarity",
+    "alignment": "Strictly Left-aligned for data and forms. Optical alignment over mathematical. Asymmetry used for visual tension on marketing sections.",
+    "accessibility": "High-contrast text (APCA standard). Mandatory focus states. Support prefers-reduced-motion.",
+    "anti_patterns_avoided": "No centering everything, no purple/teal gradients, no Inter for headings, no default Vercel-look."
+  },
+  "colors": {
+    "background": "#FFFFFF",
+    "surface": "#F8FAFC",
+    "surface_alt": "#F1F5F9",
+    "surface_dark": "#0B1121",
+    "primary": "#0F172A",
+    "primary_hover": "#1E293B",
+    "secondary": "#2563EB",
+    "secondary_hover": "#1D4ED8",
+    "accent_authority": "#D97706",
+    "emergency_red": "#DC2626",
+    "emergency_red_hover": "#B91C1C",
+    "success_green": "#16A34A",
+    "text_primary": "#0F172A",
+    "text_secondary": "#475569",
+    "text_inverse": "#FFFFFF",
+    "border_subtle": "#E2E8F0",
+    "border_focus": "#3B82F6",
+    "glass_bg_light": "rgba(255, 255, 255, 0.8)",
+    "glass_bg_dark": "rgba(11, 17, 33, 0.8)"
+  },
+  "typography": {
+    "heading_font": "Cabinet Grotesk, sans-serif",
+    "body_font": "IBM Plex Sans, sans-serif",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter leading-none font-extrabold",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-snug font-bold",
+      "h3": "text-xl sm:text-2xl tracking-tight font-bold",
+      "h4": "text-lg sm:text-xl font-semibold",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm",
+      "overline": "text-xs tracking-[0.2em] uppercase font-bold"
+    },
+    "rules": "Never use generic sans for headings. Apply tight tracking to headings (>32px) and loose tracking (0.2em) for overlines."
+  },
+  "layout_spacing": {
+    "philosophy": "Generous spacing (p-8, p-12) for public info, dense utility grids (p-4) for dashboards.",
+    "marketing_grid": "Mode A: The Tetris Grid. grid-cols-1 md:grid-cols-12 gap-8. Used for Home, About, History.",
+    "dashboard_grid": "Mode B: The Control Room Grid. grid-cols-1 md:grid-cols-4 gap-6. Used for Crime Dashboard.",
+    "container_padding": "Containers with borders MUST have internal padding (p-6 or p-8) to prevent text collision."
+  },
+  "surface_styles": {
+    "header": "Crystal Glass: backdrop-blur-xl bg-white/80 border-b border-border/40. Fixed top, z-50.",
+    "cards_marketing": "Flat background (bg-surface), 1px subtle border (border-border_subtle), no shadow. Hover: -translate-y-1 shadow-lg.",
+    "cards_dashboard": "Grid Borders: border-collapse style layout, 1px right/bottom borders, dense data presentation.",
+    "footer": "Massive Space: py-20 bg-surface_dark text-text_inverse. High contrast shift from body.",
+    "sos_button": "Tactile Neumorphism with pulsing ring. bg-emergency_red text-white shadow-[0_4px_14px_rgba(220,38,38,0.39)]."
+  },
+  "component_rules": {
+    "forms": "Use customized Shadcn UI (Input, Select, Form, Checkbox). Flat, sharp borders (rounded-md max), high-contrast focus rings (focus:ring-2 focus:ring-border_focus focus:ring-offset-2).",
+    "buttons": "Action buttons are left-aligned or inline with forms. Use text-white for primary, text-text_primary for secondary outlines.",
+    "tables": "Shadcn Table for Crime Dashboard and Found Items. Left-aligned text, mono-font for numbers.",
+    "tabs": "Shadcn Tabs, override h-9 to h-auto to prevent text clipping."
+  },
+  "motion_interactions": {
+    "hover_states": "ALWAYS explicitly set text color on hover. Example: hover:bg-primary hover:text-white.",
+    "transitions": "Specific properties only: transition-transform duration-200 ease-out, transition-colors.",
+    "page_load": "Subtle staggered fade-in for lists/grids (framer-motion).",
+    "emergency": "Continuous slow pulse for SOS/Emergency action buttons."
+  },
+  "icons_assets": {
+    "library": "lucide-react",
+    "style": "Stroke width 2px for standard, 2.5px for active/selected.",
+    "installation": "npm install lucide-react (already installed in standard setup)"
+  },
+  "media": [
+    {
+      "category": "hero_background",
+      "url": "https://static.prod-images.emergentagent.com/jobs/ecda69e3-6dae-485f-9f5d-53165e641ecc/images/bfa8dd2180230e437fd7c934169f391df9b2df729ed971fb2b451a40a098bbd1.png",
+      "description": "Cinematic wide-angle shot of a modern railway station platform at dawn.",
+      "placement_instructions": "Use as full-bleed hero background on Home page. MUST apply a gradient overlay (bg-gradient-to-r from-primary/80 to-primary/40) so text is 100% readable."
+    },
+    {
+      "category": "history_hero",
+      "url": "https://static.prod-images.emergentagent.com/jobs/ecda69e3-6dae-485f-9f5d-53165e641ecc/images/d69abe7becd65caddc188450114a5291516c8e31d13e645e0f54bdd9e26ef852.png",
+      "description": "Historical Indian railway scene transforming into modern digital era.",
+      "placement_instructions": "Place in the History page header/hero section with max opacity 0.5 overlay."
+    },
+    {
+      "category": "security_abstract",
+      "url": "https://static.prod-images.emergentagent.com/jobs/ecda69e3-6dae-485f-9f5d-53165e641ecc/images/a6eefc76bb2c0def75418b7e883460670b5ba072c68ab94a7a3bd92bbb86deac.png",
+      "description": "Abstract minimalist background representing digital law enforcement.",
+      "placement_instructions": "Use as the background for the Login Portal or Crime Dashboard header."
+    },
+    {
+      "category": "content_image",
+      "url": "https://images.unsplash.com/photo-1664818757194-798295889bcd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjByYWlsd2F5JTIwc3RhdGlvbiUyMHRyYWlufGVufDB8fHx8MTc3NDUwODkzM3ww&ixlib=rb-4.1.0&q=85",
+      "description": "Indian train station context.",
+      "placement_instructions": "Use in the 'About GRP' or 'Passenger Help Desk' section to add authentic context."
+    }
+  ],
+  "page_specific_instructions": {
+    "Home": "Use 'Tetris Grid' for Quick Access. Emergency 112 should be highly visible in header. Ensure hero section text has APCA compliant contrast against the dark overlay.",
+    "eFIR_Complaint": "Break the form into logical Shadcn cards (or cardless sections with borders). Clear multi-step indicators. Avoid clutter.",
+    "Crime_Dashboard": "Use 'Control Room Grid'. Dense, data-heavy, use Recharts for analytics. Strict 1px borders, no soft shadows.",
+    "Women_Safety": "Needs a prominent SOS component (Sticky on mobile). Soft red accents (not pastel, but authoritative red).",
+    "Lost_Found": "Use image-heavy grid for Found items, clean Shadcn forms for Reporting lost items."
+  },
+  "testing_attributes": "All interactive elements (buttons, inputs, tabs, links) MUST include data-testid. Example: data-testid='complaint-submit-button'"
+}

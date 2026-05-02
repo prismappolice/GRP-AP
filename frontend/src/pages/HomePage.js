@@ -1,0 +1,638 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { 
+  AlertCircle, 
+  FileText,
+  Phone, 
+  Shield, 
+  Heart, 
+  HelpCircle,
+  TrendingUp,
+  MapPin,
+  Bell
+} from 'lucide-react';
+
+import api, { alertsAPI, latestNewsAPI, normalizeMediaUrl } from '@/lib/api';
+
+import { useStaticPageContent } from '@/lib/staticPageContent';
+import NewsCard from '@/components/ui/NewsCard';
+
+
+export const HomePage = () => {
+  const navigate = useNavigate();
+  const pageContent = useStaticPageContent('home');
+  const [alerts, setAlerts] = useState([]);
+  const [latestNews, setLatestNews] = useState([]);
+  const [gallery, setGallery] = useState([]);
+  const [lightbox, setLightbox] = useState(null); // { url, alt, kind }
+  const [newsLightbox, setNewsLightbox] = useState(null); // { item }
+  const fallbackLatestNews = [];
+  const videoRefs = useRef(new Map());
+  const galleryMarqueeRef = useRef(null);
+  const newsMarqueeRef = useRef(null);
+
+  const normalizeGalleryItem = (item, idx) => {
+    const name = item?.name || item?.imageName || item?.heading || `gallery-item-${idx + 1}`;
+    const heading = item?.heading || name;
+    const content = item?.content || item?.description || '';
+    const rawUrl = item?.url || item?.imageUrl || '';
+    const url = normalizeMediaUrl(rawUrl);
+    const images = Array.isArray(item?.images) && item.images.length > 0
+      ? item.images.map((image) => {
+          const imageRawUrl = image?.url || '';
+          const imageUrl = normalizeMediaUrl(imageRawUrl);
+          return {
+            ...image,
+            url: imageUrl,
+          };
+        }).filter((image) => Boolean(image.url))
+      : (url ? [{ url, name }] : []);
+    const type = item?.type || (typeof url === 'string' && /\.(mp4|webm|ogg|mov)$/i.test(url) ? 'video/*' : 'image/*');
+    return { ...item, name, heading, content, url, type, images };
+  };
+
+  const galleryMedia = gallery.flatMap((item, idx) => {
+    if (Array.isArray(item.images) && item.images.length > 0) {
+      return item.images
+        .filter((image) => Boolean(image?.url))
+        .map((image, imageIdx) => ({
+          id: `${item.id || idx}-image-${imageIdx}`,
+          kind: 'image',
+          url: image.url,
+          alt: image.name || `gallery-${idx}-${imageIdx}`,
+        }));
+    }
+    if (!item?.url) {
+      return [];
+    }
+    const isVideo = String(item?.type || '').startsWith('video');
+    return [{
+      id: `${item.id || idx}-media`,
+      kind: isVideo ? 'video' : 'image',
+      url: item.url,
+      alt: item.name || `gallery-${idx}`,
+    }];
+  });
+
+  const effectiveGalleryMedia = galleryMedia;
+
+  useEffect(() => {
+    const loadAlerts = async () => {
+      try {
+        const response = await alertsAPI.getAll();
+        setAlerts(response.data.slice(0, 3));
+      } catch (error) {
+        console.error('Failed to load alerts:', error);
+      }
+    };
+    const loadGallery = async () => {
+      try {
+        const response = await api.get('/gallery-items');
+        const items = Array.isArray(response.data) ? response.data : [];
+        setGallery(items.map((item, idx) => normalizeGalleryItem(item, idx)));
+      } catch (error) {
+        console.error('Failed to load gallery items:', error);
+        setGallery([]);
+      }
+    };
+    const loadLatestNews = async () => {
+      const normalizeNewsItem = (item) => {
+        const rawImage = item?.image || '';
+        const normalizedImage = normalizeMediaUrl(rawImage);
+        return {
+          ...item,
+          image: normalizedImage || rawImage,
+        };
+      };
+
+      try {
+        const latestResponse = await latestNewsAPI.get();
+        const latestPayload = latestResponse?.data;
+
+        if (Array.isArray(latestPayload)) {
+          const normalizedItems = latestPayload.map(normalizeNewsItem).filter((item) => item?.newsTitle || item?.heading);
+          setLatestNews(normalizedItems.length > 0 ? normalizedItems : fallbackLatestNews);
+          return;
+        }
+
+        if (latestPayload && typeof latestPayload === 'object' && (latestPayload.newsTitle || latestPayload.heading)) {
+          setLatestNews([normalizeNewsItem(latestPayload)]);
+          return;
+        }
+
+        const response = await api.get('/news-items');
+        const items = Array.isArray(response.data) ? response.data : [];
+        const normalizedItems = items.map(normalizeNewsItem).filter((item) => item?.newsTitle || item?.heading);
+        setLatestNews(normalizedItems.length > 0 ? normalizedItems : fallbackLatestNews);
+      } catch (error) {
+        setLatestNews(fallbackLatestNews);
+      }
+    };
+    loadAlerts();
+    loadGallery();
+    loadLatestNews();
+  }, []);
+
+  // Control marquee speed from one place — change MARQUEE_DURATION to adjust both
+  const MARQUEE_DURATION = 80; // seconds
+  useEffect(() => {
+    const syncSpeed = () => {
+      const newsEl = newsMarqueeRef.current;
+      const galleryEl = galleryMarqueeRef.current;
+      if (!newsEl || !galleryEl) return;
+      const newsWidth = newsEl.scrollWidth;
+      if (newsWidth === 0) return;
+
+      // Force animation restart so new duration takes effect immediately
+      const applyDuration = (el, duration) => {
+        el.style.animationName = 'none';
+        el.style.animationDuration = `${duration}s`;
+        // eslint-disable-next-line no-unused-expressions
+        el.offsetHeight; // trigger reflow
+        el.style.animationName = '';
+      };
+
+      // Set news duration directly
+      applyDuration(newsEl, MARQUEE_DURATION);
+      // Sync gallery to same px/s speed
+      const pxPerSecond = newsWidth / MARQUEE_DURATION;
+      const galleryHalfWidth = galleryEl.scrollWidth / 2;
+      const galleryDuration = galleryHalfWidth / pxPerSecond;
+      applyDuration(galleryEl, galleryDuration);
+    };
+    // Run after images/content may have loaded
+    const timer = setTimeout(syncSpeed, 300);
+    return () => clearTimeout(timer);
+  }, [effectiveGalleryMedia, latestNews]);
+
+  const handleMediaMouseEnter = (renderId, kind) => {
+    if (kind !== 'video') return;
+    const videoEl = videoRefs.current.get(renderId);
+    if (!videoEl) return;
+    const playPromise = videoEl.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
+    }
+  };
+
+  const handleMediaMouseLeave = (renderId, kind) => {
+    if (kind !== 'video') return;
+    const videoEl = videoRefs.current.get(renderId);
+    if (!videoEl) return;
+    videoEl.pause();
+    videoEl.currentTime = 0;
+  };
+
+  const quickActions = [
+    {
+      title: 'File e-Complaint',
+      titleTe: 'ఫిర్యాదు నమోదు చేయండి',
+      description: 'Report theft, harassment, or other incidents',
+      icon: FileText,
+      color: 'bg-[#2563EB]',
+      link: '/complaint',
+      testId: 'quick-action-complaint'
+    },
+    {
+      title: 'Indian Railways',
+      titleTe: 'ఇండియన్ రైల్వే',
+      description: 'Book tickets, check train status, and more',
+      icon: Bell,
+      color: 'bg-[#D97706]',
+      link: '/indian-railways',
+      testId: 'quick-action-indian-railways'
+    },
+    {
+      title: 'Women Safety',
+      titleTe: 'మహిళల భద్రత',
+      description: 'SOS and safety helpline',
+      icon: Heart,
+      image: '/shakthi-logo.png',
+      color: 'bg-[#DC2626]',
+      link: '/women-safety',
+      testId: 'quick-action-women-safety'
+    },
+    {
+      title: 'Help Desk',
+      titleTe: 'సహాయ కేంద్రం',
+      description: 'Get assistance from our team',
+      icon: HelpCircle,
+      color: 'bg-[#D97706]',
+      link: '/help-desk',
+      testId: 'quick-action-help-desk'
+    }
+  ];
+
+  return (
+    <div>
+      {/* Hero Section */}
+      <section className="relative z-0 flex flex-col items-center justify-center overflow-hidden sm:h-[480px] h-[480px]">
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ 
+            backgroundImage: 'url(https://static.prod-images.emergentagent.com/jobs/ecda69e3-6dae-485f-9f5d-53165e641ecc/images/bfa8dd2180230e437fd7c934169f391df9b2df729ed971fb2b451a40a098bbd1.png)',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A]/90 to-[#0F172A]/60" />
+        
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white h-full flex flex-col justify-center items-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="w-full"
+          >
+            {/* CM Photo + Logo + Title + DGP Photo row — stacks vertically on mobile */}
+            {/* AP Police logo above heading */}
+            <div className="flex flex-col items-center w-full mb-2">
+              <img 
+                src="https://customer-assets.emergentagent.com/job_railway-security-app/artifacts/1do5egdn_Appolice-Logo.png"
+                alt="AP Police Official Logo"
+                className="w-24 h-24 sm:w-28 sm:h-28 object-contain mb-2 [filter:contrast(1.12)_brightness(1.05)_drop-shadow(0_4px_12px_rgba(255,255,255,0.6))_drop-shadow(0_0_8px_rgba(255,255,255,0.5))]"
+              />
+              {/* Heading row with CM/heading/DGP */}
+              <div className="flex flex-row items-center justify-center w-full gap-2 sm:gap-6">
+                {/* CM Photo */}
+                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-black bg-white p-1 shadow-lg overflow-hidden flex-shrink-0">
+                  <img
+                    src="/CM-SIR.jpeg"
+                    alt="Chief Minister of Andhra Pradesh"
+                    className="w-full h-full rounded-full object-cover object-top"
+                  />
+                </div>
+                <div className="flex flex-col items-center text-center px-2">
+                  <h1 className="text-2xl sm:text-5xl lg:text-7xl font-extrabold heading-font tracking-tighter leading-tight">
+                    Government Railway Police
+                  </h1>
+                  {pageContent.heroSubtitle && (
+                    <p className="text-xs sm:text-lg text-gray-200 mt-2 font-extrabold">Andhra Pradesh</p>
+                  )}
+                </div>
+                {/* DGP Photo */}
+                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-black bg-white p-1 shadow-lg overflow-hidden flex-shrink-0">
+                  <img
+                    src="/dgp-Sir.jpeg"
+                    alt="Director General of Police"
+                    className="w-full h-full rounded-full object-cover object-top"
+                  />
+                </div>
+              </div>
+            </div>
+            <p className="text-xs sm:text-xl text-gray-200 leading-relaxed mb-6 max-w-7xl mx-auto text-center line-clamp-2 sm:whitespace-nowrap sm:overflow-hidden sm:text-ellipsis sm:line-clamp-none">
+              {pageContent.heroTagline}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-center">
+              <Button
+                onClick={() => navigate('/complaint')}
+                size="lg"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-8 py-6 text-lg w-full sm:w-auto"
+                data-testid="hero-file-complaint-button"
+              >
+                File an e-Complaint
+              </Button>
+              <Button
+                onClick={() => navigate('/services')}
+                size="lg"
+                variant="outline"
+                className="border-2 border-white text-white hover:bg-white hover:text-[#0F172A] px-8 py-6 text-lg w-full sm:w-auto"
+                data-testid="hero-services-button"
+              >
+                Our Services
+              </Button>
+              <Button
+                onClick={() => navigate('/unidentified-bodies')}
+                size="lg"
+                variant="outline"
+                className="border-2 border-white text-white hover:bg-white hover:text-[#0F172A] px-8 py-6 text-lg w-full sm:w-auto"
+                data-testid="hero-unidentified-bodies-button"
+              >
+                Unidentified Deadbodies
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Message from DGP Section */}
+      <section className="py-14 bg-[#F1F5F9]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6 text-center">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-1">LEADERSHIP</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-lg px-6 py-8 sm:px-10 flex flex-col md:flex-row items-center gap-8">
+            {/* Photo */}
+            <div className="flex-shrink-0 flex flex-col items-center gap-3">
+              <div className="w-36 h-36 md:w-44 md:h-44 rounded-full border-4 border-[#1E3A5F] bg-white p-1 shadow-md overflow-hidden">
+                <img
+                  src="/dgp-Sir.jpeg"
+                  alt="Director General of Police"
+                  className="w-full h-full rounded-full object-cover object-top"
+                />
+              </div>
+            </div>
+            {/* Quote */}
+            <div className="flex-1 flex flex-col gap-4">
+              <span className="text-6xl leading-none text-[#60A5FA] font-serif select-none">&ldquo;</span>
+              <p className="text-base sm:text-lg md:text-xl font-semibold text-[#1E3A5F] leading-relaxed -mt-4">
+                {pageContent.dgpQuote}
+              </p>
+              <p className="text-sm sm:text-base text-[#475569]">
+                The Andhra Pradesh Government Railway Police remains steadfast in its mission to protect passengers, prevent crime, and ensure swift justice. Our officers work round the clock across all railway zones to maintain law, order, and public safety.
+              </p>
+              <div className="border-t border-[#60A5FA] pt-3">
+                <p className="text-sm font-bold text-red-700 text-center sm:text-right leading-snug">
+                  &mdash;&nbsp;
+                  <span className="sm:hidden">{pageContent.dgpSignature.replace('Andhra Pradesh', 'AP.')}</span>
+                  <span className="hidden sm:inline">{pageContent.dgpSignature}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      {/* Gallery Section */}
+      <section className="py-16">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
+          <div className="mb-8 text-left">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">GALLERY</p>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold heading-font tracking-tight text-[#0F172A] mb-4">
+              Gallery
+            </h2>
+          </div>
+          {effectiveGalleryMedia.length > 0 ? (
+            <div className="overflow-hidden rounded-lg border-2 border-black bg-white p-3">
+              <div ref={galleryMarqueeRef} className="flex w-max gap-4 px-2 animate-marquee">
+                {[...effectiveGalleryMedia, ...effectiveGalleryMedia].map((media, idx) => (
+                  <div
+                    key={`${media.id}-${idx}`}
+                    className="h-[300px] sm:h-[300px] min-w-[280px] sm:min-w-[320px] px-3 py-2 overflow-hidden rounded-lg border-2 border-gray-500 bg-white flex items-center justify-center flex-shrink-0 cursor-pointer"
+                    onMouseEnter={() => handleMediaMouseEnter(`${media.id}-${idx}`, media.kind)}
+                    onMouseLeave={() => handleMediaMouseLeave(`${media.id}-${idx}`, media.kind)}
+                    onClick={() => setLightbox({ url: media.url, alt: media.alt, kind: media.kind })}
+                  >
+                    {media.kind === 'video' ? (
+                      <video
+                        ref={(el) => {
+                          if (el) {
+                            videoRefs.current.set(`${media.id}-${idx}`, el);
+                          } else {
+                            videoRefs.current.delete(`${media.id}-${idx}`);
+                          }
+                        }}
+                        src={media.url}
+                        preload="metadata"
+                        muted
+                        loop
+                        playsInline
+                        className="h-full w-auto max-w-full object-contain pointer-events-none"
+                      />
+                    ) : (
+                      <img src={media.url} alt={media.alt} className="h-full w-auto max-w-full object-contain pointer-events-none" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-left">No gallery items yet.</p>
+          )}
+        </div>
+      </section>
+
+      {/* Gallery Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/80 py-4"
+          onClick={() => setLightbox(null)}
+        >
+          <div
+            className="relative inline-flex rounded-xl border-4 border-black overflow-hidden mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-2 right-2 z-10 text-white bg-black/50 hover:bg-black/80 rounded-full w-8 h-8 flex items-center justify-center text-xl font-bold leading-none"
+              onClick={() => setLightbox(null)}
+            >
+              &times;
+            </button>
+            {lightbox.kind === 'video' ? (
+              <video
+                src={lightbox.url}
+                controls
+                autoPlay
+                className="max-w-[90vw] max-h-[85vh] object-contain bg-black"
+              />
+            ) : (
+              <img
+                src={lightbox.url}
+                alt={lightbox.alt}
+                className="max-w-[90vw] max-h-[85vh] object-contain bg-black"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* News Lightbox */}
+      {newsLightbox && (
+        <div
+          className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/80 backdrop-blur-sm py-4"
+          onClick={() => setNewsLightbox(null)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden max-h-[90vh] overflow-y-auto border-4 border-black"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-3 right-3 z-10 text-gray-500 hover:text-red-500 text-2xl font-bold leading-none"
+              onClick={() => setNewsLightbox(null)}
+            >
+              &times;
+            </button>
+            {/* Header */}
+            <div className="bg-[#183153] px-5 py-3">
+              <span className="text-white font-bold tracking-widest text-sm uppercase">{newsLightbox.item.heading || 'DAILY NEWS UPDATE'}</span>
+            </div>
+            {/* Image */}
+            {newsLightbox.item.image && (
+              <div className="w-full bg-gray-100">
+                {/\.(mp4|webm|ogg|mov)$/i.test(newsLightbox.item.image)
+                  ? <video src={newsLightbox.item.image} controls autoPlay className="w-full max-h-64 object-cover" />
+                  : <img src={newsLightbox.item.image} alt={newsLightbox.item.newsTitle} className="w-full max-h-64 object-cover" />}
+              </div>
+            )}
+            {/* Content */}
+            <div className="p-5 flex flex-col gap-3">
+              <h2 className="font-extrabold text-lg text-[#1a2236] leading-tight">{newsLightbox.item.newsTitle}</h2>
+              <p className="text-sm text-[#4b5563] leading-relaxed">{newsLightbox.item.newsSummary}</p>
+              {newsLightbox.item.date && (
+                <p className="text-xs text-gray-400 border-t pt-3">{newsLightbox.item.date}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Latest News Section */}
+      <section className="py-16 bg-[#F1F5F9]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
+          <div className="mb-8 text-left">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">LATEST NEWS</p>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold heading-font tracking-tight text-[#0F172A]">
+              Latest News
+            </h2>
+          </div>
+          {latestNews.length > 0 ? (
+            <div className="overflow-hidden rounded-lg border-2 border-black bg-[#F1F5F9] p-3">
+              {latestNews.length === 1 ? (
+                <div className="flex justify-center px-2">
+                  <div className="min-w-[400px] max-w-[400px] cursor-pointer" onClick={() => setNewsLightbox({ item: latestNews[0] })}>
+                    <NewsCard
+                      heading={latestNews[0].heading}
+                      image={latestNews[0].image}
+                      newsTitle={latestNews[0].newsTitle}
+                      newsSummary={latestNews[0].newsSummary}
+                      date={latestNews[0].date}
+                      source={latestNews[0].source}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div ref={newsMarqueeRef} className="flex w-max animate-marquee-news">
+                  {[...latestNews, ...latestNews].map((item, idx) => (
+                    <div key={`news-${item.id || idx}-${idx}`} className="min-w-[400px] max-w-[400px] flex-shrink-0 mr-4 cursor-pointer" onClick={() => setNewsLightbox({ item })}>
+                      <NewsCard
+                        heading={item.heading}
+                        image={item.image}
+                        newsTitle={item.newsTitle}
+                        newsSummary={item.newsSummary}
+                        date={item.date}
+                        source={item.source}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-left text-gray-400">No news available.</div>
+          )}
+        </div>
+      </section>
+
+
+      {/* Quick Actions */}
+      <section className="py-16 bg-[#F8FAFC]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-12">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">QUICK ACCESS</p>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold heading-font tracking-tight text-[#0F172A]">
+              How Can We Help You?
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+            {quickActions.map((action, index) => {
+              const Icon = action.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Link to={action.link} data-testid={action.testId}>
+                    <Card className="p-5 border border-[#60A5FA] hover:-translate-y-1 hover:shadow-lg transition-all duration-200 min-h-[230px] bg-white">
+                      <div className={`${action.color} w-12 h-12 rounded-md flex items-center justify-center mb-3 overflow-hidden`}>
+                        {action.image
+                          ? <img src={action.image} alt={action.title} className="w-full h-full object-cover" />
+                          : <Icon className="w-6 h-6 text-white" strokeWidth={2} />}
+                      </div>
+                      <h3 className="text-xl font-bold heading-font text-[#0F172A] mb-2">{action.title}</h3>
+                      <p className="text-xs text-gray-400 mb-3">{action.titleTe}</p>
+                      <p className="text-sm text-[#475569] leading-relaxed">{action.description}</p>
+                    </Card>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 bg-[#0F172A] text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div className="text-center">
+              <TrendingUp className="w-8 h-8 mx-auto mb-3 text-[#D97706]" />
+              <p className="text-4xl font-extrabold heading-font mb-2">5000+</p>
+              <p className="text-sm text-gray-400">Cases Resolved</p>
+            </div>
+            <div className="text-center">
+              <MapPin className="w-8 h-8 mx-auto mb-3 text-[#D97706]" />
+              <p className="text-4xl font-extrabold heading-font mb-2">50+</p>
+              <p className="text-sm text-gray-400">GRP Stations</p>
+            </div>
+            <div className="text-center">
+              <Shield className="w-8 h-8 mx-auto mb-3 text-[#D97706]" />
+              <p className="text-4xl font-extrabold heading-font mb-2">24/7</p>
+              <p className="text-sm text-gray-400">Protection</p>
+            </div>
+            <div className="text-center">
+              <Phone className="w-8 h-8 mx-auto mb-3 text-[#D97706]" />
+              <p className="text-4xl font-extrabold heading-font mb-2">139</p>
+              <p className="text-sm text-gray-400">Emergency HelpLine</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <AlertCircle className="w-16 h-16 mx-auto mb-6 text-[#2563EB]" />
+          <h2 className="text-3xl sm:text-4xl font-bold heading-font text-[#0F172A] mb-4">
+            Need Immediate Assistance?
+          </h2>
+          <p className="text-lg text-[#475569] mb-8 leading-relaxed">
+            Our team is available 24/7 to help you. Call emergency number or visit your nearest GRP station.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
+            <a href="tel:112">
+              <Button size="lg" className="bg-[#DC2626] hover:bg-[#B91C1C] px-8 py-6 text-lg" data-testid="cta-emergency-button">
+                <Phone className="w-5 h-5 mr-2" />
+                Call 139 Now
+              </Button>
+            </a>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => navigate('/stations')}
+              className="px-8 py-6 text-lg"
+              data-testid="cta-find-station-button"
+            >
+              <MapPin className="w-5 h-5 mr-2" />
+              Find GRP Station
+            </Button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+/* Add this CSS to your global styles (e.g., index.css or HomePage.module.css):
+.animate-marquee {
+  animation: marquee-left 20s linear infinite;
+}
+@keyframes marquee-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+*/
