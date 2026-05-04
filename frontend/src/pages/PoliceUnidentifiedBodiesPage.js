@@ -248,8 +248,8 @@ export const PoliceUnidentifiedBodiesPage = () => {
   const isVideo = (url) => /\.(mp4|webm|ogg|mov)(\?|$)/i.test(url || '');
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-5">
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto space-y-5 px-4 sm:px-6 lg:px-8 py-6">
 
         {/* Page Header */}
         <div className="mb-2 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -274,79 +274,65 @@ export const PoliceUnidentifiedBodiesPage = () => {
 
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
-                  <FileText className="w-6 h-6 text-white" />
+              <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+                <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-3xl font-extrabold text-[#2563EB]">{filtered.length}</p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Total Records</p>
+                  <p className="text-xl font-extrabold leading-tight text-[#2563EB]">{filtered.length}</p>
+                  <p className="text-xs text-[#64748B]">Total Records</p>
                 </div>
               </Card>
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#F59E0B] rounded-lg flex items-center justify-center shrink-0">
-                  <Clock className="w-6 h-6 text-white" />
+              <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+                <div className="w-8 h-8 bg-[#F59E0B] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-3xl font-extrabold text-[#F59E0B]">
+                  <p className="text-xl font-extrabold leading-tight text-[#F59E0B]">
                     {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 7 * 24 * 60 * 60 * 1000; }).length}
                   </p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
+                  <p className="text-xs text-[#64748B]">Last 7 Days</p>
                 </div>
               </Card>
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#8B5CF6] rounded-lg flex items-center justify-center shrink-0">
-                  <Clock className="w-6 h-6 text-white" />
+              <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+                <div className="w-8 h-8 bg-[#8B5CF6] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-3xl font-extrabold text-[#8B5CF6]">
+                  <p className="text-xl font-extrabold leading-tight text-[#8B5CF6]">
                     {filtered.filter(r => { const d = new Date(r.reported_date); const now = new Date(); return !isNaN(d) && (now - d) <= 30 * 24 * 60 * 60 * 1000; }).length}
                   </p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Last 30 Days</p>
+                  <p className="text-xs text-[#64748B]">Last 30 Days</p>
                 </div>
               </Card>
-              <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#10B981] rounded-lg flex items-center justify-center shrink-0">
-                  <ImageIcon className="w-6 h-6 text-white" />
+              <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+                <div className="w-8 h-8 bg-[#10B981] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <ImageIcon className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-3xl font-extrabold text-[#10B981]">
+                  <p className="text-xl font-extrabold leading-tight text-[#10B981]">
                     {filtered.reduce((sum, r) => sum + (r.mediaUrls?.length || 0), 0)}
                   </p>
-                  <p className="text-xs text-[#64748B] mt-0.5">Total Media Files</p>
+                  <p className="text-xs text-[#64748B]">Total Media Files</p>
                 </div>
               </Card>
             </div>
 
-        <Card className="p-5 border border-[#60A5FA]">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-            <div>
-              <h1 className="text-xl font-extrabold text-[#0F172A]">Unidentified Dead Bodies</h1>
-            </div>
-            <button
-              type="button"
-              onClick={fetchData}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#60A5FA] bg-white text-sm font-semibold text-[#0F172A] hover:border-[#2563EB] transition-colors self-start sm:self-auto"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
-
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-end gap-3 mb-5">
-            <div className="flex flex-col">
+        {/* Filter bar */}
+        <Card className="p-4 border border-[#60A5FA] bg-white">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>From</span>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={inputCls} />
             </div>
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>To</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={inputCls} />
             </div>
 
             {/* Division — DGP only */}
             {availableDivisions.length > 0 && (
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1">
                 <span className={labelCls}>Division</span>
                 <select value={divisionFilter} onChange={e => { setDivisionFilter(e.target.value); setSubdivisionFilter(''); setCircleFilter(''); setStationFilter(''); }} className={inputCls}>
                   <option value="">All Divisions</option>
@@ -359,7 +345,7 @@ export const PoliceUnidentifiedBodiesPage = () => {
 
             {/* Subdivision — DGP and SRP */}
             {availableSubdivisions.length > 0 && (
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1 w-44">
                 <span className={labelCls}>Subdivision</span>
                 <select value={subdivisionFilter} onChange={e => { setSubdivisionFilter(e.target.value); setCircleFilter(''); setStationFilter(''); }} className={inputCls}>
                   <option value="">All Subdivisions</option>
@@ -370,7 +356,7 @@ export const PoliceUnidentifiedBodiesPage = () => {
 
             {/* Circle — DGP, SRP, DSRP */}
             {availableCircles.length > 0 && (
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1">
                 <span className={labelCls}>Circle</span>
                 <select value={circleFilter} onChange={e => { setCircleFilter(e.target.value); setStationFilter(''); }} className={inputCls}>
                   <option value="">All Circles</option>
@@ -382,28 +368,16 @@ export const PoliceUnidentifiedBodiesPage = () => {
 
             {/* Station — all roles */}
             {availableStations.length > 0 && (
-              <div className="flex flex-row items-end gap-2">
-                <div className="flex flex-col">
-                  <span className={labelCls}>Station</span>
-                  <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className={inputCls}>
-                    <option value="">All Stations</option>
-                    {availableStations.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-row gap-1 mb-1">
-                  {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
-                    <button key={val} type="button" onClick={() => applyDatePreset(val)}
-                      className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
-                        val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
-                      }`}>
-                      {lbl}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex flex-col gap-1">
+                <span className={labelCls}>Station</span>
+                <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className={inputCls}>
+                  <option value="">All Stations</option>
+                  {availableStations.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             )}
 
-            <div className="flex flex-col flex-1 min-w-[160px]">
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>Search</span>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#94A3B8]" />
@@ -416,22 +390,51 @@ export const PoliceUnidentifiedBodiesPage = () => {
                 />
               </div>
             </div>
+
+            {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+              <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                  val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}>
+                {lbl}
+              </button>
+            ))}
             <button
               type="button"
               onClick={handleReset}
-              className="self-end inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#60A5FA] bg-white text-sm font-semibold text-[#64748B] hover:border-[#2563EB] hover:text-[#2563EB] transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors whitespace-nowrap"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
               Reset
             </button>
-            <button
-              type="button"
-              onClick={() => exportToCSV(`unidentified_bodies_${new Date().toISOString().slice(0, 10)}.csv`, filtered)}
-              className="self-end inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export CSV
-            </button>
+          </div>
+        </Card>
+
+        {/* Unidentified Bodies Table */}
+        <Card className="p-5 border border-[#60A5FA] bg-white">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+            <div>
+              <h1 className="text-xl font-extrabold text-[#0F172A]">Unidentified Dead Bodies</h1>
+              <p className="text-sm text-[#64748B] mt-0.5">{sortedFiltered.length} record{sortedFiltered.length !== 1 ? 's' : ''} found</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => exportToCSV(`unidentified_bodies_${new Date().toISOString().slice(0, 10)}.csv`, filtered)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={fetchData}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#60A5FA] bg-white text-sm font-semibold text-[#0F172A] hover:border-[#2563EB] transition-colors self-start sm:self-auto"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loading && (

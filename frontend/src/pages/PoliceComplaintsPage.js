@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, ArrowUpDown, Download, Eye, RefreshCw, Search, ShieldCheck, X, ChevronDown, ChevronUp, FileText, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, Download, Eye, RefreshCw, Search, ShieldCheck, X, FileText, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
@@ -73,9 +73,10 @@ export const PoliceComplaintsPage = () => {
   const [circleFilter, setCircleFilter] = useState('');
   const [stationFilter, setStationFilter] = useState('');
   const [searchText, setSearchText] = useState('');
-  const [expandedId, setExpandedId] = useState(null);
   const [docsModal, setDocsModal] = useState(null);
   const [viewComplaint, setViewComplaint] = useState(null);
+  const [addressModal, setAddressModal] = useState(null);
+  const [descriptionModal, setDescriptionModal] = useState(null);
   const [sortKey, setSortKey] = useState('');
   const [sortDir, setSortDir] = useState('asc');
 
@@ -229,7 +230,7 @@ export const PoliceComplaintsPage = () => {
     const active = sortKey === col;
     return (
       <TableHead
-        className={`text-xs font-bold text-[#64748B] cursor-pointer select-none hover:text-[#2563EB] ${className}`}
+        className={`border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] cursor-pointer select-none hover:text-[#2563EB] whitespace-nowrap ${className}`}
         onClick={() => handleSort(col)}
       >
         <span className="flex items-center gap-1">
@@ -239,6 +240,14 @@ export const PoliceComplaintsPage = () => {
       </TableHead>
     );
   }
+
+  const applyDatePreset = (preset) => {
+    const today = new Date();
+    const fmt = d => d.toISOString().slice(0, 10);
+    if (preset === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
+    else if (preset === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
+    else { setDateFrom(''); setDateTo(''); }
+  };
 
   const handleReset = () => {
     setDateFrom('');
@@ -256,8 +265,8 @@ export const PoliceComplaintsPage = () => {
   const labelCls = 'text-xs font-semibold text-[#64748B] mb-1';
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-5">
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto space-y-5 px-4 sm:px-6 lg:px-8 py-6">
 
         {/* Page Header */}
         <div className="mb-2 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -290,52 +299,47 @@ export const PoliceComplaintsPage = () => {
             { label: 'Investigating', value: stats.investigating, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]' },
             { label: 'Closed', value: stats.resolved, icon: CheckCircle2, color: 'bg-[#6B7280]', text: 'text-[#6B7280]' },
           ].map(({ label, value, icon: Icon, color, text }) => (
-            <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
-              <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
+            <Card key={label} className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+              <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
-              <p className={`text-2xl font-extrabold ${text}`}>{value}</p>
-              <p className="text-xs text-[#64748B] mt-0.5">{label}</p>
+              <div>
+                <p className={`text-xl font-extrabold leading-tight ${text}`}>{value}</p>
+                <p className="text-xs text-[#64748B]">{label}</p>
+              </div>
             </Card>
           ))}
         </div>
 
-        <Card className="p-5 border border-[#60A5FA]">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-            <div>
-              <h1 className="text-xl font-extrabold text-[#0F172A]">Complaints</h1>
-              <p className="text-sm text-[#64748B] mt-0.5">{filtered.length} record{filtered.length !== 1 ? 's' : ''} found</p>
-            </div>
-            <button
-              type="button"
-              onClick={fetchData}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#60A5FA] bg-white text-sm font-semibold text-[#0F172A] hover:border-[#2563EB] transition-colors self-start sm:self-auto"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
-
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-end gap-3 mb-5">
-            <div className="flex flex-col">
+        {/* Filter bar */}
+        <Card className="mb-6 p-3 border border-[#60A5FA] bg-white">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>From</span>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={inputCls} />
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`${inputCls} w-36`} />
             </div>
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>To</span>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={inputCls} />
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`${inputCls} w-36`} />
             </div>
-            <div className="flex flex-col">
+            {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+                <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                    val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                  }`}>
+                  {lbl}
+                </button>
+              ))}
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>Crime Type</span>
-              <select value={crimeTypeFilter} onChange={e => setCrimeTypeFilter(e.target.value)} className={inputCls}>
+              <select value={crimeTypeFilter} onChange={e => setCrimeTypeFilter(e.target.value)} className={`${inputCls} w-40`}>
                 <option value="">All Types</option>
                 {crimeTypeOptions.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>Status</span>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={inputCls}>
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={`${inputCls} w-40`}>
                 <option value="">All Status</option>
                 {['pending', 'approved', 'rejected', 'investigating', 'resolved'].map(s => (
                   <option key={s} value={s}>{s === 'resolved' ? 'Closed' : s.charAt(0).toUpperCase() + s.slice(1)}</option>
@@ -343,11 +347,22 @@ export const PoliceComplaintsPage = () => {
               </select>
             </div>
 
+            {/* Station — all roles */}
+            {availableStations.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <span className={labelCls}>Station</span>
+                <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className={`${inputCls} w-40`}>
+                  <option value="">All Stations</option>
+                  {availableStations.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+
             {/* Division — DGP only */}
             {availableDivisions.length > 0 && (
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1">
                 <span className={labelCls}>Division</span>
-                <select value={divisionFilter} onChange={e => { setDivisionFilter(e.target.value); setSubdivisionFilter(''); setCircleFilter(''); setStationFilter(''); }} className={inputCls}>
+                <select value={divisionFilter} onChange={e => { setDivisionFilter(e.target.value); setSubdivisionFilter(''); setCircleFilter(''); setStationFilter(''); }} className={`${inputCls} w-40`}>
                   <option value="">All divisions</option>
                   {availableDivisions.map(d => (
                     <option key={d} value={d}>{d === 'Vijayawada' ? 'SRP Vijayawada' : d === 'Guntakal' ? 'SRP Guntakal' : d}</option>
@@ -358,9 +373,9 @@ export const PoliceComplaintsPage = () => {
 
             {/* Subdivision — DGP and SRP */}
             {availableSubdivisions.length > 0 && (
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1">
                 <span className={labelCls}>Subdivision</span>
-                <select value={subdivisionFilter} onChange={e => { setSubdivisionFilter(e.target.value); setCircleFilter(''); setStationFilter(''); }} className={inputCls}>
+                <select value={subdivisionFilter} onChange={e => { setSubdivisionFilter(e.target.value); setCircleFilter(''); setStationFilter(''); }} className={`${inputCls} w-40`}>
                   <option value="">All subdivisions</option>
                   {availableSubdivisions.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
@@ -369,55 +384,65 @@ export const PoliceComplaintsPage = () => {
 
             {/* Circle — DGP, SRP, DSRP */}
             {availableCircles.length > 0 && (
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1">
                 <span className={labelCls}>Circle</span>
-                <select value={circleFilter} onChange={e => { setCircleFilter(e.target.value); setStationFilter(''); }} className={inputCls}>
+                <select value={circleFilter} onChange={e => { setCircleFilter(e.target.value); setStationFilter(''); }} className={`${inputCls} w-40`}>
                   <option value="">All circles</option>
                   {availableCircles.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             )}
 
-            {/* Station — all roles */}
-            {availableStations.length > 0 && (
-              <div className="flex flex-col">
-                <span className={labelCls}>Station</span>
-                <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className={inputCls}>
-                  <option value="">All Stations</option>
-                  {availableStations.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            )}
-
-            <div className="flex flex-col flex-1 min-w-[160px]">
+            <div className="flex flex-col gap-1">
               <span className={labelCls}>Search</span>
-              <div className="relative">
+              <div className="relative w-44">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#94A3B8]" />
                 <input
                   type="text"
-                  placeholder="Complaint No, description…"
+                  placeholder="Complaint No, name, email..."
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   className={`${inputCls} pl-8 w-full`}
                 />
               </div>
             </div>
+
             <button
               type="button"
               onClick={handleReset}
-              className="self-end inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#60A5FA] bg-white text-sm font-semibold text-[#64748B] hover:border-[#2563EB] hover:text-[#2563EB] transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors whitespace-nowrap"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
               Reset
             </button>
-            <button
-              type="button"
-              onClick={() => exportToExcel(`complaints_${new Date().toISOString().slice(0, 10)}.xlsx`, filtered)}
-              className="self-end inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export Excel
-            </button>
+          </div>
+        </Card>
+
+        {/* Complaints Table */}
+        <Card className="p-5 border border-[#60A5FA] bg-white">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+            <div>
+              <h1 className="text-xl font-extrabold text-[#0F172A]">Complaints</h1>
+              <p className="text-sm text-[#64748B] mt-0.5">{filtered.length} record{filtered.length !== 1 ? 's' : ''} found</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={fetchData}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#60A5FA] bg-white text-sm font-semibold text-[#0F172A] hover:border-[#2563EB] transition-colors self-start sm:self-auto"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => exportToExcel(`complaints_${new Date().toISOString().slice(0, 10)}.xlsx`, filtered)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export Excel
+              </button>
+            </div>
           </div>
 
           {loading && (
@@ -442,87 +467,80 @@ export const PoliceComplaintsPage = () => {
 
           {!loading && !error && (
             <div className="overflow-x-auto rounded-lg border border-[#60A5FA]">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-[#F1F5F9]">
-                    <TableHead className="text-xs font-bold text-[#64748B]">S.No</TableHead>
-                    <SortHead label="Complaint No" col="tracking_number" />
-                    <SortHead label="Crime Type" col="complaint_type" />
-                    <SortHead label="Complainant" col="complainant_name" />
-                    <SortHead label="Station" col="station" />
-                    <SortHead label="Date" col="incident_date" />
-                    <SortHead label="Location" col="location" />
-                    <SortHead label="Status" col="status" />
-                    <TableHead className="text-xs font-bold text-[#64748B]">Description</TableHead>
-                    <TableHead className="text-xs font-bold text-[#64748B]">Documents</TableHead>
+              <Table className="border-collapse">
+                <TableHeader className="bg-[#F8FAFC]">
+                  <TableRow className="hover:bg-[#F8FAFC]">
+                    <TableHead className="border border-[#60A5FA] px-4 py-3 w-16 text-left font-bold text-[#0F172A] whitespace-nowrap">S.No</TableHead>
+                    <SortHead label="Complaint No" col="tracking_number" className="min-w-[160px]" />
+                    <SortHead label="Crime Type" col="complaint_type" className="min-w-[120px]" />
+                    <SortHead label="Date" col="incident_date" className="min-w-[110px]" />
+                    <SortHead label="Name" col="complainant_name" className="min-w-[140px]" />
+                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[120px] whitespace-nowrap">Phone</TableHead>
+                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px] whitespace-nowrap">Aadhaar</TableHead>
+                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px] whitespace-nowrap">Email</TableHead>
+                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[240px] whitespace-nowrap">Address</TableHead>
+                    <SortHead label="Station" col="station" className="min-w-[120px]" />
+                    <SortHead label="Location" col="location" className="min-w-[130px]" />
+                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[280px] whitespace-nowrap">Description</TableHead>
+                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[110px] whitespace-nowrap">Documents</TableHead>
+                    <SortHead label="Status" col="status" className="min-w-[100px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-10 text-[#94A3B8]">
+                      <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-10 text-center text-[#94A3B8]">
                         No complaints found.
                       </TableCell>
                     </TableRow>
                   ) : (
                     sortedFiltered.map((c, i) => (
-                      <React.Fragment key={c.id || i}>
-                      <TableRow className="hover:bg-[#F8FAFC] cursor-pointer" onClick={(e) => { if (e.target.closest('button,a,select')) return; setViewComplaint(c); }}>
-                        <TableCell className="text-sm text-[#64748B]">{i + 1}</TableCell>
-                        <TableCell className="text-sm font-mono font-semibold text-[#2563EB]">{c.tracking_number || '-'}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{(c.complaint_type || '-').replace(/_/g, ' ')}</TableCell>
-                        <TableCell className="text-sm">
-                          <div className="font-semibold text-[#0F172A]">{c.complainant_name || '-'}</div>
-                          <div className="text-xs text-[#64748B]">{c.complainant_phone || ''}</div>
-                          <div className="text-xs text-[#64748B]">Aadhaar: {c.aadhar_number || '-'}</div>
-                          <div className="text-xs text-[#64748B]">{c.complainant_email || ''}</div>
+                      <TableRow key={c.id || i} className="hover:bg-[#F8FAFF]">
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left font-semibold text-[#0F172A]">{i + 1}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left font-mono text-base text-[#2563EB] font-semibold whitespace-nowrap">{c.tracking_number || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left capitalize text-base text-[#334155]">{(c.complaint_type || '-').replace(/_/g, ' ')}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.incident_date || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_name || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_phone || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155]">{c.complainant_email || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[240px]">
+                          <button
+                            type="button"
+                            onClick={() => setAddressModal(c.address || '-')}
+                            className="text-left text-sm text-[#2563EB] underline cursor-pointer hover:text-[#1D4ED8] line-clamp-2"
+                          >
+                            {c.address || '-'}
+                          </button>
                         </TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{c.station || '-'}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{c.incident_date || '-'}</TableCell>
-                        <TableCell className="text-sm text-[#0F172A]">{c.location || '-'}</TableCell>
-                        <TableCell>
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155]">{c.station || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.location || '-'}</TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[280px]">
+                          <button
+                            type="button"
+                            onClick={() => setDescriptionModal(c.description || '-')}
+                            className="text-left text-sm text-[#2563EB] underline cursor-pointer hover:text-[#1D4ED8] line-clamp-3"
+                          >
+                            {c.description || '-'}
+                          </button>
+                        </TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left">
+                          {c.supporting_docs?.length ? (
+                            <button
+                              type="button"
+                              onClick={() => setDocsModal({ docs: c.supporting_docs, tracking: c.tracking_number })}
+                              className="px-3 py-1 bg-[#2563EB] text-white text-xs font-medium rounded hover:bg-[#1D4ED8] transition-colors"
+                            >
+                              View
+                            </button>
+                          ) : <span className="text-xs text-[#94A3B8]">No Docs</span>}
+                        </TableCell>
+                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left min-w-[140px]">
+                          <span className={`inline-flex text-xs font-semibold px-2 py-1 rounded-full capitalize ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-700'}`}>
                             {c.status === 'resolved' ? 'Closed' : (c.status || '-')}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm text-[#475569] max-w-[220px] truncate" title={c.description || ''}>
-                          {c.description || '-'}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <div className="flex flex-col gap-1">
-                            {c.supporting_docs?.length ? (
-                              <button
-                                type="button"
-                                onClick={() => setDocsModal({ docs: c.supporting_docs, tracking: c.tracking_number })}
-                                className="text-xs text-[#2563EB] underline text-left"
-                              >
-                                View Docs ({c.supporting_docs.length})
-                              </button>
-                            ) : <span className="text-xs text-[#94A3B8]">No Docs</span>}
-                            <button
-                              type="button"
-                              onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                              className="text-xs text-[#64748B] flex items-center gap-0.5 hover:text-[#2563EB]"
-                            >
-                              {expandedId === c.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              Details
-                            </button>
-                          </div>
-                        </TableCell>
                       </TableRow>
-                      {expandedId === c.id && (
-                        <TableRow key={`${c.id}-detail`} className="bg-[#F0F9FF]">
-                          <TableCell colSpan={9} className="px-6 py-4 border-b border-[#60A5FA]">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Aadhaar Number</span><span className="text-[#0F172A]">{c.aadhar_number || '-'}</span></div>
-                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Address</span><span className="text-[#0F172A]">{c.address || '-'}</span></div>
-                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Date of Incident</span><span className="text-[#0F172A]">{c.incident_date || '-'}</span></div>
-                              <div><span className="font-semibold text-[#64748B] block text-xs mb-0.5">Email</span><span className="text-[#0F172A]">{c.complainant_email || '-'}</span></div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      </React.Fragment>
                     ))
                   )}
                 </TableBody>
@@ -584,6 +602,30 @@ export const PoliceComplaintsPage = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Address Modal */}
+      <Dialog open={!!addressModal} onOpenChange={open => { if (!open) setAddressModal(null); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-[#0F172A]">Address</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-[#334155] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 whitespace-pre-wrap">
+            {addressModal}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Description Modal */}
+      <Dialog open={!!descriptionModal} onOpenChange={open => { if (!open) setDescriptionModal(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-[#0F172A]">Description</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-[#334155] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 whitespace-pre-wrap max-h-[60vh] overflow-y-auto">
+            {descriptionModal}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

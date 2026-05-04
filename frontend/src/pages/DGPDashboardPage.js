@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowUpRight, Building2, Download, ShieldCheck, Image as ImageIcon, Eye, LogIn, FileText, Clock, ThumbsUp, ThumbsDown, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowUpRight, Building2, Download, RefreshCw, ShieldCheck, Image as ImageIcon, Eye, LogIn, FileText, Clock, ThumbsUp, ThumbsDown, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { dgpAPI } from '@/lib/api';
 import { getAllStations, getStationHierarchy } from '@/lib/policeScope';
@@ -236,6 +236,12 @@ export const DGPDashboardPage = () => {
     setSearchText('');
   };
 
+  const applyDatePreset = (preset) => {
+    if (preset === '7d') { applyLast7DaysPreset(); }
+    else if (preset === '30d') { applyLast30DaysPreset(); }
+    else { setFromDate(''); setToDate(''); }
+  };
+
   const statusPieData = useMemo(() => {
     const counts = {};
     filteredComplaints.forEach(c => { const s = c.status || 'unknown'; counts[s] = (counts[s] || 0) + 1; });
@@ -294,8 +300,8 @@ export const DGPDashboardPage = () => {
   }
 
   return (
-    <div className="min-h-screen pt-8 px-4 pb-10 bg-[#F8FAFC]">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen pt-8 pb-10 bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -330,6 +336,29 @@ export const DGPDashboardPage = () => {
           <Card className="mb-6 p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>
         )}
 
+
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          {[
+            { label: 'Total', value: filteredComplaints.length, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]', filter: '' },
+            { label: 'Pending', value: filteredComplaints.filter(c => c.status === 'pending').length, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]', filter: 'pending' },
+            { label: 'Approved', value: filteredComplaints.filter(c => c.status === 'approved').length, icon: ThumbsUp, color: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]', filter: 'approved' },
+            { label: 'Rejected', value: filteredComplaints.filter(c => c.status === 'rejected').length, icon: ThumbsDown, color: 'bg-[#EF4444]', text: 'text-[#EF4444]', filter: 'rejected' },
+            { label: 'Investigating', value: filteredComplaints.filter(c => c.status === 'investigating').length, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]', filter: 'investigating' },
+            { label: 'Closed', value: filteredComplaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, color: 'bg-[#6B7280]', text: 'text-[#6B7280]', filter: 'resolved' },
+          ].map(({ label, value, icon: Icon, color, text, filter }) => (
+            <Card key={label} className={`p-3 border cursor-pointer transition-all flex flex-row items-center gap-3 ${complaintStatusFilter === filter && filter !== '' ? 'border-[#2563EB] bg-[#EFF6FF] shadow-md' : 'border-[#60A5FA] bg-white hover:shadow-md hover:border-[#2563EB]'}`} onClick={() => setComplaintStatusFilter(prev => prev === filter ? '' : filter)}>
+              <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className={`text-xl font-extrabold leading-tight ${text}`}>{value}</p>
+                <p className="text-xs text-[#64748B]">{label}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+
         <Card className="mb-6 p-4 border border-[#60A5FA] bg-white">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
@@ -348,6 +377,15 @@ export const DGPDashboardPage = () => {
               </select>
             </div>
             <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Status</label>
+              <select value={complaintStatusFilter} onChange={(e) => setComplaintStatusFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="investigating">Investigating</option>
+                <option value="resolved">Closed</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
               <label className="text-xs text-[#64748B]">Division</label>
               <select value={divisionFilter} onChange={(e) => { setDivisionFilter(e.target.value); setSubdivisionFilter(''); setCircleFilter(''); setStationFilter(''); }} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
                 <option value="">All divisions</option>
@@ -358,8 +396,9 @@ export const DGPDashboardPage = () => {
                 ))}
               </select>
             </div>
+
             {subdivisionOptions.length > 0 && (
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 w-44">
                 <label className="text-xs text-[#64748B]">Subdivision</label>
                 <select value={subdivisionFilter} onChange={(e) => { setSubdivisionFilter(e.target.value); setCircleFilter(''); setStationFilter(''); }} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
                   <option value="">All subdivisions</option>
@@ -385,50 +424,23 @@ export const DGPDashboardPage = () => {
                 </select>
               </div>
             )}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-[#64748B]">Status</label>
-              <select value={complaintStatusFilter} onChange={(e) => setComplaintStatusFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
-                <option value="">All statuses</option>
-                <option value="pending">Pending</option>
-                <option value="investigating">Investigating</option>
-                <option value="resolved">Closed</option>
-              </select>
-            </div>
-            <button type="button" onClick={resetFilters} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md bg-white text-[#334155] hover:bg-[#F8FAFC]">
-              Reset
+
+            {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+              <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                  val === '' && !fromDate && !toDate ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}>
+                {lbl}
+              </button>
+            ))}
+            <button type="button" onClick={resetFilters} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors border border-[#2563EB] whitespace-nowrap">
+              <RefreshCw className="w-3.5 h-3.5" /> Reset
             </button>
-            <button type="button" onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#2563EB] rounded-md bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]">
+            <button type="button" onClick={handleExport} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border border-[#2563EB] bg-white text-[#2563EB] hover:bg-[#EFF6FF] transition-colors whitespace-nowrap">
               <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
           </div>
         </Card>
-
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-          {[
-            { label: 'Total', value: filteredComplaints.length, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]', filter: '' },
-            { label: 'Pending', value: filteredComplaints.filter(c => c.status === 'pending').length, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]', filter: 'pending' },
-            { label: 'Approved', value: filteredComplaints.filter(c => c.status === 'approved').length, icon: ThumbsUp, color: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]', filter: 'approved' },
-            { label: 'Rejected', value: filteredComplaints.filter(c => c.status === 'rejected').length, icon: ThumbsDown, color: 'bg-[#EF4444]', text: 'text-[#EF4444]', filter: 'rejected' },
-            { label: 'Investigating', value: filteredComplaints.filter(c => c.status === 'investigating').length, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]', filter: 'investigating' },
-            { label: 'Closed', value: filteredComplaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, color: 'bg-[#6B7280]', text: 'text-[#6B7280]', filter: 'resolved' },
-          ].map(({ label, value, icon: Icon, color, text, filter }) => (
-            <Card key={label} className={`p-4 border border-[#60A5FA] bg-white cursor-pointer transition-shadow hover:shadow-md ${complaintStatusFilter === filter && filter !== '' ? 'ring-2 ring-[#2563EB]' : ''}`} onClick={() => setComplaintStatusFilter(prev => prev === filter ? '' : filter)}>
-              <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
-                <Icon className="w-4 h-4 text-white" />
-              </div>
-              <p className={`text-2xl font-extrabold ${text}`}>{value}</p>
-              <p className="text-xs text-[#64748B] mt-0.5">{label}</p>
-            </Card>
-          ))}
-        </div>
-
-        {/* Export button */}
-        <div className="flex justify-end mb-4">
-          <button type="button" onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#2563EB] rounded-md bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]">
-            <Download className="w-3.5 h-3.5" /> Export Complaints CSV
-          </button>
-        </div>
 
         {/* Charts row 1 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

@@ -371,6 +371,8 @@ const StationComplaintsPage = () => {
   const [docsModal, setDocsModal] = useState(null);
   const [pendingStatus, setPendingStatus] = useState({});
   const [viewComplaint, setViewComplaint] = useState(null);
+  const [addressModal, setAddressModal] = useState(null);
+  const [descriptionModal, setDescriptionModal] = useState(null);
   const [sortKey, setSortKey] = useState('');
   const [sortDir, setSortDir] = useState('asc');
 
@@ -386,6 +388,14 @@ const StationComplaintsPage = () => {
     if (preset === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
     else if (preset === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
     else { setDateFrom(''); setDateTo(''); }
+  };
+
+  const resetFilters = () => {
+    setDateFrom('');
+    setDateTo('');
+    setCrimeFilter('');
+    setStatusFilter('');
+    setSearchText('');
   };
 
   const fetchData = async () => {
@@ -495,14 +505,11 @@ const StationComplaintsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Page Header */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
-          <Button type="button" variant="outline" onClick={() => navigate('/station-dashboard')} className="border-[#CBD5E1]">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-          </Button>
           <div className="flex items-center gap-3">
             <Building2 className="w-7 h-7 text-[#2563EB]" />
             <div>
@@ -510,6 +517,9 @@ const StationComplaintsPage = () => {
               <p className="text-sm text-[#64748B]">Welcome, <span className="font-semibold text-[#2563EB]">{user?.name}</span></p>
             </div>
           </div>
+          <Button type="button" variant="outline" onClick={() => navigate('/station-dashboard')} className="border-[#CBD5E1]">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+          </Button>
         </div>
 
         {error && <Card className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>}
@@ -526,94 +536,124 @@ const StationComplaintsPage = () => {
           ].map(({ label, value, icon: Icon, color, text, filter }) => (
             <Card
               key={label}
-              className={`p-4 border border-[#60A5FA] bg-white cursor-pointer transition-shadow hover:shadow-md ${statusFilter === filter ? 'ring-2 ring-[#2563EB]' : ''}`}
+              className={`p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3 ${
+                statusFilter === filter ? 'border-[#2563EB] bg-[#EFF6FF] shadow-md' : ''
+              }`}
               onClick={() => setStatusFilter(filter)}
             >
-              <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
+              <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
-              <p className={`text-2xl font-extrabold ${text}`}>{value}</p>
-              <p className="text-xs text-[#64748B] mt-0.5">{label}</p>
+              <div>
+                <p className={`text-xl font-extrabold leading-tight ${text}`}>{value}</p>
+                <p className="text-xs text-[#64748B]">{label}</p>
+              </div>
             </Card>
           ))}
         </div>
 
         {/* Filters */}
         <Card className="mb-4 p-3 border border-[#60A5FA] bg-white">
-          <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-              title="From date"
-              className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            />
-            <input
-              type="date"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-              title="To date"
-              className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            />
+          <div className="flex items-end gap-2 flex-wrap">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">From</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="w-36 px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">To</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="w-36 px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+              />
+            </div>
             {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
               <button key={val} type="button" onClick={() => applyDatePreset(val)}
-                className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
-                  val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
+                className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                  val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
                 }`}>
                 {lbl}
               </button>
             ))}
-            <select
-              value={crimeFilter}
-              onChange={e => setCrimeFilter(e.target.value)}
-              className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All crime types</option>
-              {crimeTypeOptions.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-            >
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="investigating">Investigating</option>
-              <option value="resolved">Closed</option>
-            </select>
-            <div className="relative flex-1 min-w-[140px]">
-              <Search className="w-4 h-4 text-[#94A3B8] absolute left-2 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-                placeholder="Search complaints..."
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-              />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Crime Type</label>
+              <select
+                value={crimeFilter}
+                onChange={e => setCrimeFilter(e.target.value)}
+                className="w-40 px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+              >
+                <option value="">All crime types</option>
+                {crimeTypeOptions.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
             </div>
-            <Button type="button" size="sm" variant="outline" onClick={fetchData} className="flex items-center gap-1.5 border border-[#CBD5E1]">
-              <RefreshCw className="w-4 h-4" /> Refresh
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => exportToExcel(`complaints_${(user?.name || 'station').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`, filtered)}
-              className="ml-auto flex items-center gap-1.5 bg-[#2563EB] text-white hover:bg-[#1D4ED8]"
-            >
-              <Download className="w-4 h-4" /> Export Excel
-            </Button>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="w-40 px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+              >
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="investigating">Investigating</option>
+                <option value="resolved">Closed</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Search</label>
+              <div className="relative w-44">
+                <Search className="w-4 h-4 text-[#94A3B8] absolute left-2 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  placeholder="Search complaints..."
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+                />
+              </div>
+            </div>
+            <button type="button" onClick={resetFilters} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors border border-[#2563EB] whitespace-nowrap">
+              <X className="w-3.5 h-3.5" /> Reset
+            </button>
           </div>
         </Card>
 
         {/* Complaints Table */}
         <Card className="p-0 overflow-hidden border border-[#60A5FA]">
-          <div className="p-4 border-b border-[#60A5FA] flex items-center gap-2 font-semibold text-[#0F172A] bg-white">
-            <FileText className="w-4 h-4" />
-            Complaints ({filtered.length})
+          <div className="p-4 border-b border-[#60A5FA] flex items-center justify-between gap-2 bg-white">
+            <div className="flex items-center gap-2 font-semibold text-[#0F172A]">
+              <FileText className="w-4 h-4" />
+              Complaints ({filtered.length})
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={fetchData}
+                className="flex items-center gap-1.5 border border-[#CBD5E1]"
+              >
+                <RefreshCw className="w-4 h-4" /> Refresh
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => exportToExcel(`complaints_${(user?.name || 'station').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`, filtered)}
+                className="flex items-center gap-1.5 bg-[#2563EB] text-white hover:bg-[#1D4ED8]"
+              >
+                <Download className="w-4 h-4" /> Export Excel
+              </Button>
+            </div>
           </div>
           <p className="text-xs text-[#64748B] px-4 pt-2 pb-1">{filtered.length} record{filtered.length !== 1 ? 's' : ''} found</p>
           <div className="overflow-x-auto rounded-b-xl">
@@ -632,7 +672,7 @@ const StationComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[130px]">Location</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[280px]">Description</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[110px]">Documents</TableHead>
-                  <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[160px]">Download Complaint</TableHead>
+                  <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px] whitespace-nowrap">Download Complaint</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px]">Status</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px]">Actions</TableHead>
                 </TableRow>
@@ -657,11 +697,23 @@ const StationComplaintsPage = () => {
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155]">{c.complainant_email || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[240px]">
-                        <div className="line-clamp-2 text-sm text-[#334155]">{c.address || '-'}</div>
+                        <button
+                          type="button"
+                          onClick={() => setAddressModal(c.address || '-')}
+                          className="text-left text-sm text-[#2563EB] underline cursor-pointer hover:text-[#1D4ED8] line-clamp-2"
+                        >
+                          {c.address || '-'}
+                        </button>
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.location || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[280px]">
-                        <div className="line-clamp-3 text-sm text-[#475569]">{c.description || '-'}</div>
+                        <button
+                          type="button"
+                          onClick={() => setDescriptionModal(c.description || '-')}
+                          className="text-left text-sm text-[#2563EB] underline cursor-pointer hover:text-[#1D4ED8] line-clamp-3"
+                        >
+                          {c.description || '-'}
+                        </button>
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left">
                         {c.supporting_docs?.length ? (
@@ -811,6 +863,30 @@ const StationComplaintsPage = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Address Modal */}
+      <Dialog open={!!addressModal} onOpenChange={open => { if (!open) setAddressModal(null); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-[#0F172A]">Address</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-[#334155] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 whitespace-pre-wrap">
+            {addressModal}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Description Modal */}
+      <Dialog open={!!descriptionModal} onOpenChange={open => { if (!open) setDescriptionModal(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-[#0F172A]">Description</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-[#334155] bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 whitespace-pre-wrap max-h-[60vh] overflow-y-auto">
+            {descriptionModal}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

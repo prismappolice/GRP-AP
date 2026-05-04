@@ -322,11 +322,6 @@ const AdminGalleryPage = () => {
           title="Gallery"
           description="Manage gallery images and update the latest news shown on the home page."
         />
-        <div className="mb-4">
-          <button onClick={() => navigate('/admin-dashboard')} className="inline-flex items-center gap-2 text-sm text-[#2563EB] hover:underline font-medium">
-            ← Back to Dashboard
-          </button>
-        </div>
 
         {/* Tab Buttons */}
         <div className="flex justify-center gap-3 mb-8">

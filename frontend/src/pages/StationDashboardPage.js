@@ -241,8 +241,8 @@ export const StationDashboardPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -321,42 +321,26 @@ export const StationDashboardPage = () => {
         </div>
 
         {/* Filters + Export */}
-        <Card className="mb-6 p-4 border border-[#60A5FA] bg-white">
-          <p className="text-xs font-semibold text-[#475569] mb-3 uppercase tracking-wide">Filter Charts</p>
-          <div className="flex flex-wrap gap-3 items-end">
+        <Card className="mb-6 border border-[#60A5FA] bg-white">
+          <div className="flex flex-wrap gap-2 items-end p-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-[#64748B]">From</label>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-44 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-[#64748B]">To</label>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-[#64748B]">Quick Select</label>
-              <div className="flex gap-1">
-                {[['7d','Last 7d'],['30d','Last 30d'],['month','This Month'],['','All']].map(([val, lbl]) => (
-                  <button key={val} type="button" onClick={() => applyDatePreset(val)}
-                    className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
-                      (val === '' && !dateFrom && !dateTo) || (val !== '' && dateFrom === new Date(val === '7d' ? Date.now()-7*86400000 : val === '30d' ? Date.now()-30*86400000 : new Date(new Date().getFullYear(), new Date().getMonth(), 1)).toISOString().slice(0,10))
-                        ? 'bg-[#2563EB] text-white border-[#2563EB]'
-                        : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
-                    }`}>
-                    {lbl}
-                  </button>
-                ))}
-              </div>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-44 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-[#64748B]">Crime Type</label>
-              <select value={crimeTypeFilter} onChange={e => setCrimeTypeFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+              <select value={crimeTypeFilter} onChange={e => setCrimeTypeFilter(e.target.value)} className="w-48 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
                 <option value="">All Types</option>
                 {crimeTypeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-[#64748B]">Status</label>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-48 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
                 <option value="">All Statuses</option>
                 <option value="pending">Pending</option>
                 <option value="investigating">Investigating</option>
@@ -365,11 +349,17 @@ export const StationDashboardPage = () => {
                 <option value="rejected">Rejected</option>
               </select>
             </div>
-            <div className="flex items-end gap-2 ml-auto">
-              <Button type="button" size="sm" variant="outline" onClick={fetchData} className="flex items-center gap-1.5">
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </Button>
-            </div>
+            {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+              <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                className={`px-5 py-2 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                  val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}>
+                {lbl}
+              </button>
+            ))}
+            <button type="button" onClick={fetchData} className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors border border-[#2563EB] whitespace-nowrap">
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            </button>
           </div>
         </Card>
 

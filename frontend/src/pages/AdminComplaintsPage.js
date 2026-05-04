@@ -200,11 +200,6 @@ const AdminComplaintsPage = () => {
     <div className="min-h-screen pt-8 pb-12 bg-[#F8FAFC]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <AdminPageHero title="Complaints" description="Track, review, and update all complaints submitted through the portal." />
-        <div className="mb-4">
-          <button onClick={() => navigate('/admin-dashboard')} className="inline-flex items-center gap-2 text-sm text-[#2563EB] hover:underline font-medium">
-            ← Back to Dashboard
-          </button>
-        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-2">
           {[
             { label: 'Total', value: stats.total, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]',
@@ -257,13 +252,84 @@ const AdminComplaintsPage = () => {
             </Card>
           ))}
         </div>
-        <Card className="p-8 mb-8 border border-[#60A5FA] shadow-sm bg-white">
-          <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-            <h2 className="text-2xl font-bold text-[#0F172A]">All Complaints</h2>
+
+        {/* Filter bar */}
+        <Card className="mb-6 p-3 border border-[#60A5FA] bg-white">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-[#64748B]">From</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-32 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-[#64748B]">To</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-32 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-[#64748B]">Crime Type</span>
+              <select value={crimeFilter} onChange={e => setCrimeFilter(e.target.value)} className="w-36 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
+                <option value="">All crime types</option>
+                {crimeTypeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-[#64748B]">Status</span>
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-36 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
+                <option value="">All statuses</option>
+                {['pending','approved','rejected','investigating','resolved'].map(s => (
+                  <option key={s} value={s}>{s === 'resolved' ? 'Closed' : s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-[#64748B]">Station</span>
+              <select value={['assigned','Unassigned',''].includes(stationFilter) ? '' : stationFilter} onChange={e => setStationFilter(e.target.value || 'assigned')} className="w-36 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
+                <option value="">All Stations</option>
+                {assignedStationOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-[#64748B]">Assignment</span>
+              <select value={['assigned','Unassigned'].includes(stationFilter) ? stationFilter : stationFilter ? 'assigned' : ''} onChange={e => setStationFilter(e.target.value)} className="w-32 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
+                <option value="">All</option>
+                <option value="assigned">Assigned</option>
+                <option value="Unassigned">Unassigned</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-[#64748B]">Search</span>
+              <div className="relative w-46">
+                <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full pl-9 pr-3 h-9 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB]"
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter(''); setCrimeFilter(''); setStationFilter(''); setSearchText(''); }}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors whitespace-nowrap"
+            >
+              <X className="w-4 h-4" />
+              Reset
+            </button>
+          </div>
+        </Card>
+
+        {/* Complaints Table */}
+        <Card className="p-0 overflow-hidden border border-[#60A5FA] bg-white">
+          <div className="p-4 border-b border-[#60A5FA] flex items-center justify-between gap-2 bg-white">
+            <div className="flex items-center gap-2 font-semibold text-[#0F172A]">
+              <FileText className="w-4 h-4" />
+              All Complaints ({filteredComplaints.length})
+            </div>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { fetchComplaints(); setDateFrom(''); setDateTo(''); setStatusFilter(''); setCrimeFilter(''); setStationFilter(''); setSearchText(''); }}
+                onClick={fetchComplaints}
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#60A5FA] bg-white text-sm font-semibold text-[#64748B] hover:border-[#2563EB] hover:text-[#2563EB] transition-colors"
               >
                 <RefreshCw className="w-3.5 h-3.5" /> Refresh
@@ -277,65 +343,8 @@ const AdminComplaintsPage = () => {
               </button>
             </div>
           </div>
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-end gap-3 mb-4">
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#64748B] mb-1">From</span>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#64748B] mb-1">To</span>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#64748B] mb-1">Crime Type</span>
-              <select value={crimeFilter} onChange={e => setCrimeFilter(e.target.value)} className="h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
-                <option value="">All Types</option>
-                {crimeTypeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#64748B] mb-1">Status</span>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
-                <option value="">All Status</option>
-                {['pending','approved','rejected','investigating','resolved'].map(s => (
-                  <option key={s} value={s}>{s === 'resolved' ? 'Closed' : s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
-              </select>
-            </div>
-              <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#64748B] mb-1">Station</span>
-              <select value={['assigned','Unassigned',''].includes(stationFilter) ? '' : stationFilter} onChange={e => setStationFilter(e.target.value || 'assigned')} className="h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
-                <option value="">All Stations</option>
-                {assignedStationOptions.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#64748B] mb-1">Assignment</span>
-              <select value={['assigned','Unassigned'].includes(stationFilter) ? stationFilter : stationFilter ? 'assigned' : ''} onChange={e => setStationFilter(e.target.value)} className="h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
-                <option value="">All</option>
-                <option value="assigned">Assigned</option>
-                <option value="Unassigned">Unassigned</option>
-              </select>
-            </div>
-
-
-            <div className="flex flex-col flex-1 min-w-[180px]">
-              <span className="text-xs font-semibold text-[#64748B] mb-1">Search</span>
-              <div className="relative">
-                <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchText}
-                  onChange={e => setSearchText(e.target.value)}
-                  placeholder="Complaint No, name, email..."
-                  className="w-full pl-9 pr-3 h-9 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB]"
-                />
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-[#64748B] mb-3">{filteredComplaints.length} record{filteredComplaints.length !== 1 ? 's' : ''} found</p>
-          <div className="overflow-x-auto rounded-xl border border-[#60A5FA]" ref={tableScrollRef}>
+          <p className="text-xs text-[#64748B] px-4 pt-2 pb-1">{filteredComplaints.length} record{filteredComplaints.length !== 1 ? 's' : ''} found</p>
+          <div className="overflow-x-auto rounded-b-xl" ref={tableScrollRef}>
             <Table className="border-collapse">
               <TableHeader className="bg-[#F8FAFC]">
                 <TableRow className="hover:bg-[#F8FAFC]">

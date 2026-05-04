@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
 import { stations } from '@/data/stations';
-import { RefreshCw, Image as ImageIcon, Eye, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Image as ImageIcon, Eye, AlertTriangle, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -68,6 +68,24 @@ const UnidentifiedBodiesPage = () => {
 
   const grouped = useMemo(() => groupRecords(filtered), [filtered]);
 
+  const applyDatePreset = (preset) => {
+    const today = new Date();
+    const formatDate = (d) => d.toISOString().split('T')[0];
+    
+    if (preset === '7d') {
+      const from = new Date(today); from.setDate(from.getDate() - 7);
+      setDateFrom(formatDate(from));
+      setDateTo(formatDate(today));
+    } else if (preset === '30d') {
+      const from = new Date(today); from.setDate(from.getDate() - 30);
+      setDateFrom(formatDate(from));
+      setDateTo(formatDate(today));
+    } else {
+      setDateFrom('');
+      setDateTo('');
+    }
+  };
+
   const fetchRecords = async () => {
     try {
       setLoading(true);
@@ -111,59 +129,91 @@ const UnidentifiedBodiesPage = () => {
           </Button>
         </div>
 
+        {/* Error */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 text-center mb-6">{error}</div>
+        )}
 
         {/* Table */}
         <Card className="border border-[#60A5FA] shadow-sm rounded-xl">
+          {/* Filter Bar */}
+          <div className="p-3 border-b border-[#60A5FA] bg-white">
+            <div className="flex flex-wrap items-end justify-center gap-2">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-[#64748B]">From</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="w-36 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-[#64748B]">To</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="w-36 h-9 rounded-md border border-[#60A5FA] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => applyDatePreset('7d')}
+                className={`h-9 px-4 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                  dateFrom && dateTo && Math.abs(new Date(dateTo) - new Date(dateFrom)) <= 7 * 24 * 60 * 60 * 1000
+                    ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]'
+                    : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}
+              >
+                Last 7d
+              </button>
+              <button
+                type="button"
+                onClick={() => applyDatePreset('30d')}
+                className={`h-9 px-4 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                  dateFrom && dateTo && Math.abs(new Date(dateTo) - new Date(dateFrom)) <= 30 * 24 * 60 * 60 * 1000 && Math.abs(new Date(dateTo) - new Date(dateFrom)) > 7 * 24 * 60 * 60 * 1000
+                    ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]'
+                    : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}
+              >
+                Last 30d
+              </button>
+              <button
+                type="button"
+                onClick={() => applyDatePreset('')}
+                className={`h-9 px-4 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                  !dateFrom && !dateTo
+                    ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]'
+                    : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}
+              >
+                All
+              </button>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-[#64748B]">Search</span>
+                <div className="relative w-56">
+                  <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchText}
+                    onChange={e => setSearchText(e.target.value)}
+                    placeholder="Description or station..."
+                    className="w-full pl-9 pr-3 h-9 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB]"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setSearchText(''); setDateFrom(''); setDateTo(''); }}
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors whitespace-nowrap"
+              >
+                <X className="w-4 h-4" />
+                Reset
+              </button>
+            </div>
+          </div>
           <div className="overflow-x-auto">
-                    {/* Filter/Search Bar with Date and Refresh */}
-        <div className="flex flex-col sm:flex-row items-center gap-2 mb-4 pt-2 pl-4 pr-2">
-          <input
-            type="text"
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-            placeholder="Search by description or station..."
-            className="w-full sm:w-64 px-3 py-2 border border-blue-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className="px-2 py-2 border border-blue-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="From"
-            title="From date"
-          />
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className="px-2 py-2 border border-blue-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="To"
-            title="To date"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={fetchRecords}
-            className="border-blue-200 text-blue-700 hover:bg-blue-50 shadow-sm font-semibold px-4 py-2"
-            title="Refresh"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          {(searchText || dateFrom || dateTo) && (
-            <button
-              type="button"
-              onClick={() => { setSearchText(''); setDateFrom(''); setDateTo(''); }}
-              className="ml-2 text-blue-600 hover:underline text-xs"
-            >Clear</button>
-          )}
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 text-center">{error}</div>
-        )}
           <Table>
             <TableHeader>
               <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF] border-b-2 border-[#60A5FA]">

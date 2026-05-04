@@ -163,6 +163,7 @@ const StationUnidentifiedBodiesPage = () => {
   const [mediaIndex, setMediaIndex] = useState(0);
   const [sortKey, setSortKey] = useState('');
   const [sortDir, setSortDir] = useState('asc');
+  const [descModal, setDescModal] = useState(null);
 
   const fetchRecords = async () => {
     try {
@@ -322,14 +323,26 @@ const StationUnidentifiedBodiesPage = () => {
     }
   };
 
+  function SortHead({ label, col, className = '' }) {
+    const active = sortKey === col;
+    return (
+      <TableHead
+        className={`text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3 cursor-pointer select-none hover:text-[#2563EB] ${className}`}
+        onClick={() => handleSort(col)}
+      >
+        <span className="flex items-center gap-1">
+          {label}
+          <ArrowUpDown className={`w-3 h-3 ${active ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} />
+        </span>
+      </TableHead>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12 px-4">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#F8FAFC] pt-4 pb-12">
+      <div className="max-w-7xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8">
         {/* Page Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <Button type="button" variant="outline" onClick={() => navigate('/station-dashboard')} className="border-[#CBD5E1]">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-          </Button>
           <div className="flex items-center gap-3">
             <Building2 className="w-7 h-7 text-[#2563EB]" />
             <div>
@@ -337,58 +350,61 @@ const StationUnidentifiedBodiesPage = () => {
               <p className="text-sm text-[#64748B]">Welcome, <span className="font-semibold text-[#2563EB]">{user?.name}</span></p>
             </div>
           </div>
+          <Button type="button" variant="outline" onClick={() => navigate('/station-dashboard')} className="border-[#CBD5E1]">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+          </Button>
         </div>
 
         {/* Stats Card */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-            <div className="w-12 h-12 bg-[#2563EB] rounded-lg flex items-center justify-center shrink-0">
-              <FileText className="w-6 h-6 text-white" />
+          <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+            <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center flex-shrink-0">
+              <FileText className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-3xl font-extrabold text-[#2563EB]">{filteredGrouped.length}</p>
-              <p className="text-xs text-[#64748B] mt-0.5">Total Records</p>
+              <p className="text-xl font-extrabold leading-tight text-[#2563EB]">{filteredGrouped.length}</p>
+              <p className="text-xs text-[#64748B]">Total Records</p>
             </div>
           </Card>
-          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-            <div className="w-12 h-12 bg-[#F59E0B] rounded-lg flex items-center justify-center shrink-0">
-              <Clock className="w-6 h-6 text-white" />
+          <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+            <div className="w-8 h-8 bg-[#F59E0B] rounded-lg flex items-center justify-center flex-shrink-0">
+              <Clock className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-3xl font-extrabold text-[#F59E0B]">
+              <p className="text-xl font-extrabold leading-tight text-[#F59E0B]">
                 {filteredGrouped.filter(r => {
                   const d = new Date(r.reported_date);
                   const now = new Date();
                   return !isNaN(d) && (now - d) <= 7 * 24 * 60 * 60 * 1000;
                 }).length}
               </p>
-              <p className="text-xs text-[#64748B] mt-0.5">Last 7 Days</p>
+              <p className="text-xs text-[#64748B]">Last 7 Days</p>
             </div>
           </Card>
-          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-            <div className="w-12 h-12 bg-[#8B5CF6] rounded-lg flex items-center justify-center shrink-0">
-              <Clock className="w-6 h-6 text-white" />
+          <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+            <div className="w-8 h-8 bg-[#8B5CF6] rounded-lg flex items-center justify-center flex-shrink-0">
+              <Clock className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-3xl font-extrabold text-[#8B5CF6]">
+              <p className="text-xl font-extrabold leading-tight text-[#8B5CF6]">
                 {filteredGrouped.filter(r => {
                   const d = new Date(r.reported_date);
                   const now = new Date();
                   return !isNaN(d) && (now - d) <= 30 * 24 * 60 * 60 * 1000;
                 }).length}
               </p>
-              <p className="text-xs text-[#64748B] mt-0.5">Last 30 Days</p>
+              <p className="text-xs text-[#64748B]">Last 30 Days</p>
             </div>
           </Card>
-          <Card className="p-4 border border-[#60A5FA] bg-white flex items-center gap-4">
-            <div className="w-12 h-12 bg-[#10B981] rounded-lg flex items-center justify-center shrink-0">
-              <ImageIcon className="w-6 h-6 text-white" />
+          <Card className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+            <div className="w-8 h-8 bg-[#10B981] rounded-lg flex items-center justify-center flex-shrink-0">
+              <ImageIcon className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-3xl font-extrabold text-[#10B981]">
+              <p className="text-xl font-extrabold leading-tight text-[#10B981]">
                 {filteredGrouped.reduce((sum, r) => sum + (r.mediaUrls?.length || 0), 0)}
               </p>
-              <p className="text-xs text-[#64748B] mt-0.5">Total Media Files</p>
+              <p className="text-xs text-[#64748B]">Total Media Files</p>
             </div>
           </Card>
         </div>
@@ -487,48 +503,60 @@ const StationUnidentifiedBodiesPage = () => {
 
           {/* Filter Bar */}
           <div className="border-b border-[#60A5FA] bg-white px-4 py-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-                title="From date"
-                className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-              />
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={e => setDateTo(e.target.value)}
-                title="To date"
-                className="px-2 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
-              />
+            <div className="flex items-end gap-2 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#64748B]">From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="h-9 px-3 text-sm border border-[#60A5FA] rounded-lg bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#64748B]">To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="h-9 px-3 text-sm border border-[#60A5FA] rounded-lg bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                />
+              </div>
               {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
                 <button key={val} type="button" onClick={() => applyDatePreset(val)}
-                  className={`px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
-                    val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB]' : 'bg-white text-[#475569] border-[#CBD5E1] hover:border-[#2563EB] hover:text-[#2563EB]'
+                  className={`h-9 px-4 text-sm font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                    val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
                   }`}>
                   {lbl}
                 </button>
               ))}
-              <div className="relative flex-1 min-w-[140px]">
-                <Search className="w-4 h-4 text-[#94A3B8] absolute left-2 top-1/2 -translate-y-1/2" />
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors whitespace-nowrap"
+              >
+                <X className="w-4 h-4" />
+                Reset
+              </button>
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   placeholder="Search by description or station..."
-                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]"
+                  className="w-full h-9 pl-9 pr-3 text-sm border border-[#60A5FA] rounded-lg bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                 />
               </div>
-              <Button type="button" size="sm" variant="outline" onClick={fetchRecords} disabled={loading} className="flex items-center gap-1.5 border border-[#CBD5E1]">
+              <Button type="button" size="sm" variant="outline" onClick={fetchRecords} disabled={loading} className="h-9 inline-flex items-center gap-2 px-4 rounded-lg border border-[#60A5FA] bg-white text-sm font-semibold text-[#0F172A] hover:border-[#2563EB] transition-colors">
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
               </Button>
               <Button
                 type="button"
                 size="sm"
                 onClick={exportToExcel}
-                className="ml-auto flex items-center gap-1.5 bg-[#2563EB] text-white hover:bg-[#1D4ED8]"
+                className="h-9 inline-flex items-center gap-2 px-4 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors"
               >
                 <Download className="w-4 h-4" /> Export Excel
               </Button>
@@ -536,42 +564,42 @@ const StationUnidentifiedBodiesPage = () => {
           </div>
 
           <div className="overflow-x-auto">
-          <Table>
+          <Table className="border-collapse w-full">
             <TableHeader>
-              <TableRow className="bg-[#EFF6FF] hover:bg-[#EFF6FF]">
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">S.No</TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F] cursor-pointer select-none hover:bg-[#DBEAFE]" onClick={() => handleSort('reported_date')}>
-                  <span className="inline-flex items-center gap-1">Reported Date<ArrowUpDown className={`w-3 h-3 ${sortKey === 'reported_date' ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} /></span>
-                </TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Description</TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F] cursor-pointer select-none hover:bg-[#DBEAFE]" onClick={() => handleSort('station')}>
-                  <span className="inline-flex items-center gap-1">Station<ArrowUpDown className={`w-3 h-3 ${sortKey === 'station' ? 'text-[#2563EB]' : 'text-[#CBD5E1]'}`} /></span>
-                </TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Contact No</TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Images/Videos</TableHead>
-                <TableHead className="px-4 py-3 font-bold text-[#1E3A5F]">Actions</TableHead>
+              <TableRow className="bg-[#F1F5F9]">
+                <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 w-12 border border-[#60A5FA] px-3">S.No</TableHead>
+                <SortHead label="Station" col="station" />
+                <SortHead label="Reported Date" col="reported_date" />
+                <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Description</TableHead>
+                <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Images/Videos</TableHead>
+                <TableHead className="text-xs font-bold text-[#475569] uppercase py-3 border border-[#60A5FA] px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-[#64748B]">Loading records...</TableCell>
+                  <TableCell colSpan={6} className="text-center text-[#94A3B8] py-14 text-sm border border-[#60A5FA]">Loading records...</TableCell>
                 </TableRow>
               ) : sortedFilteredGrouped.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-[#64748B]">
+                  <TableCell colSpan={6} className="text-center text-[#94A3B8] py-14 text-sm border border-[#60A5FA]">
                     {records.length === 0 ? 'No unidentified deadbody records found.' : 'No records match your filters.'}
                   </TableCell>
                 </TableRow>
               ) : (
                 sortedFilteredGrouped.map((group, index) => (
-                  <TableRow key={`${group.station}-${group.reported_date}-${index}`}>
-                    <TableCell className="px-4 py-3 font-semibold text-[#0F172A] align-center">{index + 1}</TableCell>
-                    <TableCell className="px-4 py-3 align-center">{group.reported_date}</TableCell>
-                    <TableCell className="max-w-[320px] px-4 py-3 whitespace-normal break-words align-top">{group.description}</TableCell>
-                    <TableCell className="px-4 py-3 align-center">{group.station}</TableCell>
-                    <TableCell className="px-4 py-3 align-center">{getStationPhone(group.station)}</TableCell>
-                    <TableCell className="px-4 py-3 flex items-center justify-center">
+                  <TableRow key={`${group.station}-${group.reported_date}-${index}`} className="hover:bg-[#F8FAFC] transition-colors">
+                    <TableCell className="text-sm text-[#94A3B8] py-3 text-center border border-[#60A5FA] px-3 align-center">{index + 1}</TableCell>
+                    <TableCell className="font-medium text-[#0F172A] text-sm py-3 whitespace-nowrap border border-[#60A5FA] px-3 align-center">{group.station || '-'}</TableCell>
+                    <TableCell className="text-sm text-[#475569] py-3 whitespace-nowrap border border-[#60A5FA] px-3 align-center">{group.reported_date || '-'}</TableCell>
+                    <TableCell className="text-sm py-3 max-w-xs border border-[#60A5FA] px-3 align-top">
+                      <div
+                        className="line-clamp-2 break-words cursor-pointer text-[#2563EB] hover:text-[#1D4ED8] hover:underline font-medium"
+                        title="Click to view full description"
+                        onClick={() => setDescModal(group.description)}
+                      >{group.description || '-'}</div>
+                    </TableCell>
+                    <TableCell className="py-3 border border-[#60A5FA] px-3 flex items-center justify-center">
                       {group.mediaUrls.length > 0 ? (
                         <button
                           type="button"
@@ -581,7 +609,7 @@ const StationUnidentifiedBodiesPage = () => {
                         >
                           {/\.(mp4|webm|ogg|mov|avi)$/i.test(group.mediaUrls[0]) ? (
                             <div className="w-full h-full bg-[#E2E8F0] flex items-center justify-center">
-                              <span className="text-xl font-bold text-[#64748B]">▶</span>
+                              <span className="text-lg font-bold text-[#64748B]">▶</span>
                             </div>
                           ) : (
                             <img src={normalizeMediaUrl(group.mediaUrls[0])} alt="thumb-0" className="w-full h-full object-cover" />
@@ -591,7 +619,7 @@ const StationUnidentifiedBodiesPage = () => {
                         <span className="text-xs text-[#94A3B8]">No media</span>
                       )}
                     </TableCell>
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="py-3 border border-[#60A5FA] px-3">
                       <Button type="button" size="sm" variant="outline" className="flex items-center gap-1 border-red-600 text-red-600 hover:bg-red-50" onClick={() => handleDeleteGroup(group)}>
                         <Trash2 className="h-4 w-4" /> Remove
                       </Button>
@@ -705,6 +733,18 @@ const StationUnidentifiedBodiesPage = () => {
                 </button>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Description Modal */}
+      <Dialog open={!!descModal} onOpenChange={open => { if (!open) setDescModal(null); }}>
+        <DialogContent className="max-w-lg mt-16">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-[#0F172A]">Full Description</DialogTitle>
+          </DialogHeader>
+          <div className="bg-[#F8FAFC] border border-[#60A5FA] rounded-lg p-4 text-sm text-[#334155] whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+            {descModal}
           </div>
         </DialogContent>
       </Dialog>

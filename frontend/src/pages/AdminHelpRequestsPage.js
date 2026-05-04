@@ -173,11 +173,6 @@ const AdminHelpRequestsPage = () => {
           title="Help Requests"
           description="View and manage all public help desk submissions."
         />
-          <div className="mb-4">
-                  <button onClick={() => navigate('/admin-dashboard')} className="inline-flex items-center gap-2 text-sm text-[#2563EB] hover:underline font-medium">
-                    ← Back to Dashboard
-                  </button>
-                </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           {[
             { label: 'Total Requests', value: stats.total, icon: HelpCircle, color: 'bg-[#2563EB]', text: 'text-[#2563EB]' },
@@ -185,12 +180,14 @@ const AdminHelpRequestsPage = () => {
             { label: 'Replies', value: stats.replies, icon: Mail, color: 'bg-[#6366F1]', text: 'text-[#6366F1]' },
             { label: 'Closed', value: stats.closed, icon: XCircle, color: 'bg-[#6B7280]', text: 'text-[#6B7280]' },
           ].map(({ label, value, icon: Icon, color, text }) => (
-            <Card key={label} className="p-4 border border-[#60A5FA] bg-white">
-              <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
+            <Card key={label} className="p-3 border border-[#60A5FA] bg-white cursor-pointer transition-all hover:shadow-md hover:border-[#2563EB] flex flex-row items-center gap-3">
+              <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
-              <p className={`text-2xl font-extrabold ${text}`}>{value}</p>
-              <p className="text-xs text-[#64748B] mt-0.5">{label}</p>
+              <div>
+                <p className={`text-xl font-extrabold leading-tight ${text}`}>{value}</p>
+                <p className="text-xs text-[#64748B]">{label}</p>
+              </div>
             </Card>
           ))}
         </div>

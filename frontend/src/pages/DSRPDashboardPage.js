@@ -153,6 +153,14 @@ export const DSRPDashboardPage = () => {
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name));
   }, [filteredComplaints]);
 
+  const applyDatePreset = (preset) => {
+    const today = new Date();
+    const fmt = d => d.toISOString().slice(0, 10);
+    if (preset === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
+    else if (preset === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
+    else { setDateFrom(''); setDateTo(''); }
+  };
+
   const handleExport = () => exportToCSV('dsrp_complaints.csv', [
     { label: 'Complaint No', key: 'tracking_number' }, { label: 'Station', key: 'station' },
     { label: 'Type', key: 'complaint_type' }, { label: 'Status', key: 'status' },
@@ -168,8 +176,8 @@ export const DSRPDashboardPage = () => {
   }
 
   return (
-    <div className="min-h-screen pt-8 px-4 pb-10 bg-[#F8FAFC]">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen pt-8 pb-10 bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -214,12 +222,14 @@ export const DSRPDashboardPage = () => {
             { label: 'Investigating', value: filteredComplaints.filter(c => c.status === 'investigating').length, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]', filter: 'investigating' },
             { label: 'Closed', value: filteredComplaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, color: 'bg-[#6B7280]', text: 'text-[#6B7280]', filter: 'resolved' },
           ].map(({ label, value, icon: Icon, color, text, filter }) => (
-            <Card key={label} className={`p-4 border border-[#60A5FA] bg-white cursor-pointer transition-shadow hover:shadow-md ${statusFilter === filter && filter !== '' ? 'ring-2 ring-[#2563EB]' : ''}`} onClick={() => setStatusFilter(prev => prev === filter ? '' : filter)}>
-              <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center mb-2`}>
+            <Card key={label} className={`p-3 border cursor-pointer transition-all flex flex-row items-center gap-3 ${statusFilter === filter && filter !== '' ? 'border-[#2563EB] bg-[#EFF6FF] shadow-md' : 'border-[#60A5FA] bg-white hover:shadow-md hover:border-[#2563EB]'}`} onClick={() => setStatusFilter(prev => prev === filter ? '' : filter)}>
+              <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
-              <p className={`text-2xl font-extrabold ${text}`}>{value}</p>
-              <p className="text-xs text-[#64748B] mt-0.5">{label}</p>
+              <div>
+                <p className={`text-xl font-extrabold leading-tight ${text}`}>{value}</p>
+                <p className="text-xs text-[#64748B]">{label}</p>
+              </div>
             </Card>
           ))}
         </div>
@@ -260,10 +270,18 @@ export const DSRPDashboardPage = () => {
                 </select>
               </div>
             )}
-            <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setCrimeTypeFilter(''); setCircleFilter(''); setStationFilter(''); setStatusFilter(''); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md bg-white text-[#334155] hover:bg-[#F8FAFC]">
+            {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+              <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                  val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}>
+                {lbl}
+              </button>
+            ))}
+            <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setCrimeTypeFilter(''); setCircleFilter(''); setStationFilter(''); setStatusFilter(''); }} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors border border-[#2563EB]">
               <RefreshCw className="w-3.5 h-3.5" /> Reset
             </button>
-            <button type="button" onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#2563EB] rounded-md bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]">
+            <button type="button" onClick={handleExport} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border border-[#2563EB] bg-white text-[#2563EB] hover:bg-[#EFF6FF] transition-colors">
               <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
           </div>

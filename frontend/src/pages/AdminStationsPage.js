@@ -494,11 +494,6 @@ export const AdminStationsPage = () => {
           title="Admin Credentials"
           description="Manage central admin credentials, the DGP login, and station hierarchy logins in the same structure shown on the organization page."
         />
-                <div className="mb-4">
-                  <button onClick={() => navigate('/admin-dashboard')} className="inline-flex items-center gap-2 text-sm text-[#2563EB] hover:underline font-medium">
-                    ← Back to Dashboard
-                  </button>
-                </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
           {[
             { label: 'Total', value: credentials.length, icon: Users, color: 'bg-[#2563EB]', text: 'text-[#2563EB]', ref: null },
