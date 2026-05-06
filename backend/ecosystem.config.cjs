@@ -4,7 +4,7 @@ module.exports = {
       name: 'grp-backend',
       cwd: '/home/prismappolice/GRP-AP',
       script: '/home/prismappolice/GRP-AP/.venv/bin/python',
-      args: '-m uvicorn backend.server:app --host 127.0.0.1 --port 8000',
+      args: '-m uvicorn backend.server:app --host 0.0.0.0 --port 8001',
       interpreter: 'none',
       autorestart: true,
       watch: false,
