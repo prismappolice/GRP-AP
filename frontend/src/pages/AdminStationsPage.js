@@ -1,0 +1,599 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AdminPageHero } from '@/components/AdminPageHero';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import api from '@/lib/api';
+import { toast } from 'sonner';
+import { Users, Shield, Award, Network, Building2, Eye, EyeOff, Search } from 'lucide-react';
+// import removed: adminStationHierarchy, getAdminHierarchyCounts
+
+const normalizeValue = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const slugify = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const hierarchyRowClasses = {
+  division: 'bg-[#DBEAFE]',
+  subdivision: 'bg-[#EFF6FF]',
+  circle: 'bg-[#FFF7ED]',
+  station: 'bg-white',
+  irp: 'bg-[#DBF4FF]', // unified color for all IRP rows (light blue)
+};
+
+// New role mapping
+const ROLE_SEQUENCE = ['dgp', 'srp', 'dsrp', 'irp', 'station'];
+
+const getRolePriority = (role) => {
+  const index = ROLE_SEQUENCE.indexOf(String(role || '').toLowerCase());
+  return index === -1 ? ROLE_SEQUENCE.length : index;
+};
+
+const IRP_RPS_NAMES = ['IRP Vijayawada', 'IRP Guntur', 'IRP Rajahmundry', 'IRP Visakhapatnam'];
+
+const sortByRoleSequence = (rows) =>
+  [...rows].sort((left, right) => {
+    const priorityDiff = getRolePriority(left?.role) - getRolePriority(right?.role);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+    return String(left?.name || '').localeCompare(String(right?.name || ''));
+  });
+
+const sortDisplayRowsByRoleSequence = (rows) =>
+  [...rows].sort((left, right) => {
+    const priorityDiff = getRolePriority(left?.node?.role) - getRolePriority(right?.node?.role);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+    return String(left?.node?.name || '').localeCompare(String(right?.node?.name || ''));
+  });
+
+const buildPlannedCredential = (node, level) => ({
+  scope: 'user',
+  id: `planned-${level}-${slugify(node.name)}`,
+  name: node.name,
+  email: `${slugify(node.name)}@grp.local`,
+  password: 'Create in backend',
+  isVirtual: true,
+});
+
+// Build credential index using both name and role for uniqueness
+const buildCredentialIndex = (rows) => {
+  const index = new Map();
+
+  rows.forEach((row) => {
+    const nameKey = normalizeValue(row.name);
+    const roleKey = normalizeValue(row.role);
+    const emailKey = normalizeValue(row.email);
+
+    // Key: name + role (for user/IRP/SIRP separation)
+    if (nameKey && roleKey) {
+      index.set(`${nameKey}__${roleKey}`, row);
+    }
+    // Key: email (for direct lookup)
+    if (emailKey) {
+      index.set(emailKey, row);
+    }
+  });
+
+  return index;
+};
+
+// Find all credentials for a node (by name and all possible roles)
+const findCredentialsForNode = (index, node) => {
+  const names = [node.name, ...(node.aliases || [])]
+    .map((value) => normalizeValue(value))
+    .filter(Boolean);
+  const roles = ['dgp', 'srp', 'dsrp', 'irp', 'station'];
+  const found = [];
+  // Try all name/role combinations
+  for (const name of names) {
+    for (const role of roles) {
+      const key = `${name}__${role}`;
+      if (index.has(key)) {
+        found.push(index.get(key));
+      }
+    }
+    // Also try just name (legacy)
+    if (index.has(name)) {
+      found.push(index.get(name));
+    }
+  }
+  // Also try email
+  if (node.email) {
+    const emailKey = normalizeValue(node.email);
+    if (index.has(emailKey)) {
+      found.push(index.get(emailKey));
+    }
+  }
+  // Remove duplicates
+  return Array.from(new Set(found));
+};
+
+const matchSearch = (term, node, credential) => {
+  if (!term) {
+    return true;
+  }
+
+  const haystack = [
+    node.name,
+    ...(node.aliases || []),
+    node.phone,
+    node.role,
+    credential?.email,
+    credential?.name,
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  return haystack.includes(term);
+};
+
+const filterStationNode = (station, searchTerm, index) => {
+  const credentials = findCredentialsForNode(index, station);
+  // If any credential matches, include the station
+  if (credentials.some((credential) => matchSearch(searchTerm, station, credential))) {
+    return station;
+  }
+  return null;
+};
+
+const filterCircleNode = (circle, searchTerm, index) => {
+  const credentials = findCredentialsForNode(index, circle);
+  const stations = circle.stations
+    .map((station) => filterStationNode(station, searchTerm, index))
+    .filter(Boolean);
+
+  if (!searchTerm || credentials.some((credential) => matchSearch(searchTerm, circle, credential))) {
+    return { ...circle, stations: circle.stations };
+  }
+
+  return stations.length > 0 ? { ...circle, stations } : null;
+};
+
+const filterSubdivisionNode = (subdivision, searchTerm, index) => {
+  const credentials = findCredentialsForNode(index, subdivision);
+  const circles = subdivision.circles
+    .map((circle) => filterCircleNode(circle, searchTerm, index))
+    .filter(Boolean);
+
+  if (!searchTerm || credentials.some((credential) => matchSearch(searchTerm, subdivision, credential))) {
+    return { ...subdivision, circles: subdivision.circles };
+  }
+
+  return circles.length > 0 ? { ...subdivision, circles } : null;
+};
+
+const filterDivisionNode = (division, searchTerm, index) => {
+  const credentials = findCredentialsForNode(index, division);
+  const subdivisions = division.subdivisions
+    .map((subdivision) => filterSubdivisionNode(subdivision, searchTerm, index))
+    .filter(Boolean);
+
+  if (!searchTerm || credentials.some((credential) => matchSearch(searchTerm, division, credential))) {
+    return { ...division, subdivisions: division.subdivisions };
+  }
+
+  return subdivisions.length > 0 ? { ...division, subdivisions } : null;
+};
+
+// Flatten hierarchy and show all credentials for each node (including SIRP/IRP for same station)
+const flattenHierarchyRows = (division, credentialIndex) => {
+  const rows = [];
+
+  // Division
+  const divisionCreds = findCredentialsForNode(credentialIndex, division);
+  if (divisionCreds.length > 0) {
+    divisionCreds.forEach((cred) => {
+      rows.push({
+        type: 'division',
+        indent: 0,
+        node: division,
+        credential: cred,
+      });
+    });
+  } else {
+    rows.push({
+      type: 'division',
+      indent: 0,
+      node: division,
+      credential: buildPlannedCredential(division, 'srp'),
+    });
+  }
+
+  sortByRoleSequence(division.subdivisions).forEach((subdivision) => {
+    const subdivisionCreds = findCredentialsForNode(credentialIndex, subdivision);
+    if (subdivisionCreds.length > 0) {
+      subdivisionCreds.forEach((cred) => {
+        rows.push({
+          type: 'subdivision',
+          indent: 1,
+          node: subdivision,
+          credential: cred,
+        });
+      });
+    } else {
+      rows.push({
+        type: 'subdivision',
+        indent: 1,
+        node: subdivision,
+        credential: buildPlannedCredential(subdivision, 'dsrp'),
+      });
+    }
+
+    sortByRoleSequence(subdivision.circles).forEach((circle) => {
+      const circleRowType = circle.renderAsStation ? 'station' : 'circle';
+      const circleRowIndent = circle.renderAsStation ? 3 : 2;
+      const circleCreds = findCredentialsForNode(credentialIndex, circle);
+      if (circleCreds.length > 0) {
+        circleCreds.forEach((cred) => {
+          rows.push({
+            type: circleRowType,
+            indent: circleRowIndent,
+            node: circle,
+            credential: cred,
+          });
+        });
+      } else {
+        rows.push({
+          type: circleRowType,
+          indent: circleRowIndent,
+          node: circle,
+          credential: circle.renderAsStation ? null : buildPlannedCredential(circle, 'irp'),
+        });
+      }
+
+      sortByRoleSequence(circle.stations).forEach((station) => {
+        const stationCreds = findCredentialsForNode(credentialIndex, station);
+        if (stationCreds.length > 0) {
+          stationCreds.forEach((cred) => {
+            rows.push({
+              type: 'station',
+              indent: circle.renderAsStation ? 4 : 3,
+              node: station,
+              credential: cred,
+            });
+          });
+        } else {
+          rows.push({
+            type: 'station',
+            indent: circle.renderAsStation ? 4 : 3,
+            node: station,
+            credential: null,
+          });
+        }
+      });
+    });
+  });
+
+  return rows;
+};
+
+export const AdminStationsPage = () => {
+  const navigate = useNavigate();
+  const isAdmin = typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true';
+  const [credentials, setCredentials] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [pwdDrafts, setPwdDrafts] = useState({});
+  const [pwdVisible, setPwdVisible] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [stationSearch, setStationSearch] = useState('');
+  const [adminSearch, setAdminSearch] = useState('');
+  const [officerSearch, setOfficerSearch] = useState('');
+  const [srpSearch, setSrpSearch] = useState('');
+  const [dsrpSearch, setDsrpSearch] = useState('');
+  const [irpSearch, setIrpSearch] = useState('');
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadData();
+    }
+  }, [isAdmin]);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const credsRes = await api.get('/admin/credentials');
+      setCredentials(credsRes.data || []);
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Failed to load admin data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onDraftChange = (key, value) => {
+    setPwdDrafts((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const centralAdmins = credentials.filter((c) => c.scope === 'admin');
+  const superiorOfficerCredentials = credentials
+    .filter((c) => c.scope === 'officer')
+    .sort((left, right) => {
+      const order = { dgp: -1, adgp: 0, dig: 1 };
+      return (order[String(left.role || '').toLowerCase()] ?? 99) - (order[String(right.role || '').toLowerCase()] ?? 99);
+    });
+
+  // SRPs Table
+  const srpNames = ['SRP Vijayawada', 'SRP Guntakal'];
+  const srpCredentials = credentials.filter(
+    (c) => c.scope === 'srp' || String(c.role || '').toLowerCase() === 'srp'
+  );
+
+  // DSRPs Table
+  const dsrpNames = [
+    'DSRP Vijayawada', 'DSRP Guntur', 'DSRP Rajahmundry', 'DSRP Visakhapatnam',
+    'DSRP Guntakal', 'DSRP Tirupati', 'DSRP Nellore',
+  ];
+  const dsrpCredentials = credentials.filter(
+    (c) => c.scope === 'dsrp' || String(c.role || '').toLowerCase() === 'dsrp'
+  );
+
+  // IRPs Table
+  const irpNames = [
+    'IRP Vijayawada', 'Vijayawada Circle',
+    'IRP Guntur', 'Guntur Circle',
+    'IRP Rajahmundry', 'Kakinada Circle', 'Bhimavaram Circle',
+    'IRP Visakhapatnam', 'Visakhapatnam Circle',
+    'Guntakal Circle', 'Kurnool Circle', 'Dharmavaram Circle',
+    'Tirupati Circle', 'Renigunta Circle', 'Kadapa Circle',
+    'Nellore Circle', 'Ongole Circle',
+  ];
+  const irpCredentials = credentials.filter(
+    (c) => c.scope === 'irp' || String(c.role || '').toLowerCase() === 'irp'
+  );
+
+  // Station Table (SIRP & HC - all from stations DB table)
+  const stationCredentials = credentials.filter(
+    (c) => c.scope === 'station' || String(c.role || '').toLowerCase() === 'station'
+  );
+
+  // Hierarchy credentials
+  let hierarchyCredentials = credentials.filter(
+    (c) =>
+      (c.scope === 'user' && ['dgp', 'srp', 'dsrp', 'irp', 'station'].includes(String(c.role || '').toLowerCase())) ||
+      (c.scope === 'officer' && String(c.role || '').toLowerCase() === 'dgp')
+  );
+
+  // Move IRP RPS stations to the top of the IRP list
+  const irpRpsRows = hierarchyCredentials.filter(
+    (c) => String(c.role || '').toLowerCase() === 'irp' && IRP_RPS_NAMES.includes(c.name)
+  );
+  const otherRows = hierarchyCredentials.filter(
+    (c) => !(String(c.role || '').toLowerCase() === 'irp' && IRP_RPS_NAMES.includes(c.name))
+  );
+  hierarchyCredentials = [...irpRpsRows, ...otherRows];
+
+  const updatePassword = async (scope, id) => {
+    const key = `${scope}:${id}`;
+    const newPassword = (pwdDrafts[key] || '').trim();
+    if (!newPassword) {
+      toast.error('Enter a new password');
+      return;
+    }
+
+    try {
+      await api.patch(`/admin/credentials/${scope}/${id}/password`, { new_password: newPassword });
+      toast.success('Password updated successfully');
+      setPwdDrafts((prev) => ({ ...prev, [key]: '' }));
+      await loadData();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Password update failed');
+    }
+  };
+
+  const adminTableRef = useRef(null);
+  const officerTableRef = useRef(null);
+  const srpTableRef = useRef(null);
+  const dsrpTableRef = useRef(null);
+  const irpTableRef = useRef(null);
+  const stationTableRef = useRef(null);
+
+  const scrollTo = (ref) => ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const renderFlatAdminTable = (title, rows, roleLabel, emptyLabel, extraHeader, tableRef) => {
+    return (
+      <div className="mb-8" ref={tableRef}>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-xl font-bold text-[#0F172A]">{title}</h3>
+          <div className="flex items-center gap-3">
+            {extraHeader}
+            <div className="inline-flex items-center rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-bold text-[#1D4ED8]">
+              Count: {rows.length}
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-[#60A5FA]">
+          <Table className="border-collapse border border-[#60A5FA]">
+            <TableHeader className="bg-[#F8FAFC]">
+              <TableRow className="hover:bg-[#F8FAFC] border border-[#60A5FA]">
+                <TableHead className="border border-[#60A5FA] px-4 py-3 w-20 text-left font-bold text-[#0F172A]">S.No</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Role</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Name</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Email</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Password</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Change Password</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableRow className="border border-[#60A5FA]">
+                  <TableCell colSpan={6} className="border border-[#60A5FA] text-center py-4 text-[#64748B]">{emptyLabel}</TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row, idx) => {
+                  const credentialKey = `${row.scope}:${row.id}`;
+                  const canUpdatePassword = Boolean(row.scope && row.id);
+                  // Show 'ADGP' for DIG row in Superior Officers Table
+                  let displayRole = row.role;
+                  if (typeof roleLabel === 'function') {
+                    displayRole = roleLabel(row);
+                  }
+                  if (row.scope === 'officer' && String(row.role).toLowerCase() === 'adgp') {
+                    displayRole = 'ADGP';
+                  }
+                  return (
+                    <TableRow key={row.id || idx} className="border border-[#60A5FA]">
+                      <TableCell className="border border-[#60A5FA]">{idx + 1}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{displayRole}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{row.name}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{row.email || '--'}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">{row.password || '--'}</TableCell>
+                      <TableCell className="border border-[#60A5FA]">
+                        <div className="flex min-w-[200px] gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              placeholder={canUpdatePassword ? 'New password' : 'Unavailable'}
+                              type={pwdVisible[credentialKey] ? 'text' : 'password'}
+                              autoComplete="new-password"
+                              value={pwdDrafts[credentialKey] || ''}
+                              onChange={(e) => onDraftChange(credentialKey, e.target.value)}
+                              className="text-sm pr-8"
+                              disabled={!canUpdatePassword}
+                            />
+                            {canUpdatePassword && (
+                              <button
+                                type="button"
+                                onClick={() => setPwdVisible((prev) => ({ ...prev, [credentialKey]: !prev[credentialKey] }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                tabIndex={-1}
+                              >
+                                {pwdVisible[credentialKey] ? <EyeOff size={15} /> : <Eye size={15} />}
+                              </button>
+                            )}
+                          </div>
+                          <Button disabled={!canUpdatePassword} onClick={() => updatePassword(row.scope, row.id)}>
+                            Update
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+
+    <div className="min-h-screen pt-8 bg-[#F8FAFC] pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+        <AdminPageHero
+          title="Admin Credentials"
+          description="Manage central admin credentials, the DGP login, and station hierarchy logins in the same structure shown on the organization page."
+        />
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+          {[
+            { label: 'Total', value: credentials.length, icon: Users, color: 'bg-[#2563EB]', text: 'text-[#2563EB]', ref: null },
+            { label: 'Admin', value: centralAdmins.length, icon: Users, color: 'bg-[#0F172A]', text: 'text-[#0F172A]', ref: adminTableRef },
+            { label: 'Officers', value: superiorOfficerCredentials.length, icon: Award, color: 'bg-[#DC2626]', text: 'text-[#DC2626]', ref: officerTableRef },
+            { label: 'SRP', value: srpCredentials.length, icon: Shield, color: 'bg-[#7C3AED]', text: 'text-[#7C3AED]', ref: srpTableRef },
+            { label: 'DSRP', value: dsrpCredentials.length, icon: Award, color: 'bg-[#D97706]', text: 'text-[#D97706]', ref: dsrpTableRef },
+            { label: 'IRP', value: irpCredentials.length, icon: Network, color: 'bg-[#0891B2]', text: 'text-[#0891B2]', ref: irpTableRef },
+            { label: 'Station', value: stationCredentials.length, icon: Building2, color: 'bg-[#10B981]', text: 'text-[#10B981]', ref: stationTableRef },
+          ].map(({ label, value, icon: Icon, color, text, ref: cardRef }) => (
+            <Card
+              key={label}
+              className={`flex items-center gap-3 px-4 py-3 border border-[#60A5FA] bg-white transition-all duration-150 ${cardRef ? 'cursor-pointer hover:shadow-md hover:border-[#2563EB]' : ''}`}
+              onClick={() => cardRef && scrollTo(cardRef)}
+            >
+              <div className={`w-9 h-9 shrink-0 ${color} rounded-lg flex items-center justify-center`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className={`text-xl font-extrabold leading-tight ${text}`}>{value}</p>
+                <p className="text-xs text-[#64748B] leading-tight">{label}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+        <Card className="p-6 border border-[#60A5FA] shadow-sm bg-white">
+          <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-[#0F172A]">Admin Credentials</h2>
+              <p className="text-sm text-[#475569] mt-2">Central logins, the DGP account, and station hierarchy credentials.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <div className="inline-flex items-center rounded-full bg-[#EFF6FF] px-4 py-2 text-sm font-bold text-[#1D4ED8]">
+                Configured: {centralAdmins.length + superiorOfficerCredentials.length}
+              </div>
+            </div>
+          </div>
+
+          {renderFlatAdminTable(
+            '1. Central Admin Table',
+            centralAdmins.map((c) => ({ ...c, name: 'Central admin' })).filter(r => !adminSearch.trim() || (r.name || '').toLowerCase().includes(adminSearch.trim().toLowerCase())),
+            'admin',
+            'No central admin credentials available.',
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            adminTableRef
+          )}
+          {renderFlatAdminTable(
+            '2. Superior Officers Table',
+            superiorOfficerCredentials.filter(r => !officerSearch.trim() || (r.name || '').toLowerCase().includes(officerSearch.trim().toLowerCase())),
+            (row) => (String(row.role || '').toLowerCase() === 'adgp' ? 'ADGP' : String(row.role || '').toUpperCase()),
+            'No superior officer credentials available.',
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={officerSearch} onChange={e => setOfficerSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            officerTableRef
+          )}
+          {renderFlatAdminTable(
+            '3. SRPs Table',
+            srpCredentials.filter(r => !srpSearch.trim() || (r.name || '').toLowerCase().includes(srpSearch.trim().toLowerCase())),
+            'SRP',
+            'No SRP credentials available.',
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={srpSearch} onChange={e => setSrpSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            srpTableRef
+          )}
+          {renderFlatAdminTable(
+            '4. DSRPs Table',
+            dsrpCredentials.filter(r => !dsrpSearch.trim() || (r.name || '').toLowerCase().includes(dsrpSearch.trim().toLowerCase())),
+            'DSRP',
+            'No DSRP credentials available.',
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={dsrpSearch} onChange={e => setDsrpSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            dsrpTableRef
+          )}
+          {renderFlatAdminTable(
+            '5. IRPs Table',
+            irpCredentials.filter(r => !irpSearch.trim() || (r.name || '').toLowerCase().includes(irpSearch.trim().toLowerCase())),
+            'IRP',
+            'No IRP credentials available.',
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={irpSearch} onChange={e => setIrpSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            irpTableRef
+          )}
+          {renderFlatAdminTable(
+            '6. Station Table',
+            stationCredentials.filter(r => !stationSearch.trim() || (r.name || '').toLowerCase().includes(stationSearch.trim().toLowerCase())),
+            'Station',
+            'No station credentials available.',
+            <div className="relative">
+              <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={stationSearch}
+                onChange={e => setStationSearch(e.target.value)}
+                placeholder="Search by name..."
+                className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52"
+              />
+            </div>,
+            stationTableRef
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export default AdminStationsPage;
+

@@ -1,0 +1,385 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ArrowUpRight, Building2, Download, RefreshCw, Image as ImageIcon, Eye, LogIn, FileText, Clock, ThumbsUp, ThumbsDown, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { dsrpAPI } from '@/lib/api';
+import { stations } from '@/data/stations';
+import { getDSRPScopeDetails } from '@/lib/policeScope';
+import { useSearchParams } from 'react-router-dom';
+
+const PIE_COLORS = { pending: '#F59E0B', investigating: '#3B82F6', resolved: '#10B981', approved: '#059669', rejected: '#EF4444' };
+const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#78716C'];
+
+function exportToCSV(filename, colDefs, rows) {
+  const headerRow = colDefs.map(h => `"${h.label}"`).join(',');
+  const dataRows = rows.map(row => colDefs.map(h => `"${String(row[h.key]||'').replace(/_/g,' ').replace(/"/g,'""')}"`).join(','));
+  const csv = [headerRow, ...dataRows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+
+function getStationPhone(stationName) {
+  for (const div of stations) {
+    for (const sub of div.subdivisions || []) {
+      for (const circle of sub.circles || []) {
+        for (const st of circle.stations || []) {
+          if (st.name === stationName) return st.phone || '-';
+        }
+      }
+    }
+  }
+  return '-';
+}
+
+export const DSRPDashboardPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [complaints, setComplaints] = useState([]);
+  const [ubRecords, setUbRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [crimeTypeFilter, setCrimeTypeFilter] = useState('');
+  const [circleFilter, setCircleFilter] = useState('');
+  const [stationFilter, setStationFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [viewRecord, setViewRecord] = useState(null);
+  const [searchParams] = useSearchParams();
+
+  const dsrpScope = useMemo(() => getDSRPScopeDetails(user), [user]);
+  const circleOptions = useMemo(() => dsrpScope.circles, [dsrpScope]);
+  const stationOptions = useMemo(() => {
+    if (!circleFilter) return [];
+    const found = circleOptions.find(c => c.name === circleFilter);
+    return found ? found.stations : [];
+  }, [circleFilter, circleOptions]);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const complaintsRes = await dsrpAPI.getComplaints();
+        setComplaints(complaintsRes.data || []);
+        try {
+          const ubRes = await dsrpAPI.getUnidentifiedBodies();
+          setUbRecords(Array.isArray(ubRes.data) ? ubRes.data : []);
+        } catch { setUbRecords([]); }
+      } catch (err) {
+        setError(err?.response?.data?.detail || 'Unable to load DSRP dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status) setStatusFilter(status);
+  }, [searchParams]);
+
+  const crimeTypeOptions = [
+    { value: 'theft', label: 'Theft' },
+    { value: 'harassment', label: 'Harassment' },
+    { value: 'missing_person', label: 'Missing Person' },
+    { value: 'nuisance', label: 'Nuisance' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const filteredComplaints = useMemo(() => complaints.filter((row) => {
+    if (dateFrom && row.incident_date < dateFrom) return false;
+    if (dateTo && row.incident_date > dateTo) return false;
+    if (crimeTypeFilter && row.complaint_type !== crimeTypeFilter) return false;
+    if (stationFilter && row.station !== stationFilter) return false;
+    if (circleFilter && !stationFilter) {
+      const circle = circleOptions.find(c => c.name === circleFilter);
+      if (circle && !circle.stations.includes(row.station)) return false;
+    }
+    if (statusFilter && row.status !== statusFilter) return false;
+    return true;
+  }), [complaints, dateFrom, dateTo, crimeTypeFilter, circleFilter, stationFilter, statusFilter, circleOptions]);
+
+  const filteredUbRecords = useMemo(() => ubRecords.filter((r) => {
+    if (dateFrom && r.reported_date < dateFrom) return false;
+    if (dateTo && r.reported_date > dateTo) return false;
+    if (stationFilter && r.station !== stationFilter) return false;
+    if (circleFilter && !stationFilter) {
+      const circle = circleOptions.find(c => c.name === circleFilter);
+      if (circle && !circle.stations.includes(r.station)) return false;
+    }
+    return true;
+  }), [ubRecords, dateFrom, dateTo]);
+
+  const statusPieData = useMemo(() => {
+    const counts = {};
+    filteredComplaints.forEach(c => { const s = c.status || 'unknown'; counts[s] = (counts[s] || 0) + 1; });
+    return Object.entries(counts).map(([name, value]) => ({ name: name === 'resolved' ? 'Closed' : name, value }));
+  }, [filteredComplaints]);
+
+  const crimeTypeBarData = useMemo(() => {
+    const counts = {};
+    filteredComplaints.forEach(c => { const t = c.complaint_type || 'unknown'; counts[t] = (counts[t] || 0) + 1; });
+    return Object.entries(counts).map(([name, value]) => ({ name: name.replace(/_/g, ' '), value })).sort((a, b) => b.value - a.value);
+  }, [filteredComplaints]);
+
+  const crimeTypeByDateData = useMemo(() => {
+    const allTypes = [...new Set(filteredComplaints.map(c => (c.complaint_type || 'unknown').replace(/_/g, ' ')))];
+    const byDate = {};
+    filteredComplaints.forEach(c => {
+      const d = (c.incident_date || '').substring(0, 10);
+      if (!d) return;
+      if (!byDate[d]) byDate[d] = { date: d };
+      const t = (c.complaint_type || 'unknown').replace(/_/g, ' ');
+      byDate[d][t] = (byDate[d][t] || 0) + 1;
+    });
+    return { data: Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date)), types: allTypes };
+  }, [filteredComplaints]);
+
+  const ubByMonthData = useMemo(() => {
+    const counts = {};
+    filteredUbRecords.forEach(r => { if (r.reported_date) { const d = r.reported_date.substring(0, 10); counts[d] = (counts[d] || 0) + 1; } });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredUbRecords]);
+
+  const complaintsByMonthData = useMemo(() => {
+    const counts = {};
+    filteredComplaints.forEach(c => { if (c.incident_date) { const d = c.incident_date.substring(0, 10); counts[d] = (counts[d] || 0) + 1; } });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredComplaints]);
+
+  const applyDatePreset = (preset) => {
+    const today = new Date();
+    const fmt = d => d.toISOString().slice(0, 10);
+    if (preset === '7d') { setDateFrom(fmt(new Date(today - 7 * 86400000))); setDateTo(fmt(today)); }
+    else if (preset === '30d') { setDateFrom(fmt(new Date(today - 30 * 86400000))); setDateTo(fmt(today)); }
+    else { setDateFrom(''); setDateTo(''); }
+  };
+
+  const handleExport = () => exportToCSV('dsrp_complaints.csv', [
+    { label: 'Complaint No', key: 'tracking_number' }, { label: 'Station', key: 'station' },
+    { label: 'Type', key: 'complaint_type' }, { label: 'Status', key: 'status' },
+    { label: 'Date', key: 'incident_date' }, { label: 'Location', key: 'location' },
+  ], filteredComplaints);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-8 px-4 bg-[#F8FAFC]">
+        <div className="max-w-7xl mx-auto py-12 text-center text-[#475569]">Loading DSRP dashboard...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen pt-8 pb-10 bg-[#F8FAFC]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Building2 className="w-8 h-8 text-[#2563EB]" />
+              <h1 className="text-3xl font-extrabold text-[#0F172A] heading-font">DSRP Dashboard</h1>
+            </div>
+            <p className="text-[#475569]">
+              Officer: <span className="font-semibold text-[#0F172A]">{user?.name || '-'}</span>
+            </p>
+            <p className="text-sm text-[#64748B] mt-1">Showing only data for stations under your sub division.</p>
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <p className="text-xs text-[#64748B]">
+              {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+            {(() => {
+              const stored = localStorage.getItem('grp_login_time');
+              const ts = stored ? Number(stored) : (() => { try { const tok = localStorage.getItem('grp_auth_token'); if (!tok) return null; const p = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); return p?.iat ? p.iat * 1000 : null; } catch { return null; } })();
+              if (!ts) return null;
+              if (!stored) localStorage.setItem('grp_login_time', ts.toString());
+              return (
+                <p className="text-xs text-[#475569] flex items-center gap-1">
+                  <LogIn className="w-3 h-3" />
+                  Logged in at {new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                </p>
+              );
+            })()}
+          </div>
+        </div>
+
+        {error && (
+          <Card className="mb-6 p-4 border border-red-200 bg-red-50 text-red-700">{error}</Card>
+        )}
+
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          {[
+            { label: 'Total', value: filteredComplaints.length, icon: FileText, color: 'bg-[#2563EB]', text: 'text-[#2563EB]', filter: '' },
+            { label: 'Pending', value: filteredComplaints.filter(c => c.status === 'pending').length, icon: Clock, color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]', filter: 'pending' },
+            { label: 'Approved', value: filteredComplaints.filter(c => c.status === 'approved').length, icon: ThumbsUp, color: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]', filter: 'approved' },
+            { label: 'Rejected', value: filteredComplaints.filter(c => c.status === 'rejected').length, icon: ThumbsDown, color: 'bg-[#EF4444]', text: 'text-[#EF4444]', filter: 'rejected' },
+            { label: 'Investigating', value: filteredComplaints.filter(c => c.status === 'investigating').length, icon: AlertCircle, color: 'bg-[#8B5CF6]', text: 'text-[#8B5CF6]', filter: 'investigating' },
+            { label: 'Closed', value: filteredComplaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, color: 'bg-[#6B7280]', text: 'text-[#6B7280]', filter: 'resolved' },
+          ].map(({ label, value, icon: Icon, color, text, filter }) => (
+            <Card key={label} className={`p-3 border cursor-pointer transition-all flex flex-row items-center gap-3 ${statusFilter === filter && filter !== '' ? 'border-[#2563EB] bg-[#EFF6FF] shadow-md' : 'border-[#60A5FA] bg-white hover:shadow-md hover:border-[#2563EB]'}`} onClick={() => setStatusFilter(prev => prev === filter ? '' : filter)}>
+              <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className={`text-xl font-extrabold leading-tight ${text}`}>{value}</p>
+                <p className="text-xs text-[#64748B]">{label}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Filters + Export */}
+        <Card className="mb-6 p-4 border border-[#60A5FA] bg-white">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">From</label>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">To</label>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#64748B]">Crime Type</label>
+              <select value={crimeTypeFilter} onChange={e => setCrimeTypeFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                <option value="">All types</option>
+                {crimeTypeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            {circleOptions.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#64748B]">Circle</label>
+                <select value={circleFilter} onChange={e => { setCircleFilter(e.target.value); setStationFilter(''); }} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                  <option value="">All circles</option>
+                  {circleOptions.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
+            {stationOptions.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[#64748B]">Station</label>
+                <select value={stationFilter} onChange={e => setStationFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-[#CBD5E1] rounded-md outline-none focus:border-[#2563EB]">
+                  <option value="">All stations</option>
+                  {stationOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+            {[['7d','Last 7d'],['30d','Last 30d'],['','All']].map(([val, lbl]) => (
+              <button key={val} type="button" onClick={() => applyDatePreset(val)}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                  val === '' && !dateFrom && !dateTo ? 'bg-[#2563EB] text-white border-[#2563EB] hover:bg-[#1D4ED8]' : 'bg-white text-[#2563EB] border-[#2563EB] hover:bg-[#EFF6FF]'
+                }`}>
+                {lbl}
+              </button>
+            ))}
+            <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setCrimeTypeFilter(''); setCircleFilter(''); setStationFilter(''); setStatusFilter(''); }} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-[#1D4ED8] transition-colors border border-[#2563EB]">
+              <RefreshCw className="w-3.5 h-3.5" /> Reset
+            </button>
+            <button type="button" onClick={handleExport} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border border-[#2563EB] bg-white text-[#2563EB] hover:bg-[#EFF6FF] transition-colors">
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </button>
+          </div>
+        </Card>
+
+        {/* Charts row 1 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Card className="p-5 border border-[#60A5FA]">
+            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Status</p>
+            {statusPieData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={statusPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} onClick={(data) => { const val = data.name === 'Closed' ? 'resolved' : data.name; setStatusFilter(prev => prev === val ? '' : val); }} cursor="pointer">
+                    {statusPieData.map((entry, i) => <Cell key={i} fill={PIE_COLORS[entry.name] || BAR_COLORS[i % BAR_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip /><Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+          <Card className="p-5 border border-[#60A5FA]">
+            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Crime Type &amp; Date</p>
+            {crimeTypeByDateData.data.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={crimeTypeByDateData.data} margin={{ top: 4, right: 8, bottom: 40, left: 0 }} onClick={(data) => { if (data?.activePayload?.[0]) { const ct = data.activePayload[0].dataKey.replace(/ /g, '_'); setCrimeTypeFilter(prev => prev === ct ? '' : ct); } }} style={{ cursor: 'pointer' }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {crimeTypeByDateData.types.map((t, i) => (
+                    <Bar key={t} dataKey={t} stackId="a" fill={BAR_COLORS[i % BAR_COLORS.length]} radius={i === crimeTypeByDateData.types.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </div>
+
+        {/* Charts row 2 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Card className="p-5 border border-[#60A5FA]">
+            <p className="text-sm font-semibold text-[#0F172A] mb-4">Complaints by Date </p>
+            {complaintsByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={complaintsByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Complaints" fill="#2563EB" radius={[3,3,0,0]} onClick={(data) => { if (dateFrom === data.name && dateTo === data.name) { setDateFrom(''); setDateTo(''); } else { setDateFrom(data.name); setDateTo(data.name); } }} cursor="pointer" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+          <Card className="p-5 border border-[#60A5FA]">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold text-[#0F172A]">Unidentified Bodies by Date </p>
+              <button type="button" onClick={() => navigate('/police-unidentified-bodies')} className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:underline">
+                View All <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {ubByMonthData.length === 0 ? <p className="text-xs text-[#94A3B8] text-center py-8">No data</p> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={ubByMonthData} margin={{ top: 4, right: 8, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#60A5FA" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Bodies" fill="#7C3AED" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </div>
+      </div>
+
+      <Dialog open={!!viewRecord} onOpenChange={(open) => { if (!open) setViewRecord(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Media — {viewRecord?.station}</DialogTitle></DialogHeader>
+          <div className="flex flex-col items-center gap-4">
+            {viewRecord?.image_url ? (
+              /\.(mp4|webm|ogg|mov|avi)$/i.test(viewRecord.image_url) ? (
+                <video src={viewRecord.image_url} controls className="max-h-[480px] w-full rounded-lg" />
+              ) : (
+                <img src={viewRecord.image_url} alt="body" className="max-h-[480px] w-full rounded-lg object-contain" />
+              )
+            ) : (
+              <div className="flex h-40 w-full items-center justify-center rounded-lg bg-[#E2E8F0] text-[#64748B]">
+                <ImageIcon className="h-10 w-10" /><span className="ml-2">No media</span>
+              </div>
+            )}
+            <p className="text-sm text-[#475569] text-center">{viewRecord?.description}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default DSRPDashboardPage;

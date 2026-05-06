@@ -1,0 +1,42 @@
+# Node modules
+node_modules/
+**/node_modules/
+
+# Python virtual environments
+venv/
+.venv/
+*.pyc
+__pycache__/
+
+# Environment files
+.env
+*.env.local
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# Cache
+.cache/
+*.cache
+.npm/
+.pm2/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.dump
+
+# Logs
+*.log
+logs/
+pm2*.log
