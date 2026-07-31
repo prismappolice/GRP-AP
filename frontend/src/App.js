@@ -47,6 +47,7 @@ const MobileTrackingPage = React.lazy(() => import('@/pages/MobileTrackingPage')
 const AdminGalleryPage = React.lazy(() => import('@/pages/AdminGalleryPage'));
 const AdminDashboardPage = React.lazy(() => import('@/pages/AdminDashboardPage'));
 const AdminHelpRequestsPage = React.lazy(() => import('@/pages/AdminHelpRequestsPage'));
+const AdminAuditLogsPage = React.lazy(() => import('@/pages/AdminAuditLogsPage'));
 const AdminStationsPage = React.lazy(() => import('@/pages/AdminStationsPage'));
 const AdminStaticContentPage = React.lazy(() => import('@/pages/AdminStaticContentPage'));
 const AdminComplaintsPage = React.lazy(() => import('@/pages/AdminComplaintsPage'));
@@ -198,6 +199,16 @@ const AppContent = () => {
             element={
               effectiveIsAdmin ? (
                 <AdminHelpRequestsPage />
+              ) : (
+                <Navigate to="/admin-login" replace />
+              )
+            }
+          />
+          <Route
+            path="/admin/audit-logs"
+            element={
+              effectiveIsAdmin ? (
+                <AdminAuditLogsPage />
               ) : (
                 <Navigate to="/admin-login" replace />
               )

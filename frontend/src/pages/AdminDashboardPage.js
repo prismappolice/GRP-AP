@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { MapPin, Image, Newspaper, HelpCircle, FileText, UserX, AlertTriangle } from 'lucide-react';
+import { MapPin, Image, Newspaper, HelpCircle, FileText, UserX, ShieldCheck } from 'lucide-react';
 import api from '@/lib/api';
 // import removed: getAdminHierarchyCounts
 
@@ -49,6 +49,13 @@ const adminServices = [
     link: '/unidentified-bodies',
     color: 'bg-[#0F172A]'
   },
+  {
+    icon: ShieldCheck,
+    title: 'Audit Logs',
+    description: 'Review admin actions and security events',
+    link: '/admin/audit-logs',
+    color: 'bg-[#0891B2]'
+  },
 ];
 
 const AdminDashboardPage = () => {
@@ -60,18 +67,20 @@ const AdminDashboardPage = () => {
     pendingComplaints: 0,
     helpRequests: 0,
     unidentifiedBodies: 0,
+    auditLogs: 0,
   });
 
   useEffect(() => {
     const loadCounts = async () => {
       try {
-        const [galleryRes, policeUsersRes, newsRes, complaintsRes, helpRes, ubRes] = await Promise.all([
+        const [galleryRes, policeUsersRes, newsRes, complaintsRes, helpRes, ubRes, auditRes] = await Promise.all([
           api.get('/gallery-items'),
           api.get('/admin/credentials'),
           api.get('/news-items'),
           api.get('/complaints'),
           api.get('/admin/help-requests'),
           api.get('/unidentified-bodies'),
+          api.get('/admin/audit-logs?limit=300'),
         ]);
 
         setCounts({
@@ -84,6 +93,7 @@ const AdminDashboardPage = () => {
             : 0,
           helpRequests: Array.isArray(helpRes.data) ? helpRes.data.length : 0,
           unidentifiedBodies: Array.isArray(ubRes.data) ? ubRes.data.length : 0,
+          auditLogs: Array.isArray(auditRes.data) ? auditRes.data.length : 0,
         });
       } catch (error) {
         console.error('Failed to load admin dashboard counts:', error);
@@ -107,6 +117,8 @@ const AdminDashboardPage = () => {
         return counts.helpRequests;
       case 'Unidentified Bodies':
         return counts.unidentifiedBodies;
+      case 'Audit Logs':
+        return counts.auditLogs;
       default:
         return 0;
     }

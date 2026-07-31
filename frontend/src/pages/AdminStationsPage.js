@@ -283,6 +283,7 @@ export const AdminStationsPage = () => {
   const [error, setError] = useState('');
   const [pwdDrafts, setPwdDrafts] = useState({});
   const [pwdVisible, setPwdVisible] = useState({});
+  const [usernameDrafts, setUsernameDrafts] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [stationSearch, setStationSearch] = useState('');
   const [adminSearch, setAdminSearch] = useState('');
@@ -312,6 +313,10 @@ export const AdminStationsPage = () => {
 
   const onDraftChange = (key, value) => {
     setPwdDrafts((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const onUsernameDraftChange = (key, value) => {
+    setUsernameDrafts((prev) => ({ ...prev, [key]: value }));
   };
 
   const centralAdmins = credentials.filter((c) => c.scope === 'admin');
@@ -398,8 +403,41 @@ export const AdminStationsPage = () => {
   const stationTableRef = useRef(null);
 
   const scrollTo = (ref) => ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const matchesUsernameSearch = (row, value) => {
+    const term = value.trim().toLowerCase();
+    if (!term) return true;
+    return String(row.email || row.id || '').toLowerCase().includes(term);
+  };
+
+  const updateUsername = async (scope, id, currentUsername) => {
+    const key = `${scope}:${id}`;
+    const newUsername = (usernameDrafts[key] || '').trim();
+    if (!newUsername) {
+      toast.error('Enter a new username');
+      return;
+    }
+    if (newUsername.toLowerCase() === String(currentUsername || '').toLowerCase()) {
+      toast.error('New username is same as current username');
+      return;
+    }
+
+    try {
+      await api.patch(`/admin/credentials/${scope}/${id}/username`, { new_username: newUsername });
+      toast.success('Username updated successfully');
+      setUsernameDrafts((prev) => ({ ...prev, [key]: '' }));
+      await loadData();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Username update failed');
+    }
+  };
 
   const renderFlatAdminTable = (title, rows, roleLabel, emptyLabel, extraHeader, tableRef) => {
+    const updateButtonClass = (isActive) => (
+      isActive
+        ? 'bg-[#16A34A] text-white hover:bg-[#15803D] shadow-sm'
+        : 'bg-[#DCFCE7] text-[#166534] hover:bg-[#BBF7D0] shadow-none'
+    );
+
     return (
       <div className="mb-8" ref={tableRef}>
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -415,12 +453,12 @@ export const AdminStationsPage = () => {
           <Table className="border-collapse border border-[#60A5FA]">
             <TableHeader className="bg-[#F8FAFC]">
               <TableRow className="hover:bg-[#F8FAFC] border border-[#60A5FA]">
-                <TableHead className="border border-[#60A5FA] px-4 py-3 w-20 text-left font-bold text-[#0F172A]">S.No</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Role</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Name</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Email</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Password</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 font-bold text-[#0F172A]">Change Password</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 w-20 text-center font-bold text-[#0F172A]">S.No</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Role</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Name</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Username</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Change Username</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Change Password</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -432,6 +470,10 @@ export const AdminStationsPage = () => {
                 rows.map((row, idx) => {
                   const credentialKey = `${row.scope}:${row.id}`;
                   const canUpdatePassword = Boolean(row.scope && row.id);
+                  const canUpdateUsername = Boolean(row.scope && row.id);
+                  const currentUsername = row.email || row.id || '';
+                  const hasUsernameDraft = Boolean((usernameDrafts[credentialKey] || '').trim());
+                  const hasPasswordDraft = Boolean((pwdDrafts[credentialKey] || '').trim());
                   // Show 'ADGP' for DIG row in Superior Officers Table
                   let displayRole = row.role;
                   if (typeof roleLabel === 'function') {
@@ -442,13 +484,32 @@ export const AdminStationsPage = () => {
                   }
                   return (
                     <TableRow key={row.id || idx} className="border border-[#60A5FA]">
-                      <TableCell className="border border-[#60A5FA]">{idx + 1}</TableCell>
-                      <TableCell className="border border-[#60A5FA]">{displayRole}</TableCell>
-                      <TableCell className="border border-[#60A5FA]">{row.name}</TableCell>
-                      <TableCell className="border border-[#60A5FA]">{row.email || '--'}</TableCell>
-                      <TableCell className="border border-[#60A5FA]">{row.password || '--'}</TableCell>
-                      <TableCell className="border border-[#60A5FA]">
-                        <div className="flex min-w-[200px] gap-2">
+                      <TableCell className="border border-[#60A5FA] text-center align-middle">{idx + 1}</TableCell>
+                      <TableCell className="border border-[#60A5FA] text-center align-middle">{displayRole}</TableCell>
+                      <TableCell className="border border-[#60A5FA] text-center align-middle">{row.name || '--'}</TableCell>
+                      <TableCell className="border border-[#60A5FA] text-center align-middle">{currentUsername || '--'}</TableCell>
+                      <TableCell className="border border-[#60A5FA] align-middle">
+                        <div className="mx-auto flex min-w-[240px] max-w-lg gap-2">
+                          <Input
+                            placeholder={canUpdateUsername ? 'New username' : 'Unavailable'}
+                            type="email"
+                            autoComplete="off"
+                            value={usernameDrafts[credentialKey] || ''}
+                            onChange={(e) => onUsernameDraftChange(credentialKey, e.target.value)}
+                            className="text-sm"
+                            disabled={!canUpdateUsername}
+                          />
+                          <Button
+                            disabled={!canUpdateUsername}
+                            className={updateButtonClass(hasUsernameDraft)}
+                            onClick={() => updateUsername(row.scope, row.id, currentUsername)}
+                          >
+                            Update
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="border border-[#60A5FA] align-middle">
+                        <div className="mx-auto flex min-w-[200px] max-w-lg gap-2">
                           <div className="relative flex-1">
                             <Input
                               placeholder={canUpdatePassword ? 'New password' : 'Unavailable'}
@@ -470,7 +531,11 @@ export const AdminStationsPage = () => {
                               </button>
                             )}
                           </div>
-                          <Button disabled={!canUpdatePassword} onClick={() => updatePassword(row.scope, row.id)}>
+                          <Button
+                            disabled={!canUpdatePassword}
+                            className={updateButtonClass(hasPasswordDraft)}
+                            onClick={() => updatePassword(row.scope, row.id)}
+                          >
                             Update
                           </Button>
                         </div>
@@ -534,47 +599,47 @@ export const AdminStationsPage = () => {
 
           {renderFlatAdminTable(
             '1. Central Admin Table',
-            centralAdmins.map((c) => ({ ...c, name: 'Central admin' })).filter(r => !adminSearch.trim() || (r.name || '').toLowerCase().includes(adminSearch.trim().toLowerCase())),
+            centralAdmins.filter(r => matchesUsernameSearch(r, adminSearch)),
             'admin',
             'No central admin credentials available.',
-            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder="Search by username..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
             adminTableRef
           )}
           {renderFlatAdminTable(
             '2. Superior Officers Table',
-            superiorOfficerCredentials.filter(r => !officerSearch.trim() || (r.name || '').toLowerCase().includes(officerSearch.trim().toLowerCase())),
+            superiorOfficerCredentials.filter(r => matchesUsernameSearch(r, officerSearch)),
             (row) => (String(row.role || '').toLowerCase() === 'adgp' ? 'ADGP' : String(row.role || '').toUpperCase()),
             'No superior officer credentials available.',
-            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={officerSearch} onChange={e => setOfficerSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={officerSearch} onChange={e => setOfficerSearch(e.target.value)} placeholder="Search by username..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
             officerTableRef
           )}
           {renderFlatAdminTable(
             '3. SRPs Table',
-            srpCredentials.filter(r => !srpSearch.trim() || (r.name || '').toLowerCase().includes(srpSearch.trim().toLowerCase())),
+            srpCredentials.filter(r => matchesUsernameSearch(r, srpSearch)),
             'SRP',
             'No SRP credentials available.',
-            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={srpSearch} onChange={e => setSrpSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={srpSearch} onChange={e => setSrpSearch(e.target.value)} placeholder="Search by username..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
             srpTableRef
           )}
           {renderFlatAdminTable(
             '4. DSRPs Table',
-            dsrpCredentials.filter(r => !dsrpSearch.trim() || (r.name || '').toLowerCase().includes(dsrpSearch.trim().toLowerCase())),
+            dsrpCredentials.filter(r => matchesUsernameSearch(r, dsrpSearch)),
             'DSRP',
             'No DSRP credentials available.',
-            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={dsrpSearch} onChange={e => setDsrpSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={dsrpSearch} onChange={e => setDsrpSearch(e.target.value)} placeholder="Search by username..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
             dsrpTableRef
           )}
           {renderFlatAdminTable(
             '5. IRPs Table',
-            irpCredentials.filter(r => !irpSearch.trim() || (r.name || '').toLowerCase().includes(irpSearch.trim().toLowerCase())),
+            irpCredentials.filter(r => matchesUsernameSearch(r, irpSearch)),
             'IRP',
             'No IRP credentials available.',
-            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={irpSearch} onChange={e => setIrpSearch(e.target.value)} placeholder="Search by name..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
+            <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={irpSearch} onChange={e => setIrpSearch(e.target.value)} placeholder="Search by username..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
             irpTableRef
           )}
           {renderFlatAdminTable(
             '6. Station Table',
-            stationCredentials.filter(r => !stationSearch.trim() || (r.name || '').toLowerCase().includes(stationSearch.trim().toLowerCase())),
+            stationCredentials.filter(r => matchesUsernameSearch(r, stationSearch)),
             'Station',
             'No station credentials available.',
             <div className="relative">
@@ -583,7 +648,7 @@ export const AdminStationsPage = () => {
                 type="text"
                 value={stationSearch}
                 onChange={e => setStationSearch(e.target.value)}
-                placeholder="Search by name..."
+                placeholder="Search by username..."
                 className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52"
               />
             </div>,

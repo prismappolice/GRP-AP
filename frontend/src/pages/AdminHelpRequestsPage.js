@@ -4,7 +4,7 @@ import { AdminPageHero } from '@/components/AdminPageHero';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { helpAPI } from '@/lib/api';
+import { getAuthToken, helpAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { Mail, Phone, HelpCircle, Clock, CheckCircle2, XCircle, Search, Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -30,6 +30,17 @@ const AdminHelpRequestsPage = () => {
   const [sendingReply, setSendingReply] = useState(false);
   const [viewTarget, setViewTarget] = useState(null); // for message detail dialog
   const [replySentMap, setReplySentMap] = useState({}); // id -> reply text sent
+
+  const isReadOnlySession = useMemo(() => {
+    try {
+      const token = getAuthToken();
+      if (!token) return false;
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return Boolean(payload?.audit_read_only);
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     fetchRequests();
@@ -77,13 +88,13 @@ const AdminHelpRequestsPage = () => {
       await helpAPI.reply(replyTarget.id, replyMessage.trim());
       // Update local state for replied request
       setRequests(prev => prev.map(r =>
-        r.id === replyTarget.id ? { ...r, replied: true } : r
+        r.id === replyTarget.id ? { ...r, replied: true, status: 'replied', reply_count: (Number(r.reply_count) || 0) + 1, latest_reply_message: replyMessage.trim(), latest_reply_at: new Date().toISOString() } : r
       ));
       setReplySentMap(prev => ({ ...prev, [replyTarget.id]: replyMessage.trim() }));
       toast.success(`Reply sent to ${replyTarget.email}`);
       closeReplyDialog();
-    } catch {
-      toast.error('Failed to send reply email');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Failed to send reply email');
     } finally {
       setSendingReply(false);
     }
@@ -349,6 +360,8 @@ const AdminHelpRequestsPage = () => {
                       <TableCell className="border border-[#60A5FA] px-4 py-3">
                         {req.replied ? (
                           <Badge className="text-xs bg-indigo-500 text-white">Replied</Badge>
+                        ) : isReadOnlySession ? (
+                          <span className="text-xs font-semibold text-[#64748B]">Read-only</span>
                         ) : req.email ? (
                           <button
                             className="px-3 py-1 bg-[#2563EB] text-white text-xs font-medium rounded hover:bg-[#1D4ED8] transition-colors"
@@ -402,13 +415,14 @@ const AdminHelpRequestsPage = () => {
               <p className="text-xs font-semibold text-[#64748B] mb-1">Message:</p>
               <p className="text-sm text-[#334155] bg-[#F8FAFC] rounded-lg p-3 border border-[#E2E8F0] whitespace-pre-wrap">{viewTarget.message || '-'}</p>
             </div>
-            {replySentMap[viewTarget.id] && (
+            {(viewTarget.latest_reply_message || replySentMap[viewTarget.id]) && (
               <div className="mt-4">
                 <p className="text-xs font-semibold text-[#6366F1] mb-1">Reply Sent:</p>
-                <p className="text-sm text-[#334155] bg-indigo-50 rounded-lg p-3 border border-indigo-200 whitespace-pre-wrap">{replySentMap[viewTarget.id]}</p>
+                <p className="text-sm text-[#334155] bg-indigo-50 rounded-lg p-3 border border-indigo-200 whitespace-pre-wrap">{viewTarget.latest_reply_message || replySentMap[viewTarget.id]}</p>
+                {viewTarget.latest_reply_at && <p className="mt-1 text-xs text-[#64748B]">Sent: {formatDate(viewTarget.latest_reply_at)}</p>}
               </div>
             )}
-            {!viewTarget.replied && !replySentMap[viewTarget.id] && (
+            {!viewTarget.replied && !replySentMap[viewTarget.id] && !isReadOnlySession && (
             <div className="mt-5 flex justify-end">
               <button
                 onClick={() => { setViewTarget(null); openReplyDialog(viewTarget); }}
@@ -453,7 +467,7 @@ const AdminHelpRequestsPage = () => {
               </button>
               <button
                 onClick={handleSendReply}
-                disabled={sendingReply || !replyMessage.trim()}
+                disabled={sendingReply || !replyMessage.trim() || isReadOnlySession}
                 className="px-4 py-2 text-sm font-medium text-white bg-[#2563EB] rounded-lg hover:bg-[#1D4ED8] transition-colors disabled:opacity-50"
               >
                 {sendingReply ? 'Sending...' : 'Send Reply'}

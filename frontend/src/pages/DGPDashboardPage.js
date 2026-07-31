@@ -36,6 +36,7 @@ function getStationPhone(stationName) {
 }
 
 const inDateRange = (value, fromDate, toDate) => {
+  if (!fromDate && !toDate) return true;
   if (!value) return false;
   if (fromDate && value < fromDate) return false;
   if (toDate && value > toDate) return false;
@@ -161,10 +162,11 @@ export const DGPDashboardPage = () => {
       if (subdivisionFilter && h.subdivision !== subdivisionFilter) return false;
       if (circleFilter && h.circle !== circleFilter) return false;
       if (stationFilter && r.station !== stationFilter) return false;
+      if (!inDateRange(r.reported_date, fromDate, toDate)) return false;
       if (searchText && ![r.station, r.district, r.description, r.uploaded_by].join(' ').toLowerCase().includes(searchText.toLowerCase())) return false;
       return true;
     });
-  }, [ubRecords, divisionFilter, subdivisionFilter, circleFilter, stationFilter, searchText]);
+  }, [ubRecords, divisionFilter, subdivisionFilter, circleFilter, stationFilter, fromDate, toDate, searchText]);
 
   const applyHierarchyFilters = (hierarchy, stationName) => {
     if (divisionFilter && hierarchy.division !== divisionFilter) return false;

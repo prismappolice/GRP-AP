@@ -141,6 +141,7 @@ export const chatAPI = {
 
 export const adminAPI = {
   createAlert: (data) => api.post('/admin/alerts', data),
+  getAuditLogs: (limit = 100) => api.get(`/admin/audit-logs?limit=${encodeURIComponent(limit)}`),
 };
 
 export const pageContentAPI = {

@@ -96,6 +96,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def block_audit_read_only_mutations(request: Request, call_next):
+    if request.url.path.startswith("/api/") and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+        if request.url.path != "/api/admin/login":
+            auth_header = request.headers.get("authorization", "")
+            scheme, _, token = auth_header.partition(" ")
+            if scheme.lower() == "bearer" and token:
+                try:
+                    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+                except Exception:
+                    payload = {}
+                if payload.get("audit_read_only"):
+                    return JSONResponse(
+                        content={"detail": "Audit account is read-only. This action cannot modify live data."},
+                        status_code=403,
+                    )
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if not request.url.path.startswith(("/gallery_uploads", "/news_uploads", "/unidentified_uploads", "/complaint_uploads")):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+        )
+    return response
+
 # ==================== DATABASE ====================
 _is_production = not os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
 engine = create_async_engine(POSTGRES_URL, echo=not _is_production, future=True)
@@ -193,6 +228,17 @@ class HelpRequestORM(Base):
     replied = Column(Integer, default=0, nullable=False)  # 0 = False, 1 = True
 
 
+class HelpRequestReplyORM(Base):
+    __tablename__ = "help_request_replies"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    help_request_id = Column(String, nullable=False)
+    reply_message = Column(String, nullable=False)
+    recipient_email = Column(String, nullable=False)
+    sent_by_id = Column(String, nullable=True)
+    sent_by_role = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 class UnidentifiedBodyORM(Base):
     __tablename__ = "unidentified_bodies"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -206,6 +252,28 @@ class UnidentifiedBodyORM(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
+class LoginAttemptORM(Base):
+    __tablename__ = "login_attempts"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    identifier = Column(String, nullable=False)
+    ip_address = Column(String, nullable=False)
+    success = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class AuditLogORM(Base):
+    __tablename__ = "audit_logs"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    actor_id = Column(String, nullable=True)
+    actor_role = Column(String, nullable=True)
+    action = Column(String, nullable=False)
+    target_type = Column(String, nullable=True)
+    target_id = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
+    details = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 @app.on_event("startup")
 async def ensure_database_tables() -> None:
     core_tables = [
@@ -214,7 +282,10 @@ async def ensure_database_tables() -> None:
         StationORM.__table__,
         CrimeDataORM.__table__,
         HelpRequestORM.__table__,
+        HelpRequestReplyORM.__table__,
         UnidentifiedBodyORM.__table__,
+        LoginAttemptORM.__table__,
+        AuditLogORM.__table__,
     ]
     async with engine.begin() as conn:
         await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, tables=core_tables))
@@ -364,6 +435,7 @@ class User(BaseModel):
     phone: Optional[str] = None
     role: str
     created_at: Optional[datetime] = None
+    is_read_only: bool = False
 
 
 class AdminUserView(BaseModel):
@@ -382,6 +454,10 @@ class AdminLogin(BaseModel):
 
 class AdminPasswordUpdate(BaseModel):
     new_password: str
+
+
+class AdminUsernameUpdate(BaseModel):
+    new_username: EmailStr
 
 
 class AdminCredentialEntry(BaseModel):
@@ -598,7 +674,19 @@ def build_managed_password(role: str, name: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def build_auth_user_payload(user_id: str, email: str, name: str, phone: str, created_at: Optional[datetime]) -> Dict[str, Any]:
+def is_audit_account(row: Any) -> bool:
+    for key in ("id", "email", "name"):
+        value = ""
+        try:
+            value = str(row[key] or "")
+        except Exception:
+            value = ""
+        if value.lower().startswith("audit"):
+            return True
+    return False
+
+
+def build_auth_user_payload(user_id: str, email: str, name: str, phone: str, created_at: Optional[datetime], is_read_only: bool = False) -> Dict[str, Any]:
     return {
         "id": user_id,
         "email": email,
@@ -606,6 +694,7 @@ def build_auth_user_payload(user_id: str, email: str, name: str, phone: str, cre
         "phone": phone or "N/A",
         "role": "officer",
         "created_at": created_at or datetime.now(timezone.utc),
+        "is_read_only": is_read_only,
     }
 
 
@@ -998,6 +1087,101 @@ async def get_async_session(request: Request):  # type: ignore[misc]
         yield session
 
 
+def _client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()[:64]
+    return (request.client.host if request.client else "unknown")[:64]
+
+
+async def enforce_login_rate_limit(session: AsyncSession, identifier: str, ip_address: str) -> None:
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=LOGIN_WINDOW_SECONDS)
+    result = await session.execute(
+        text(
+            """
+            SELECT count(*) FROM login_attempts
+            WHERE success = 0
+              AND created_at > :cutoff
+              AND (ip_address = :ip_address OR lower(identifier) = :identifier)
+            """
+        ),
+        {"cutoff": cutoff, "ip_address": ip_address, "identifier": identifier.lower()},
+    )
+    failed_count = int(result.scalar() or 0)
+    if failed_count >= LOGIN_MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
+
+
+async def record_login_attempt(session: AsyncSession, identifier: str, ip_address: str, success: bool) -> None:
+    await session.execute(
+        text(
+            """
+            INSERT INTO login_attempts (id, identifier, ip_address, success, created_at)
+            VALUES (:id, :identifier, :ip_address, :success, :created_at)
+            """
+        ),
+        {
+            "id": str(uuid.uuid4()),
+            "identifier": identifier[:255],
+            "ip_address": ip_address,
+            "success": 1 if success else 0,
+            "created_at": datetime.now(timezone.utc),
+        },
+    )
+    if success:
+        await session.execute(
+            text("DELETE FROM login_attempts WHERE success = 0 AND (ip_address = :ip_address OR lower(identifier) = :identifier)"),
+            {"ip_address": ip_address, "identifier": identifier.lower()},
+        )
+    await session.commit()
+
+
+def validate_strong_password(plain_password: str) -> None:
+    if len(plain_password) < 12:
+        raise HTTPException(status_code=400, detail="Password must be at least 12 characters")
+    if any(ch.isspace() for ch in plain_password):
+        raise HTTPException(status_code=400, detail="Password cannot contain spaces")
+    checks = [
+        (r"[A-Z]", "one uppercase letter"),
+        (r"[a-z]", "one lowercase letter"),
+        (r"\d", "one number"),
+        (r"[^A-Za-z0-9]", "one special character"),
+    ]
+    missing = [label for pattern, label in checks if not re.search(pattern, plain_password)]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Password must include {', '.join(missing)}")
+
+
+async def write_audit_log(
+    session: AsyncSession,
+    current_user: User,
+    request: Request,
+    action: str,
+    target_type: str,
+    target_id: str,
+    details: Optional[Dict[str, Any]] = None,
+) -> None:
+    await session.execute(
+        text(
+            """
+            INSERT INTO audit_logs (id, actor_id, actor_role, action, target_type, target_id, ip_address, details, created_at)
+            VALUES (:id, :actor_id, :actor_role, :action, :target_type, :target_id, :ip_address, :details, :created_at)
+            """
+        ),
+        {
+            "id": str(uuid.uuid4()),
+            "actor_id": current_user.id,
+            "actor_role": current_user.role,
+            "action": action,
+            "target_type": target_type,
+            "target_id": target_id,
+            "ip_address": _client_ip(request),
+            "details": json.dumps(details or {}, ensure_ascii=False),
+            "created_at": datetime.now(timezone.utc),
+        },
+    )
+
+
 # ==================== AUTH ====================
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -1006,6 +1190,7 @@ async def get_current_user(
     try:
         token = credentials.credentials
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+        audit_read_only = bool(payload.get("audit_read_only"))
 
         if payload.get("is_admin"):
             admin_id = payload.get("admin_id")
@@ -1025,6 +1210,7 @@ async def get_current_user(
                 phone=str(admin["phone"] or "N/A"),
                 role="admin",
                 created_at=admin["created_at"] or datetime.now(timezone.utc),
+                is_read_only=audit_read_only,
             )
 
         officer_id = payload.get("officer_id")
@@ -1044,6 +1230,7 @@ async def get_current_user(
                 phone=str(officer["phone"] or "N/A"),
                 role="dgp",
                 created_at=officer["created_at"] or datetime.now(timezone.utc),
+                is_read_only=audit_read_only,
             )
 
         station_id = payload.get("station_id")
@@ -1062,6 +1249,7 @@ async def get_current_user(
                 phone=str(station["phone"] or "N/A"),
                 role="station",
                 created_at=station["created_at"] or datetime.now(timezone.utc),
+                is_read_only=audit_read_only,
             )
 
         cred_id = payload.get("cred_id")
@@ -1085,6 +1273,7 @@ async def get_current_user(
                 phone=str(cred["phone"] or "N/A"),
                 role=str(cred_role),
                 created_at=cred["created_at"] or datetime.now(timezone.utc),
+                is_read_only=audit_read_only,
             )
 
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
@@ -1136,7 +1325,9 @@ async def get_latest_news() -> Any:
 
 
 @api_router.post("/latest-news")
-async def update_latest_news(request: Request) -> Any:
+async def update_latest_news(request: Request, current_user: User = Depends(get_current_user)) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
     news_path = ROOT_DIR / "news_uploads" / "latest_news.json"
     try:
         data = await request.json()
@@ -1306,23 +1497,19 @@ async def get_gallery_items() -> Any:
 # ==================== AUTH ROUTES ====================
 @api_router.post("/admin/login")
 async def admin_login(credentials: AdminLogin, request: Request, session: AsyncSession = Depends(get_async_session)) -> Any:
-    # ── Rate limiting ──────────────────────────────────────────────────
-    client_ip = request.client.host if request.client else "unknown"
-    now = time.time()
-    window_start = now - LOGIN_WINDOW_SECONDS
-    _login_attempts[client_ip] = [t for t in _login_attempts[client_ip] if t > window_start]
-    if len(_login_attempts[client_ip]) >= LOGIN_MAX_ATTEMPTS:
-        raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
-    _login_attempts[client_ip].append(now)
-    # ──────────────────────────────────────────────────────────────────
+    identifier = str(credentials.identifier or "").strip()
+    client_ip = _client_ip(request)
+    await enforce_login_rate_limit(session, identifier, client_ip)
     await ensure_admin_password_patterns(session)
     result = await session.execute(
         text("SELECT id, email, name, phone, password, created_at FROM admin WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
-        {"id": credentials.identifier},
+        {"id": identifier},
     )
     admin = result.mappings().first()
     if admin and verify_password(credentials.password, str(admin["password"] or "")):
-        access_token = create_access_token({"admin_id": admin["id"], "is_admin": True, "role": "admin"})
+        audit_read_only = is_audit_account(admin)
+        access_token = create_access_token({"admin_id": admin["id"], "is_admin": True, "role": "admin", "audit_read_only": audit_read_only})
+        await record_login_attempt(session, identifier, client_ip, True)
         return {
             "msg": "Login successful",
             "portal_role": "admin",
@@ -1331,55 +1518,68 @@ async def admin_login(credentials: AdminLogin, request: Request, session: AsyncS
             "name": admin["name"],
             "access_token": access_token,
             "token_type": "bearer",
+            "user": build_auth_user_payload(admin["id"], admin["email"], admin["name"], admin["phone"] or "N/A", admin["created_at"], audit_read_only),
         }
 
     await ensure_officer_credentials_table(session)
     officer_result = await session.execute(
         text("SELECT id, email, name, phone, password, role, created_at FROM dgp WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
-        {"id": credentials.identifier},
+        {"id": identifier},
     )
     officer = officer_result.mappings().first()
     if officer:
         if not verify_password(credentials.password, str(officer["password"] or "")):
+            await record_login_attempt(session, identifier, client_ip, False)
             raise HTTPException(status_code=401, detail="Invalid admin credentials")
-        access_token = create_access_token({"officer_id": officer["id"], "officer_role": "dgp"})
+        audit_read_only = is_audit_account(officer)
+        access_token = create_access_token({"officer_id": officer["id"], "officer_role": "dgp", "audit_read_only": audit_read_only})
+        await record_login_attempt(session, identifier, client_ip, True)
         return {
             "msg": "Login successful",
             "portal_role": "officer",
             "officer_role": "dgp",
             "access_token": access_token,
             "token_type": "bearer",
-            "user": build_auth_user_payload(officer["id"], officer["email"], officer["name"], officer["phone"] or "N/A", officer["created_at"]),
+            "user": build_auth_user_payload(officer["id"], officer["email"], officer["name"], officer["phone"] or "N/A", officer["created_at"], audit_read_only),
         }
 
     for cred_role in ("station", "srp", "dsrp", "irp"):
         cred_table = "stations" if cred_role == "station" else cred_role
         cred_result = await session.execute(
             text(f"SELECT id, email, name, phone, password, created_at FROM {cred_table} WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
-            {"id": credentials.identifier},
+            {"id": identifier},
         )
         cred = cred_result.mappings().first()
         if cred:
             if not verify_password(credentials.password, str(cred["password"] or "")):
+                await record_login_attempt(session, identifier, client_ip, False)
                 raise HTTPException(status_code=401, detail=f"Invalid credentials")
+            audit_read_only = is_audit_account(cred)
             if cred_role == "station":
-                access_token = create_access_token({"station_id": cred["id"], "role": "station"})
+                access_token = create_access_token({"station_id": cred["id"], "role": "station", "audit_read_only": audit_read_only})
             else:
-                access_token = create_access_token({"cred_id": cred["id"], "cred_role": cred_role})
+                access_token = create_access_token({"cred_id": cred["id"], "cred_role": cred_role, "audit_read_only": audit_read_only})
+            await record_login_attempt(session, identifier, client_ip, True)
             return {
                 "msg": "Login successful",
                 "portal_role": "officer",
                 "officer_role": cred_role,
                 "access_token": access_token,
                 "token_type": "bearer",
-                "user": build_auth_user_payload(cred["id"], cred["email"], cred["name"], cred["phone"] or "N/A", cred["created_at"]),
+                "user": build_auth_user_payload(cred["id"], cred["email"], cred["name"], cred["phone"] or "N/A", cred["created_at"], audit_read_only),
             }
 
+    await record_login_attempt(session, identifier, client_ip, False)
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 @api_router.get("/admin/login-options", response_model=List[AdminLoginOption])
-async def get_admin_login_options(session: AsyncSession = Depends(get_async_session)) -> List[AdminLoginOption]:
+async def get_admin_login_options(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> List[AdminLoginOption]:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view login options")
     try:
         await ensure_officer_credentials_table(session)
         await ensure_admin_password_patterns(session)
@@ -1508,6 +1708,47 @@ def _complaint_to_public_tracking_schema(c: ComplaintORM) -> PublicComplaintTrac
     )
 
 
+VERHOEFF_D_TABLE = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
+    [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
+    [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
+    [4, 0, 1, 2, 3, 9, 5, 6, 7, 8],
+    [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
+    [6, 5, 9, 8, 7, 1, 0, 4, 3, 2],
+    [7, 6, 5, 9, 8, 2, 1, 0, 4, 3],
+    [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
+    [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+]
+VERHOEFF_P_TABLE = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
+    [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+    [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
+    [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
+    [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+    [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
+    [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
+]
+
+
+def _is_valid_aadhaar(value: str) -> bool:
+    digits = re.sub(r"\D+", "", str(value or ""))
+    if not re.fullmatch(r"\d{12}", digits):
+        return False
+    if len(set(digits)) == 1:
+        return False
+    checksum = 0
+    for index, digit in enumerate(reversed(digits)):
+        checksum = VERHOEFF_D_TABLE[checksum][VERHOEFF_P_TABLE[index % 8][int(digit)]]
+    return checksum == 0
+
+
+def _mask_aadhaar(value: str) -> str:
+    digits = re.sub(r"\D+", "", str(value or ""))
+    return f"XXXXXXXX{digits[-4:]}"
+
+
 @api_router.post("/complaints", response_model=Complaint)
 async def create_complaint(
     complainant_name: str = Form(...),
@@ -1527,6 +1768,9 @@ async def create_complaint(
     normalized_phone = re.sub(r"\D+", "", str(complainant_phone or ""))
     if not re.fullmatch(r"\d{10}", normalized_phone):
         raise HTTPException(status_code=400, detail="Phone number must be exactly 10 digits")
+    if not _is_valid_aadhaar(aadhar_number):
+        raise HTTPException(status_code=400, detail="Please enter a valid 12-digit Aadhaar number")
+    masked_aadhaar = _mask_aadhaar(aadhar_number)
     normalized_email = str(complainant_email or "").strip()
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", normalized_email):
         raise HTTPException(status_code=400, detail="Please enter a valid email address")
@@ -1553,7 +1797,7 @@ async def create_complaint(
         id=str(uuid.uuid4()), user_id="anonymous",
         complainant_name=complainant_name,
         complainant_phone=normalized_phone,
-        aadhar_number=aadhar_number,
+        aadhar_number=masked_aadhaar,
         complainant_email=normalized_email,
         address=address,
         state=state,
@@ -1593,7 +1837,7 @@ async def create_complaint(
         incident_date=incident_date,
         complainant_name=complainant_name,
         complainant_phone=normalized_phone,
-        aadhar_number=aadhar_number,
+        aadhar_number=masked_aadhaar,
         address=address,
         complainant_email=normalized_email,
         location=location,
@@ -1644,6 +1888,7 @@ async def get_complaint(
 async def update_complaint_status(
     complaint_id: str,
     update_data: ComplaintStatusUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
@@ -1666,6 +1911,15 @@ async def update_complaint_status(
         complaint.rejection_reason = None  # type: ignore[assignment]
     complaint.status = normalized_status  # type: ignore[assignment]
     complaint.updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="complaint_status_update",
+        target_type="complaint",
+        target_id=complaint_id,
+        details={"status": normalized_status},
+    )
     await session.commit()
     await session.refresh(complaint)
     return _complaint_to_schema(complaint)
@@ -1675,6 +1929,7 @@ async def update_complaint_status(
 async def assign_complaint_to_station(
     complaint_id: str,
     assign_data: ComplaintAssignUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
@@ -1690,6 +1945,15 @@ async def assign_complaint_to_station(
         raise HTTPException(status_code=404, detail="Complaint not found")
     complaint.station = station_name  # type: ignore[assignment]
     complaint.updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="complaint_assign",
+        target_type="complaint",
+        target_id=complaint_id,
+        details={"station": station_name},
+    )
     await session.commit()
     await session.refresh(complaint)
 
@@ -1835,6 +2099,7 @@ async def assign_complaint_to_station(
 @api_router.delete("/admin/complaints/{complaint_id}")
 async def delete_complaint(
     complaint_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
@@ -1844,6 +2109,15 @@ async def delete_complaint(
     complaint = result.scalar_one_or_none()
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="complaint_delete",
+        target_type="complaint",
+        target_id=complaint_id,
+        details={"tracking_number": str(complaint.tracking_number or "")},
+    )
     await session.delete(complaint)
     await session.commit()
     return JSONResponse(content={"detail": "Complaint deleted"})
@@ -1865,6 +2139,7 @@ async def get_station_complaints(
 async def station_update_complaint_status(
     complaint_id: str,
     update_data: ComplaintStatusUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Complaint:
@@ -1891,6 +2166,15 @@ async def station_update_complaint_status(
         complaint.rejection_reason = None  # type: ignore[assignment]
     complaint.status = normalized_status  # type: ignore[assignment]
     complaint.updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="station_complaint_status_update",
+        target_type="complaint",
+        target_id=complaint_id,
+        details={"status": normalized_status},
+    )
     await session.commit()
     await session.refresh(complaint)
     return _complaint_to_schema(complaint)
@@ -2210,6 +2494,17 @@ def _plain_password(stored: str, scope: str, name: str) -> str:
     return "••••••••"
 
 
+def _credential_table_for_scope(scope: str) -> Optional[str]:
+    return {
+        "admin": "admin",
+        "officer": "dgp",
+        "srp": "srp",
+        "dsrp": "dsrp",
+        "irp": "irp",
+        "station": "stations",
+    }.get(scope)
+
+
 @api_router.get("/admin/credentials", response_model=List[AdminCredentialEntry])
 async def get_admin_credentials(
     current_user: User = Depends(get_current_user),
@@ -2240,6 +2535,29 @@ async def get_admin_credentials(
     return admin_rows + officer_rows + srp_rows + dsrp_rows + irp_rows + station_rows
 
 
+@api_router.get("/admin/audit-logs")
+async def get_admin_audit_logs(
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    safe_limit = min(max(int(limit or 100), 1), 500)
+    result = await session.execute(
+        text(
+            """
+            SELECT id, actor_id, actor_role, action, target_type, target_id, ip_address, details, created_at
+            FROM audit_logs
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """
+        ),
+        {"limit": safe_limit},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
 @api_router.post("/admin/sync-station-admins")
 async def sync_station_admins(current_user: User = Depends(get_current_user)) -> Any:
     if current_user.role != "admin":
@@ -2252,14 +2570,14 @@ async def update_credential_password(
     scope: str,
     entry_id: str,
     body: AdminPasswordUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admins only")
     plain_password = body.new_password
-    if len(plain_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    validate_strong_password(plain_password)
     hashed_password = bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     if scope == "srp":
         res = await session.execute(
@@ -2293,8 +2611,64 @@ async def update_credential_password(
             raise HTTPException(status_code=404, detail=f"{scope.upper()} not found")
     else:
         raise HTTPException(status_code=400, detail="Invalid scope")
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="credential_password_update",
+        target_type=scope,
+        target_id=entry_id,
+        details={"scope": scope},
+    )
     await session.commit()
     return {"message": "Password updated successfully"}
+
+
+@api_router.patch("/admin/credentials/{scope}/{entry_id}/username")
+async def update_credential_username(
+    scope: str,
+    entry_id: str,
+    body: AdminUsernameUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+
+    table = _credential_table_for_scope(scope)
+    if table is None:
+        raise HTTPException(status_code=400, detail="Invalid scope")
+
+    new_username = str(body.new_username).strip().lower()
+    credential_tables = ("admin", "dgp", "srp", "dsrp", "irp", "stations")
+    for candidate_table in credential_tables:
+        duplicate = await session.execute(
+            text(f"SELECT id FROM {candidate_table} WHERE lower(email) = :email LIMIT 1"),
+            {"email": new_username},
+        )
+        row = duplicate.mappings().first()
+        if row and not (candidate_table == table and str(row["id"]) == entry_id):
+            raise HTTPException(status_code=409, detail="Username already exists")
+
+    result = await session.execute(
+        text(f"UPDATE {table} SET email = :email WHERE id = :id"),
+        {"email": new_username, "id": entry_id},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Credential not found")
+
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="credential_username_update",
+        target_type=scope,
+        target_id=entry_id,
+        details={"scope": scope, "new_username": new_username},
+    )
+    await session.commit()
+    return {"message": "Username updated successfully", "username": new_username}
 
 
 
@@ -2398,6 +2772,28 @@ async def get_crime_trends(session: AsyncSession = Depends(get_async_session)) -
 
 
 # ==================== HELP DESK ROUTES ====================
+async def _help_request_to_payload(session: AsyncSession, item: HelpRequestORM) -> Dict[str, Any]:
+    payload = HelpRequest(**item.__dict__).model_dump(mode="json")
+    reply_result = await session.execute(
+        text(
+            """
+            SELECT reply_message, recipient_email, created_at
+            FROM help_request_replies
+            WHERE help_request_id = :id
+            ORDER BY created_at DESC
+            """
+        ),
+        {"id": item.id},
+    )
+    replies = reply_result.mappings().all()
+    payload["reply_count"] = len(replies)
+    if replies:
+        payload["latest_reply_message"] = replies[0]["reply_message"]
+        payload["latest_reply_at"] = replies[0]["created_at"].isoformat() if replies[0]["created_at"] else None
+        payload["latest_reply_recipient"] = replies[0]["recipient_email"]
+    return payload
+
+
 @api_router.get("/admin/help-requests")
 async def get_all_help_requests(
     current_user: User = Depends(get_current_user),
@@ -2407,7 +2803,7 @@ async def get_all_help_requests(
         raise HTTPException(status_code=403, detail="Admins only")
     result = await session.execute(select(HelpRequestORM).order_by(HelpRequestORM.created_at.desc()))
     items = result.scalars().all()
-    return JSONResponse(content=[HelpRequest(**item.__dict__).model_dump(mode="json") for item in items])
+    return JSONResponse(content=[await _help_request_to_payload(session, item) for item in items])
 
 
 @api_router.patch("/admin/help-requests/{request_id}")
@@ -2426,7 +2822,7 @@ async def update_help_request_status(
     item.status = body.get("status", item.status)
     await session.commit()
     await session.refresh(item)
-    return JSONResponse(content=HelpRequest(**item.__dict__).model_dump(mode="json"))
+    return JSONResponse(content=await _help_request_to_payload(session, item))
 
 
 class HelpRequestReplyBody(BaseModel):
@@ -2437,41 +2833,72 @@ class HelpRequestReplyBody(BaseModel):
 async def reply_to_help_request(
     request_id: str,
     body: HelpRequestReplyBody,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admins only")
+    reply_message = str(body.reply_message or "").strip()
+    if not reply_message:
+        raise HTTPException(status_code=400, detail="Reply message is required")
+    if len(reply_message) > 5000:
+        raise HTTPException(status_code=400, detail="Reply message is too long")
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
+        raise HTTPException(status_code=503, detail="Email service is not configured")
     result = await session.execute(select(HelpRequestORM).where(HelpRequestORM.id == request_id))
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Help request not found")
-    if not item.email:
+    recipient_email = str(item.email or "").strip()
+    if not recipient_email:
         raise HTTPException(status_code=400, detail="No email address for this request")
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", recipient_email):
+        raise HTTPException(status_code=400, detail="Invalid recipient email address")
     try:
         msg = email.mime.multipart.MIMEMultipart()
         msg["Subject"] = "Reply from GRP Police Help Desk"
         msg["From"] = SMTP_USER
-        msg["To"] = item.email
+        msg["To"] = recipient_email
         email_body = (
             f"Dear {item.name},\n\n"
             f"Thank you for contacting the GRP Police Help Desk.\n\n"
             f"Your original message:\n{item.message}\n\n"
-            f"Our response:\n{body.reply_message}\n\n"
+            f"Our response:\n{reply_message}\n\n"
             f"Regards,\nGRP Police Administration"
         )
         msg.attach(email.mime.text.MIMEText(email_body, "plain"))
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as smtp_server:
             smtp_server.starttls()
             smtp_server.login(SMTP_USER, SMTP_PASSWORD)
-            smtp_server.sendmail(SMTP_USER, item.email, msg.as_string())
+            smtp_server.sendmail(SMTP_USER, recipient_email, msg.as_string())
         # Mark as replied
         item.replied = 1
+        item.status = "replied"  # type: ignore[assignment]
+        session.add(HelpRequestReplyORM(
+            id=str(uuid.uuid4()),
+            help_request_id=request_id,
+            reply_message=reply_message,
+            recipient_email=recipient_email,
+            sent_by_id=current_user.id,
+            sent_by_role=current_user.role,
+            created_at=datetime.now(timezone.utc),
+        ))
+        await write_audit_log(
+            session,
+            current_user,
+            request,
+            action="help_request_reply",
+            target_type="help_request",
+            target_id=request_id,
+            details={"recipient": recipient_email},
+        )
         await session.commit()
         await session.refresh(item)
-        return JSONResponse(content={"success": True, "message": "Reply sent successfully"})
+        return JSONResponse(content={"success": True, "message": "Reply sent successfully", "item": await _help_request_to_payload(session, item)})
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to send email: {exc}") from exc
+        logger.warning("Failed to send help request reply email: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to send reply email. Please check SMTP configuration.") from exc
 
 
 @api_router.post("/help-requests", response_model=HelpRequest)

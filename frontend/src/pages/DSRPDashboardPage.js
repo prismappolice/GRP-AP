@@ -114,7 +114,7 @@ export const DSRPDashboardPage = () => {
       if (circle && !circle.stations.includes(r.station)) return false;
     }
     return true;
-  }), [ubRecords, dateFrom, dateTo]);
+  }), [ubRecords, dateFrom, dateTo, circleFilter, stationFilter, circleOptions]);
 
   const statusPieData = useMemo(() => {
     const counts = {};

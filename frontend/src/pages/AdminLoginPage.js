@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -7,14 +7,10 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
-import { getOfficerScope } from '@/lib/policeScope';
-
-const LOGIN_GROUP_ORDER = ['Admin', 'Superior Officers', 'SRP', 'DSRP', 'IRP', 'Stations'];
 
 export default function AdminLoginPage() {
   const { loginAdmin, loginOfficerViaAdmin } = useAuth();
-  const [loginOptions, setLoginOptions] = useState([]);
-  const [selectedIdentifier, setSelectedIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => {
@@ -24,57 +20,21 @@ export default function AdminLoginPage() {
     return false;
   });
   const [loading, setLoading] = useState(false);
-  const [optionsLoading, setOptionsLoading] = useState(true);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockout, setLockout] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const loadLoginOptions = async () => {
-      setOptionsLoading(true);
-      try {
-        const response = await api.get('/admin/login-options');
-        const rows = response.data || [];
-        setLoginOptions(rows);
-        if (rows.length > 0) {
-          setSelectedIdentifier(rows[0].identifier);
-        }
-      } catch (error) {
-        toast.error(error?.response?.data?.detail || 'Failed to load login accounts');
-      } finally {
-        setOptionsLoading(false);
-      }
-    };
-
-    loadLoginOptions();
-  }, []);
-
-  const groupedOptions = useMemo(() => {
-    const groups = LOGIN_GROUP_ORDER.map((group) => ({ group, items: [] }));
-    const groupMap = new Map(groups.map((entry) => [entry.group, entry]));
-
-    loginOptions.forEach((option) => {
-      if (!groupMap.has(option.group)) {
-        const nextGroup = { group: option.group, items: [] };
-        groups.push(nextGroup);
-        groupMap.set(option.group, nextGroup);
-      }
-      groupMap.get(option.group).items.push(option);
-    });
-
-    return groups.filter((group) => group.items.length > 0);
-  }, [loginOptions]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (lockout) return;
-    if (!selectedIdentifier) {
-      toast.error('Please select an account');
+    const trimmedIdentifier = identifier.trim();
+    if (!trimmedIdentifier) {
+      toast.error('Please enter username');
       return;
     }
     setLoading(true);
     try {
-      const response = await api.post('/admin/login', { identifier: selectedIdentifier, password });
+      const response = await api.post('/admin/login', { identifier: trimmedIdentifier, password });
       if (!response.data?.access_token) {
         throw new Error('Invalid admin login response');
       }
@@ -132,31 +92,19 @@ export default function AdminLoginPage() {
           <h2 className="text-2xl font-bold mb-6 text-center">Admin Login</h2>
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             <div>
-              <Label htmlFor="admin-account">Select Account</Label>
-              <select
-                id="admin-account"
-                value={selectedIdentifier}
-                onChange={(e) => setSelectedIdentifier(e.target.value)}
+              <Label htmlFor="admin-username">Username</Label>
+              <Input
+                id="admin-username"
+                name="username"
+                type="text"
+                placeholder="Enter username or email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
-                disabled={optionsLoading || loginOptions.length === 0}
-                className="mt-2 h-12 w-full rounded-md border border-[#CBD5E1] bg-white px-4 py-2 text-[#0F172A] outline-none focus:border-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {optionsLoading ? (
-                  <option value="">Loading accounts...</option>
-                ) : loginOptions.length === 0 ? (
-                  <option value="">No accounts available</option>
-                ) : (
-                  groupedOptions.map((group) => (
-                    <optgroup key={group.group} label={group.group}>
-                      {group.items.map((option) => (
-                        <option key={`${option.scope}-${option.identifier}`} value={option.identifier}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))
-                )}
-              </select>
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
             </div>
             <div>
               <Label htmlFor="admin-password">Password</Label>
@@ -197,7 +145,7 @@ export default function AdminLoginPage() {
             </Button>
 
             <p className="text-xs text-center text-[#64748B]">
-              Select the account from the list and enter only the password.
+              Enter your assigned username and password.
             </p>
 
             {lockout && <div className="text-xs text-red-600 text-center">Too many failed attempts. Please wait 15 seconds.</div>}

@@ -111,6 +111,7 @@ export const Header = () => {
 
   const adminLinks = [
     { to: '/admin-dashboard', label: 'Dashboard', testId: 'admin-dashboard-link' },
+    { to: '/admin/audit-logs', label: 'Audit Logs', testId: 'admin-audit-logs-link' },
   ];
 
   const handleLogout = () => {

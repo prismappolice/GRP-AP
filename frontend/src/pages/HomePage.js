@@ -291,7 +291,7 @@ export const HomePage = () => {
                 className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-8 py-6 text-lg w-full sm:w-auto"
                 data-testid="hero-file-complaint-button"
               >
-                File an e-Complaint
+                File e-Complaint
               </Button>
               <Button
                 onClick={() => navigate('/services')}
