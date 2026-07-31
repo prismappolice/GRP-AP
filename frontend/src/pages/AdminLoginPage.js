@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,8 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
+
+const LOCKOUT_SECONDS = 120;
 
 export default function AdminLoginPage() {
   const { loginAdmin, loginOfficerViaAdmin } = useAuth();
@@ -22,7 +24,25 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockout, setLockout] = useState(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!lockout) return undefined;
+    setLockoutRemaining(LOCKOUT_SECONDS);
+    const timer = setInterval(() => {
+      setLockoutRemaining((remaining) => {
+        if (remaining <= 1) {
+          clearInterval(timer);
+          setLockout(false);
+          setFailedAttempts(0);
+          return 0;
+        }
+        return remaining - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockout]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,7 +92,6 @@ export default function AdminLoginPage() {
       setFailedAttempts(f => {
         if (f + 1 >= 3) {
           setLockout(true);
-          setTimeout(() => setLockout(false), 15000); // 15s lockout
         }
         return f + 1;
       });
@@ -141,14 +160,14 @@ export default function AdminLoginPage() {
               <Label htmlFor="admin-remember" className="text-sm">Remember me</Label>
             </div>
             <Button type="submit" className="w-full" disabled={loading || lockout}>
-              {lockout ? `Locked (${3 - failedAttempts === 0 ? 15 : 0}s)` : loading ? 'Logging in...' : 'Login'}
+              {lockout ? `Locked (${lockoutRemaining}s)` : loading ? 'Logging in...' : 'Login'}
             </Button>
 
             <p className="text-xs text-center text-[#64748B]">
               Enter your assigned username and password.
             </p>
 
-            {lockout && <div className="text-xs text-red-600 text-center">Too many failed attempts. Please wait 15 seconds.</div>}
+            {lockout && <div className="text-xs text-red-600 text-center">Too many failed attempts. Please wait 2 minutes.</div>}
           </form>
         </div>
       </div>
