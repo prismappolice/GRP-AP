@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search, RefreshCw, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
 import api, { complaintsAPI, getAuthToken } from '@/lib/api';
 import { getAllStations } from '@/lib/policeScope';
+import { sanitizeSpreadsheetRows } from '@/lib/utils';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 import { useSearchParams } from 'react-router-dom';
 
@@ -126,7 +127,7 @@ const AdminComplaintsPage = () => {
       if (searchText.trim()) {
         const q = searchText.toLowerCase();
         const match = [c.tracking_number, c.complaint_type, c.description, c.status, c.station,
-          c.complainant_name, c.complainant_phone, c.aadhar_number, c.complainant_email, c.address, c.location]
+          c.complainant_name, c.complainant_phone, c.complainant_email, c.address, c.location]
           .join(' ').toLowerCase().includes(q);
         if (!match) return false;
       }
@@ -166,7 +167,6 @@ const AdminComplaintsPage = () => {
       { key: 'incident_date', label: 'Date' },
       { key: 'complainant_name', label: 'Name' },
       { key: 'complainant_phone', label: 'Phone' },
-      { key: 'aadhar_number', label: 'Aadhaar #' },
       { key: 'complainant_email', label: 'Email' },
       { key: 'address', label: 'Address' },
       { key: 'location', label: 'Location' },
@@ -175,12 +175,12 @@ const AdminComplaintsPage = () => {
       { key: 'status', label: 'Status' },
       { key: 'created_at', label: 'Submitted At' },
     ];
-    const data = rows.map(row =>
+    const data = sanitizeSpreadsheetRows(rows.map(row =>
       headers.reduce((obj, h) => {
         obj[h.label] = String(row[h.key] || '').replace(/_/g, ' ');
         return obj;
       }, {})
-    );
+    ));
     const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
     // Auto-width columns
     const colWidths = headers.map(h => ({
@@ -354,7 +354,6 @@ const AdminComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Date</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Name</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Phone</TableHead>
-                  <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Aadhaar</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Email</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A] min-w-[220px]">Address</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Location</TableHead>
@@ -368,7 +367,7 @@ const AdminComplaintsPage = () => {
               <TableBody>
                 {filteredComplaints.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={15} className="border border-[#60A5FA] px-4 py-10 text-center text-[#64748B]">
+                    <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-10 text-center text-[#64748B]">
                       No complaints found.
                     </TableCell>
                   </TableRow>
@@ -381,7 +380,6 @@ const AdminComplaintsPage = () => {
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.incident_date || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.complainant_name || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.complainant_phone || '-'}</TableCell>
-                      <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155]">{c.complainant_email || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] min-w-[220px]">
                         <div

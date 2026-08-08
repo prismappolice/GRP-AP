@@ -71,7 +71,7 @@ export const Footer = () => {
               </li>
               <li className="flex items-center gap-2 text-gray-400">
                 <Mail className="w-4 h-4 flex-shrink-0" />
-                <span className="break-all">andhrapradeshgrp@gmail.com</span>
+                <Link to="/help-desk" className="hover:text-white transition-colors">Use Help Desk form</Link>
               </li>
               <li className="flex items-center gap-2 text-gray-400">
                 <MapPin className="w-4 h-4" />

@@ -11,6 +11,7 @@ import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHie
 import { stations } from '@/data/stations';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 import { useSearchParams } from 'react-router-dom';
+import { sanitizeSpreadsheetRows } from '@/lib/utils';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -24,7 +25,6 @@ const STATUS_COLORS = {
 const COMPLAINT_COLS = [
   { key: 'tracking_number', label: 'Complaint No' },
   { key: 'complaint_type', label: 'Crime Type' },
-  { key: 'aadhar_number', label: 'Aadhaar Number' },
   { key: 'station', label: 'Station' },
   { key: 'incident_date', label: 'Date' },
   { key: 'status', label: 'Status' },
@@ -33,12 +33,12 @@ const COMPLAINT_COLS = [
 
 function exportToExcel(filename, rows) {
   if (!rows.length) return;
-  const data = rows.map(row =>
+  const data = sanitizeSpreadsheetRows(rows.map(row =>
     COMPLAINT_COLS.reduce((obj, h) => {
       obj[h.label] = String(row[h.key] || '').replace(/_/g, ' ');
       return obj;
     }, {})
-  );
+  ));
   const ws = XLSX.utils.json_to_sheet(data, { header: COMPLAINT_COLS.map(h => h.label) });
   ws['!cols'] = COMPLAINT_COLS.map(h => ({
     wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2
@@ -476,7 +476,6 @@ export const PoliceComplaintsPage = () => {
                     <SortHead label="Date" col="incident_date" className="min-w-[110px]" />
                     <SortHead label="Name" col="complainant_name" className="min-w-[140px]" />
                     <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[120px] whitespace-nowrap">Phone</TableHead>
-                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px] whitespace-nowrap">Aadhaar</TableHead>
                     <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px] whitespace-nowrap">Email</TableHead>
                     <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[240px] whitespace-nowrap">Address</TableHead>
                     <SortHead label="Station" col="station" className="min-w-[120px]" />
@@ -489,7 +488,7 @@ export const PoliceComplaintsPage = () => {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-10 text-center text-[#94A3B8]">
+                      <TableCell colSpan={13} className="border border-[#60A5FA] px-4 py-10 text-center text-[#94A3B8]">
                         No complaints found.
                       </TableCell>
                     </TableRow>
@@ -502,7 +501,6 @@ export const PoliceComplaintsPage = () => {
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.incident_date || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_name || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_phone || '-'}</TableCell>
-                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155]">{c.complainant_email || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[240px]">
                           <button
@@ -577,7 +575,6 @@ export const PoliceComplaintsPage = () => {
                   ['Location', viewComplaint.location || '-'],
                   ['Complainant Name', viewComplaint.complainant_name || '-'],
                   ['Phone', viewComplaint.complainant_phone || '-'],
-                  ['Aadhaar Number', viewComplaint.aadhar_number || '-'],
                   ['Email', viewComplaint.complainant_email || '-'],
                   ['Address', viewComplaint.address || '-'],
                 ].map(([label, val]) => (

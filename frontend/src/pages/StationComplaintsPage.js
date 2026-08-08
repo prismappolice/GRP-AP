@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, ArrowUpDown, Building2, ChevronDown, Download, Eye, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { stationAPI, normalizeMediaUrl } from '@/lib/api';
+import { sanitizeSpreadsheetRows } from '@/lib/utils';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 
 const STATUS_COLORS = {
@@ -104,7 +105,6 @@ const STATION_EXPORT_COLS = [
   { key: 'incident_date', label: 'Incident Date' },
   { key: 'complainant_name', label: 'Name' },
   { key: 'complainant_phone', label: 'Phone' },
-  { key: 'aadhar_number', label: 'Aadhaar Number' },
   { key: 'complainant_email', label: 'Email' },
   { key: 'address', label: 'Address' },
   { key: 'location', label: 'Location' },
@@ -155,12 +155,11 @@ async function downloadComplaintPDF(c, index) {
   // Fields 1-6: 2-column pairs (matching form layout)
   const pairedFields = [
     [['Full Name', c.complainant_name],            ['Complaint Type', (c.complaint_type || '').replace(/_/g, ' ')]],
-    [['Phone Number', c.complainant_phone],         ['Aadhaar Number', c.aadhar_number]],
-    [['Email Address', c.complainant_email],        ['Date of Incident', fmtDate(c.incident_date)]],
+    [['Phone Number', c.complainant_phone],         ['Email Address', c.complainant_email]],
+    [['Date of Incident', fmtDate(c.incident_date)], ['Location / Station', c.location]],
   ];
   // Fields 7+: full-width rows
   const singleFields = [
-    ['Location / Station', c.location],
     ['Address', c.address],
     ['Description', c.description],
     ['Complaint No', c.tracking_number],
@@ -336,13 +335,13 @@ async function downloadComplaintPDF(c, index) {
 
 function exportToExcel(filename, rows) {
   if (!rows.length) return;
-  const data = rows.map((row, i) => {
+  const data = sanitizeSpreadsheetRows(rows.map((row, i) => {
     const obj = { 'S.No': i + 1 };
     STATION_EXPORT_COLS.forEach(h => {
       obj[h.label] = String(row[h.key] || '').replace(/_/g, ' ');
     });
     return obj;
-  });
+  }));
   const allLabels = ['S.No', ...STATION_EXPORT_COLS.map(h => h.label)];
   const ws = XLSX.utils.json_to_sheet(data, { header: allLabels });
   ws['!cols'] = allLabels.map(label => ({
@@ -666,7 +665,6 @@ const StationComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[110px]">Date</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px]">Name</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[120px]">Phone</TableHead>
-                  <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px]">Aadhaar</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px]">Email</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[240px]">Address</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[130px]">Location</TableHead>
@@ -680,7 +678,7 @@ const StationComplaintsPage = () => {
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={15} className="border border-[#60A5FA] px-4 py-10 text-center text-[#94A3B8]">
+                    <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-10 text-center text-[#94A3B8]">
                       No complaints found for this station.
                     </TableCell>
                   </TableRow>
@@ -694,7 +692,6 @@ const StationComplaintsPage = () => {
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.incident_date || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_name || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_phone || '-'}</TableCell>
-                      <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155]">{c.complainant_email || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[240px]">
                         <button
@@ -767,7 +764,7 @@ const StationComplaintsPage = () => {
                     </TableRow>
                     {rejectingId === c.id && (
                       <TableRow className="bg-red-50">
-                        <TableCell colSpan={15} className="border border-[#60A5FA] px-4 py-3">
+                        <TableCell colSpan={14} className="border border-[#60A5FA] px-4 py-3">
                           <div className="flex items-start gap-2 flex-wrap">
                             <div className="flex-1 min-w-[240px]">
                               <p className="text-xs font-semibold text-red-700 mb-1">Rejection reason <span className="text-red-500">*</span> — visible to the public user on their dashboard</p>
@@ -831,7 +828,6 @@ const StationComplaintsPage = () => {
                   ['Incident Date', viewComplaint.incident_date || '-'],
                   ['Complainant Name', viewComplaint.complainant_name || '-'],
                   ['Phone', viewComplaint.complainant_phone || '-'],
-                  ['Aadhaar Number', viewComplaint.aadhar_number || '-'],
                   ['Email', viewComplaint.complainant_email || '-'],
                   ['Location', viewComplaint.location || '-'],
                 ].map(([label, value]) => (

@@ -102,8 +102,15 @@ Thumbs.db
 *.db
 *.sqlite
 *.dump
+*.sql
 backend/grp.db
+backend/grp_db_backup.sql
 agenthub/agents/youtube/db
+
+# Local audit/remediation documents
+GRP_APTS_Security_Audit_Remediation_Response.html
+audit_report_extracted.txt
+101438_Home Department_Security_Audit_Initial_Report.pdf
 
 # Archive files and large assets
 **/*.zip

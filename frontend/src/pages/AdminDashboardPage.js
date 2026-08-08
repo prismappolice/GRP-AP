@@ -59,6 +59,10 @@ const adminServices = [
 ];
 
 const AdminDashboardPage = () => {
+  const lastLoginAt = typeof window !== 'undefined' ? localStorage.getItem('admin_last_login_at') : '';
+  const lastLoginDisplay = lastLoginAt
+    ? new Date(lastLoginAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+    : 'First login recorded';
   const [counts, setCounts] = useState({
     gallery: 0,
     policeUsers: 0,
@@ -132,6 +136,7 @@ const AdminDashboardPage = () => {
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">ADMIN DASHBOARD</p>
             <h1 className="text-4xl sm:text-5xl font-extrabold heading-font text-[#0F172A]">Admin Dashboard</h1>
             <p className="text-lg text-[#475569] mt-4">Manage users, gallery content, and station hierarchy credentials.</p>
+            <p className="text-sm text-[#64748B] mt-2">Last login: <span className="font-semibold text-[#0F172A]">{lastLoginDisplay}</span></p>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">

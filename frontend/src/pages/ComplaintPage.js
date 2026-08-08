@@ -6,45 +6,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, AlertCircle, CheckCircle, Upload } from 'lucide-react';
-import { complaintsAPI } from '@/lib/api';
+import { complaintsAPI, securityAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ALLOWED_FILE_TYPES_LABEL = 'PDF / DOC / DOCX / JPG / PNG / MP4 / MOV / AVI / WEBM';
-const VERHOEFF_D_TABLE = [
-  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-  [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
-  [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
-  [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
-  [4, 0, 1, 2, 3, 9, 5, 6, 7, 8],
-  [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
-  [6, 5, 9, 8, 7, 1, 0, 4, 3, 2],
-  [7, 6, 5, 9, 8, 2, 1, 0, 4, 3],
-  [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
-  [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
-];
-const VERHOEFF_P_TABLE = [
-  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-  [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
-  [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
-  [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
-  [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
-  [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
-  [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
-  [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
-];
-
-const isValidAadhaar = (value) => {
-  const digits = String(value || '').replace(/\D/g, '');
-  if (!/^\d{12}$/.test(digits)) return false;
-  if (new Set(digits).size === 1) return false;
-  let checksum = 0;
-  [...digits].reverse().forEach((digit, index) => {
-    checksum = VERHOEFF_D_TABLE[checksum][VERHOEFF_P_TABLE[index % 8][Number(digit)]];
-  });
-  return checksum === 0;
-};
-
+const ALLOWED_FILE_TYPES_LABEL = 'PDF / JPG / PNG / GIF / WEBP';
 const formatErrorDetail = (detail) => {
   if (!detail) return 'Failed to register complaint';
   if (typeof detail === 'string') return detail;
@@ -71,31 +37,44 @@ export const ComplaintPage = () => {
   const [formData, setFormData] = useState({
     complainant_name: '',
     complainant_phone: '',
-    aadhar_number: '',
     complainant_email: '',
     address: '',
     complaint_type: '',
     description: '',
-    station: 'Unassigned',
     incident_date: '',
     location: '',
   });
   const [supportingDocs, setSupportingDocs] = useState([]);
   const supportingDocsRef = useRef(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [captcha, setCaptcha] = useState(null);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+
+  const loadCaptcha = async () => {
+    try {
+      const res = await securityAPI.getChallenge();
+      setCaptcha(res.data);
+      setCaptchaAnswer('');
+    } catch {
+      setCaptcha(null);
+    }
+  };
+
+  useEffect(() => {
+    loadCaptcha();
+  }, []);
 
   const resetComplaintForm = () => {
     setTrackingNumber(null);
     setFormData({
       complainant_name: '',
       complainant_phone: '',
-      aadhar_number: '',
       complainant_email: '',
       address: '',
       complaint_type: '',
       description: '',
-      station: 'Unassigned',
       incident_date: '',
+      location: '',
     });
     setSupportingDocs([]);
     if (supportingDocsRef.current) {
@@ -125,12 +104,12 @@ export const ComplaintPage = () => {
     if (!formData.complainant_name.trim()) errors.complainant_name = 'Please fill this field';
     if (!formData.complaint_type) errors.complaint_type = 'Please select a complaint type';
     if (!/^\d{10}$/.test(formData.complainant_phone || '')) errors.complainant_phone = 'Phone number must be exactly 10 digits';
-    if (!isValidAadhaar(formData.aadhar_number)) errors.aadhar_number = 'Please enter a valid 12-digit Aadhaar number';
     if (!EMAIL_REGEX.test((formData.complainant_email || '').trim())) errors.complainant_email = 'Please enter a valid email address';
     if (!formData.incident_date) errors.incident_date = 'Please fill this field';
     if (!formData.location.trim()) errors.location = 'Please fill this field';
     if (!formData.address.trim()) errors.address = 'Please fill this field';
     if (!formData.description.trim()) errors.description = 'Please fill this field';
+    if (!captcha?.captcha_id || !captchaAnswer.trim()) errors.captcha = 'Please answer the security challenge';
     return errors;
   };
 
@@ -146,11 +125,14 @@ export const ComplaintPage = () => {
     try {
       const data = new FormData();
       Object.entries({ ...formData, complainant_email: (formData.complainant_email || '').trim() }).forEach(([k, v]) => data.append(k, v));
+      data.append('captcha_id', captcha.captcha_id);
+      data.append('captcha_answer', captchaAnswer.trim());
       supportingDocs.forEach(file => data.append('supporting_docs', file));
       const response = await complaintsAPI.create(data);
       setTrackingNumber(response.data.tracking_number);
     } catch (error) {
       toast.error(formatErrorDetail(error?.response?.data?.detail));
+      loadCaptcha();
     } finally {
       setLoading(false);
     }
@@ -246,8 +228,8 @@ export const ComplaintPage = () => {
         <Card className="p-8 border border-[#60A5FA] bg-white">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="complainant_name">1. Full Name *</Label>
+            <div>
+              <Label htmlFor="complainant_name">1. Full Name *</Label>
                 <Input
                   id="complainant_name"
                   className={`mt-2 ${fieldErrors.complainant_name ? 'border-[#DC2626]' : ''}`}
@@ -292,20 +274,7 @@ export const ComplaintPage = () => {
                 {fieldErrors.complainant_phone && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_phone}</p>}
               </div>
               <div>
-                <Label htmlFor="aadhar_number">4. Aadhaar Number *</Label>
-                <Input
-                  id="aadhar_number"
-                  className={`mt-2 ${fieldErrors.aadhar_number ? 'border-[#DC2626]' : ''}`}
-                  placeholder="12-digit Aadhaar number"
-                  value={formData.aadhar_number}
-                  onChange={(e) => { setFormData({...formData, aadhar_number: e.target.value.replace(/\D/g, '').slice(0, 12)}); if (fieldErrors.aadhar_number) setFieldErrors(p => ({...p, aadhar_number: ''})); }}
-                  inputMode="numeric"
-                  maxLength={12}
-                />
-                {fieldErrors.aadhar_number && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.aadhar_number}</p>}
-              </div>
-              <div>
-                <Label htmlFor="complainant_email">5. Email Address *</Label>
+                <Label htmlFor="complainant_email">4. Email Address *</Label>
                 <Input
                   id="complainant_email"
                   type="email"
@@ -317,7 +286,7 @@ export const ComplaintPage = () => {
                 {fieldErrors.complainant_email && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_email}</p>}
               </div>
               <div>
-                <Label htmlFor="incident_date">6. Date of Incident *</Label>
+                <Label htmlFor="incident_date">5. Date of Incident *</Label>
                 <Input
                   id="incident_date"
                   type="date"
@@ -327,6 +296,18 @@ export const ComplaintPage = () => {
                   data-testid="incident-date-input"
                 />
                 {fieldErrors.incident_date && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.incident_date}</p>}
+              </div>
+              <div>
+                <Label htmlFor="security_challenge">6. Security Check *</Label>
+                <Input
+                  id="security_challenge"
+                  className={`mt-2 ${fieldErrors.captcha ? 'border-[#DC2626]' : ''}`}
+                  placeholder={captcha ? `${captcha.question} = ?` : 'Loading security check...'}
+                  value={captchaAnswer}
+                  onChange={(e) => { setCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 3)); if (fieldErrors.captcha) setFieldErrors(p => ({...p, captcha: ''})); }}
+                  inputMode="numeric"
+                />
+                {fieldErrors.captcha && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.captcha}</p>}
               </div>
             </div>
 

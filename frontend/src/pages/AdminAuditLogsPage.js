@@ -7,6 +7,7 @@ import { adminAPI } from '@/lib/api';
 import { Download, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { sanitizeSpreadsheetRows } from '@/lib/utils';
 
 const actionLabels = {
   credential_password_update: 'Password Update',
@@ -74,7 +75,7 @@ const AdminAuditLogsPage = () => {
       toast.error('No audit logs to export');
       return;
     }
-    const rows = filteredLogs.map((log, idx) => {
+    const rows = sanitizeSpreadsheetRows(filteredLogs.map((log, idx) => {
       const details = parseDetails(log.details);
       return {
         'S.No': idx + 1,
@@ -86,7 +87,7 @@ const AdminAuditLogsPage = () => {
         IP: log.ip_address || '-',
         Details: JSON.stringify(details),
       };
-    });
+    }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Audit Logs');

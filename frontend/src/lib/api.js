@@ -62,6 +62,15 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
+  logout: () => api.post('/auth/logout'),
+  requestChangePasswordOtp: () => api.post('/auth/change-password/otp'),
+  changePassword: (data) => api.post('/auth/change-password', data),
+  requestPasswordReset: (data) => api.post('/auth/password-reset/request', data),
+  completePasswordReset: (data) => api.post('/auth/password-reset/complete', data),
+};
+
+export const securityAPI = {
+  getChallenge: () => api.get('/anti-automation/challenge'),
 };
 
 export const complaintsAPI = {

@@ -1,9 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Download, FileText, X } from 'lucide-react';
-import { normalizeMediaUrl } from '@/lib/api';
+import { getAuthToken, normalizeMediaUrl } from '@/lib/api';
+
+const fetchWithAuth = (url) => {
+  const token = getAuthToken();
+  return fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+};
 
 const downloadFile = async (url, filename) => {
   // Use a relative path so the request goes through the dev proxy (same-origin).
@@ -15,7 +22,7 @@ const downloadFile = async (url, filename) => {
   } catch { /* url is already relative */ }
 
   try {
-    const resp = await fetch(fetchUrl);
+    const resp = await fetchWithAuth(fetchUrl);
     if (!resp.ok) throw new Error('fetch failed');
     const blob = await resp.blob();
     const blobUrl = URL.createObjectURL(blob);
@@ -45,22 +52,6 @@ const toRelativePath = (url) => {
   try { const p = new URL(url); return p.pathname + p.search; } catch { return url; }
 };
 
-const imageToBytes = (src) => new Promise((resolve, reject) => {
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || 800;
-    canvas.height = img.naturalHeight || 600;
-    canvas.getContext('2d').drawImage(img, 0, 0);
-    canvas.toBlob(async (blob) => {
-      try { resolve(await blob.arrayBuffer()); } catch (e) { reject(e); }
-    }, 'image/png');
-  };
-  img.onerror = reject;
-  img.src = src;
-});
-
 const downloadAllAsPdf = async (mediaUrls, trackingNumber) => {
   const mergedPdf = await PDFDocument.create();
 
@@ -68,13 +59,14 @@ const downloadAllAsPdf = async (mediaUrls, trackingNumber) => {
     const normalized = toRelativePath(normalizeMediaUrl(url));
     try {
       if (isImage(url)) {
-        const bytes = await imageToBytes(normalized);
-        const img = await mergedPdf.embedPng(bytes);
+        const resp = await fetchWithAuth(normalized);
+        const bytes = await resp.arrayBuffer();
+        const img = /\.(jpg|jpeg)$/i.test(url) ? await mergedPdf.embedJpg(bytes) : await mergedPdf.embedPng(bytes);
         const { width, height } = img.scale(1);
         const page = mergedPdf.addPage([width, height]);
         page.drawImage(img, { x: 0, y: 0, width, height });
       } else if (isPdf(url)) {
-        const resp = await fetch(normalized);
+        const resp = await fetchWithAuth(normalized);
         const bytes = await resp.arrayBuffer();
         const srcDoc = await PDFDocument.load(bytes);
         const copied = await mergedPdf.copyPages(srcDoc, srcDoc.getPageIndices());
@@ -114,11 +106,35 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
   const mediaUrls = useMemo(() => parseDocs(docs), [docs]);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [activeObjectUrl, setActiveObjectUrl] = useState('');
+
+  const activeUrl = mediaUrls[mediaIndex] || '';
+  const normalizedActiveUrl = normalizeMediaUrl(activeUrl);
+
+  useEffect(() => {
+    if (!activeUrl) return undefined;
+    let revoked = false;
+    let objectUrl = '';
+    const loadActive = async () => {
+      try {
+        const relative = toRelativePath(normalizedActiveUrl);
+        const resp = await fetchWithAuth(relative);
+        if (!resp.ok) throw new Error('fetch failed');
+        const blob = await resp.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!revoked) setActiveObjectUrl(objectUrl);
+      } catch {
+        if (!revoked) setActiveObjectUrl(normalizedActiveUrl);
+      }
+    };
+    loadActive();
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [normalizedActiveUrl]);
 
   if (!mediaUrls.length) return null;
-
-  const activeUrl = mediaUrls[mediaIndex];
-  const normalizedActiveUrl = normalizeMediaUrl(activeUrl);
 
   // Use the same overlay/modal pattern as homepage lightbox
   return (
@@ -146,11 +162,11 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
         <div className="space-y-4 flex-1 flex flex-col">
           <div className="relative rounded-xl overflow-hidden bg-[#F1F5F9] flex items-center justify-center min-h-[180px] max-h-[65vh]">
             {isVideo(activeUrl) ? (
-              <video key={activeUrl} src={normalizedActiveUrl} controls className="w-full max-h-[62vh] object-contain" />
+              <video key={activeUrl} src={activeObjectUrl || normalizedActiveUrl} controls className="w-full max-h-[62vh] object-contain" />
             ) : isImage(activeUrl) ? (
-              <img key={activeUrl} src={normalizedActiveUrl} alt={`document-${mediaIndex + 1}`} className="w-full max-h-[62vh] object-contain" />
+              <img key={activeUrl} src={activeObjectUrl || normalizedActiveUrl} alt={`document-${mediaIndex + 1}`} className="w-full max-h-[62vh] object-contain" />
             ) : isPdf(activeUrl) ? (
-              <iframe key={activeUrl} src={normalizedActiveUrl} title={`document-${mediaIndex + 1}`} className="w-full h-[62vh] border-0" />
+              <iframe key={activeUrl} src={activeObjectUrl || normalizedActiveUrl} title={`document-${mediaIndex + 1}`} className="w-full h-[62vh] border-0" />
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 py-8 text-[#475569] px-4 text-center">
                 <FileText className="w-12 h-12 text-[#2563EB]" />

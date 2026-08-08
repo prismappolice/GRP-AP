@@ -149,7 +149,7 @@ export default function IndiaRailways() {
           </Card>
           <Card className="p-6 border border-[#60A5FA] bg-white flex flex-col gap-2 shadow-sm">
             <h3 className="font-bold text-lg text-[#0F172A] mb-2 flex items-center gap-2"><Info className="w-5 h-5 text-[#16A34A]" /> Customer Support</h3>
-            <p className="text-base text-[#475569]">For feedback, lost & found, or complaints, visit <a href="https://railmadad.indianrailways.gov.in/" target="_blank" rel="noopener noreferrer" className="text-[#2563EB] underline">Rail Madad</a> or email <a href="mailto:customercare@indianrailways.gov.in" className="text-[#2563EB] underline">customercare@indianrailways.gov.in</a>.</p>
+            <p className="text-base text-[#475569]">For feedback, lost & found, or complaints, visit <a href="https://railmadad.indianrailways.gov.in/" target="_blank" rel="noopener noreferrer" className="text-[#2563EB] underline">Rail Madad</a> or contact Indian Railways through its official support channels.</p>
           </Card>
         </div>
       </section>

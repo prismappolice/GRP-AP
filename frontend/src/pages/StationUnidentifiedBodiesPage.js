@@ -13,6 +13,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { stationAPI, unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
 import { stations } from '@/data/stations';
+import { sanitizeSpreadsheetRows } from '@/lib/utils';
 import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight, Download, FileText, Clock, ArrowUpDown } from 'lucide-react';
 
 async function downloadMediaPDF(group, mediaIndex, normalizeMediaUrl) {
@@ -259,12 +260,12 @@ const StationUnidentifiedBodiesPage = () => {
       { key: 'description', label: 'Description' },
       { key: 'station', label: 'Station' },
     ];
-    const data = filteredGrouped.map(row =>
+    const data = sanitizeSpreadsheetRows(filteredGrouped.map(row =>
       headers.reduce((obj, h) => {
         obj[h.label] = String(row[h.key] || '');
         return obj;
       }, {})
-    );
+    ));
     const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
     ws['!cols'] = headers.map(h => ({ wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2 }));
     const wb = XLSX.utils.book_new();

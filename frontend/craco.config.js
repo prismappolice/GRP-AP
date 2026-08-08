@@ -23,6 +23,10 @@ if (config.enableHealthCheck) {
 }
 
 let webpackConfig = {
+  // CRACO 5 looks for CRA 4's deprecated eslint-loader by default. CRA 5 uses
+  // eslint-webpack-plugin, so disabling CRACO's legacy ESLint hook removes the
+  // noisy "Cannot find ESLint loader" build warning.
+  eslint: null,
   webpack: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
