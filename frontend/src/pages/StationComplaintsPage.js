@@ -746,7 +746,7 @@ const StationComplaintsPage = () => {
                         </div>
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left min-w-[180px]">
-                        {!['resolved', 'rejected'].includes(c.status) && (
+                        {!['approved', 'resolved', 'closed', 'rejected'].includes(String(c.status || '').toLowerCase()) && (
                           <ActionCell
                             complaintId={c.id}
                             pendingStatus={pendingStatus}

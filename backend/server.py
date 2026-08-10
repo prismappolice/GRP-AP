@@ -64,7 +64,7 @@ TRUSTED_HOSTS = {
     for host in os.environ.get("TRUSTED_HOSTS", "13.233.250.180,grp.prismappolice.in,www.grp.prismappolice.in,localhost,127.0.0.1").split(",")
     if host.strip()
 }
-TERMINAL_COMPLAINT_STATUSES = {"resolved", "closed", "rejected"}
+TERMINAL_COMPLAINT_STATUSES = {"approved", "resolved", "closed", "rejected"}
 MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
 PUBLIC_SUBMISSION_MAX_ATTEMPTS = 5
 PUBLIC_SUBMISSION_WINDOW_SECONDS = 10 * 60
