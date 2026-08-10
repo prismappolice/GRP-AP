@@ -24,7 +24,6 @@ const STATUS_COLORS = {
 const COMPLAINT_COLS = [
   { key: 'tracking_number', label: 'Complaint No' },
   { key: 'complaint_type', label: 'Crime Type' },
-  { key: 'aadhar_number', label: 'Aadhaar Number' },
   { key: 'station', label: 'Station' },
   { key: 'incident_date', label: 'Date' },
   { key: 'status', label: 'Status' },
@@ -476,7 +475,6 @@ export const PoliceComplaintsPage = () => {
                     <SortHead label="Date" col="incident_date" className="min-w-[110px]" />
                     <SortHead label="Name" col="complainant_name" className="min-w-[140px]" />
                     <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[120px] whitespace-nowrap">Phone</TableHead>
-                    <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px] whitespace-nowrap">Aadhaar</TableHead>
                     <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px] whitespace-nowrap">Email</TableHead>
                     <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[240px] whitespace-nowrap">Address</TableHead>
                     <SortHead label="Station" col="station" className="min-w-[120px]" />
@@ -502,7 +500,6 @@ export const PoliceComplaintsPage = () => {
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.incident_date || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_name || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_phone || '-'}</TableCell>
-                        <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155]">{c.complainant_email || '-'}</TableCell>
                         <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[240px]">
                           <button
@@ -577,7 +574,6 @@ export const PoliceComplaintsPage = () => {
                   ['Location', viewComplaint.location || '-'],
                   ['Complainant Name', viewComplaint.complainant_name || '-'],
                   ['Phone', viewComplaint.complainant_phone || '-'],
-                  ['Aadhaar Number', viewComplaint.aadhar_number || '-'],
                   ['Email', viewComplaint.complainant_email || '-'],
                   ['Address', viewComplaint.address || '-'],
                 ].map(([label, val]) => (

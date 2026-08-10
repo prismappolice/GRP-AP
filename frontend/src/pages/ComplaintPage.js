@@ -11,39 +11,6 @@ import { toast } from 'sonner';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ALLOWED_FILE_TYPES_LABEL = 'PDF / DOC / DOCX / JPG / PNG / MP4 / MOV / AVI / WEBM';
-const VERHOEFF_D_TABLE = [
-  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-  [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
-  [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
-  [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
-  [4, 0, 1, 2, 3, 9, 5, 6, 7, 8],
-  [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
-  [6, 5, 9, 8, 7, 1, 0, 4, 3, 2],
-  [7, 6, 5, 9, 8, 2, 1, 0, 4, 3],
-  [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
-  [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
-];
-const VERHOEFF_P_TABLE = [
-  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-  [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
-  [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
-  [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
-  [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
-  [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
-  [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
-  [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
-];
-
-const isValidAadhaar = (value) => {
-  const digits = String(value || '').replace(/\D/g, '');
-  if (!/^\d{12}$/.test(digits)) return false;
-  if (new Set(digits).size === 1) return false;
-  let checksum = 0;
-  [...digits].reverse().forEach((digit, index) => {
-    checksum = VERHOEFF_D_TABLE[checksum][VERHOEFF_P_TABLE[index % 8][Number(digit)]];
-  });
-  return checksum === 0;
-};
 
 const formatErrorDetail = (detail) => {
   if (!detail) return 'Failed to register complaint';
@@ -71,7 +38,6 @@ export const ComplaintPage = () => {
   const [formData, setFormData] = useState({
     complainant_name: '',
     complainant_phone: '',
-    aadhar_number: '',
     complainant_email: '',
     address: '',
     complaint_type: '',
@@ -89,7 +55,6 @@ export const ComplaintPage = () => {
     setFormData({
       complainant_name: '',
       complainant_phone: '',
-      aadhar_number: '',
       complainant_email: '',
       address: '',
       complaint_type: '',
@@ -125,7 +90,6 @@ export const ComplaintPage = () => {
     if (!formData.complainant_name.trim()) errors.complainant_name = 'Please fill this field';
     if (!formData.complaint_type) errors.complaint_type = 'Please select a complaint type';
     if (!/^\d{10}$/.test(formData.complainant_phone || '')) errors.complainant_phone = 'Phone number must be exactly 10 digits';
-    if (!isValidAadhaar(formData.aadhar_number)) errors.aadhar_number = 'Please enter a valid 12-digit Aadhaar number';
     if (!EMAIL_REGEX.test((formData.complainant_email || '').trim())) errors.complainant_email = 'Please enter a valid email address';
     if (!formData.incident_date) errors.incident_date = 'Please fill this field';
     if (!formData.location.trim()) errors.location = 'Please fill this field';
@@ -292,20 +256,7 @@ export const ComplaintPage = () => {
                 {fieldErrors.complainant_phone && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_phone}</p>}
               </div>
               <div>
-                <Label htmlFor="aadhar_number">4. Aadhaar Number *</Label>
-                <Input
-                  id="aadhar_number"
-                  className={`mt-2 ${fieldErrors.aadhar_number ? 'border-[#DC2626]' : ''}`}
-                  placeholder="12-digit Aadhaar number"
-                  value={formData.aadhar_number}
-                  onChange={(e) => { setFormData({...formData, aadhar_number: e.target.value.replace(/\D/g, '').slice(0, 12)}); if (fieldErrors.aadhar_number) setFieldErrors(p => ({...p, aadhar_number: ''})); }}
-                  inputMode="numeric"
-                  maxLength={12}
-                />
-                {fieldErrors.aadhar_number && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.aadhar_number}</p>}
-              </div>
-              <div>
-                <Label htmlFor="complainant_email">5. Email Address *</Label>
+                <Label htmlFor="complainant_email">4. Email Address *</Label>
                 <Input
                   id="complainant_email"
                   type="email"
@@ -317,7 +268,7 @@ export const ComplaintPage = () => {
                 {fieldErrors.complainant_email && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_email}</p>}
               </div>
               <div>
-                <Label htmlFor="incident_date">6. Date of Incident *</Label>
+                <Label htmlFor="incident_date">5. Date of Incident *</Label>
                 <Input
                   id="incident_date"
                   type="date"
@@ -331,7 +282,7 @@ export const ComplaintPage = () => {
             </div>
 
             <div>
-                <Label htmlFor="location">7. Location *</Label>
+                <Label htmlFor="location">6. Location *</Label>
                 <Input
                   id="location"
                   className={`mt-2 ${fieldErrors.location ? 'border-[#DC2626]' : ''}`}
@@ -343,7 +294,7 @@ export const ComplaintPage = () => {
             </div>
 
             <div>
-              <Label htmlFor="address">8. Address *</Label>
+              <Label htmlFor="address">7. Address *</Label>
               <Textarea
                 id="address"
                 className={`mt-2 min-h-[100px] ${fieldErrors.address ? 'border-[#DC2626]' : ''}`}
@@ -355,7 +306,7 @@ export const ComplaintPage = () => {
             </div>
 
             <div>
-              <Label htmlFor="description">9. Description *</Label>
+              <Label htmlFor="description">8. Description *</Label>
               <Textarea
                 id="description"
                 className={`mt-2 min-h-[150px] ${fieldErrors.description ? 'border-[#DC2626]' : ''}`}

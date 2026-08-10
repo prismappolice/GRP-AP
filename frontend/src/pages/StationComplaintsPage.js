@@ -104,7 +104,6 @@ const STATION_EXPORT_COLS = [
   { key: 'incident_date', label: 'Incident Date' },
   { key: 'complainant_name', label: 'Name' },
   { key: 'complainant_phone', label: 'Phone' },
-  { key: 'aadhar_number', label: 'Aadhaar Number' },
   { key: 'complainant_email', label: 'Email' },
   { key: 'address', label: 'Address' },
   { key: 'location', label: 'Location' },
@@ -155,12 +154,11 @@ async function downloadComplaintPDF(c, index) {
   // Fields 1-6: 2-column pairs (matching form layout)
   const pairedFields = [
     [['Full Name', c.complainant_name],            ['Complaint Type', (c.complaint_type || '').replace(/_/g, ' ')]],
-    [['Phone Number', c.complainant_phone],         ['Aadhaar Number', c.aadhar_number]],
-    [['Email Address', c.complainant_email],        ['Date of Incident', fmtDate(c.incident_date)]],
+    [['Phone Number', c.complainant_phone],         ['Email Address', c.complainant_email]],
+    [['Date of Incident', fmtDate(c.incident_date)], ['Location', c.location]],
   ];
   // Fields 7+: full-width rows
   const singleFields = [
-    ['Location / Station', c.location],
     ['Address', c.address],
     ['Description', c.description],
     ['Complaint No', c.tracking_number],
@@ -666,7 +664,6 @@ const StationComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[110px]">Date</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px]">Name</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[120px]">Phone</TableHead>
-                  <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[140px]">Aadhaar</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[180px]">Email</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[240px]">Address</TableHead>
                   <TableHead className="border border-[#60A5FA] px-4 py-3 text-left font-bold text-[#0F172A] min-w-[130px]">Location</TableHead>
@@ -694,7 +691,6 @@ const StationComplaintsPage = () => {
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.incident_date || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_name || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.complainant_phone || '-'}</TableCell>
-                      <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left text-base text-[#334155]">{c.complainant_email || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 min-w-[240px]">
                         <button
@@ -831,7 +827,6 @@ const StationComplaintsPage = () => {
                   ['Incident Date', viewComplaint.incident_date || '-'],
                   ['Complainant Name', viewComplaint.complainant_name || '-'],
                   ['Phone', viewComplaint.complainant_phone || '-'],
-                  ['Aadhaar Number', viewComplaint.aadhar_number || '-'],
                   ['Email', viewComplaint.complainant_email || '-'],
                   ['Location', viewComplaint.location || '-'],
                 ].map(([label, value]) => (

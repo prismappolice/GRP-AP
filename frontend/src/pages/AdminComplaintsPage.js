@@ -126,7 +126,7 @@ const AdminComplaintsPage = () => {
       if (searchText.trim()) {
         const q = searchText.toLowerCase();
         const match = [c.tracking_number, c.complaint_type, c.description, c.status, c.station,
-          c.complainant_name, c.complainant_phone, c.aadhar_number, c.complainant_email, c.address, c.location]
+          c.complainant_name, c.complainant_phone, c.complainant_email, c.address, c.location]
           .join(' ').toLowerCase().includes(q);
         if (!match) return false;
       }
@@ -166,7 +166,6 @@ const AdminComplaintsPage = () => {
       { key: 'incident_date', label: 'Date' },
       { key: 'complainant_name', label: 'Name' },
       { key: 'complainant_phone', label: 'Phone' },
-      { key: 'aadhar_number', label: 'Aadhaar #' },
       { key: 'complainant_email', label: 'Email' },
       { key: 'address', label: 'Address' },
       { key: 'location', label: 'Location' },
@@ -354,7 +353,6 @@ const AdminComplaintsPage = () => {
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Date</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Name</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Phone</TableHead>
-                  <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Aadhaar</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Email</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A] min-w-[220px]">Address</TableHead>
                   <TableHead className="border border-[#60A5FA] px-3 py-3 font-bold text-[#0F172A]">Location</TableHead>
@@ -381,7 +379,6 @@ const AdminComplaintsPage = () => {
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.incident_date || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.complainant_name || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.complainant_phone || '-'}</TableCell>
-                      <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] whitespace-nowrap">{c.aadhar_number || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155]">{c.complainant_email || '-'}</TableCell>
                       <TableCell className="border border-[#60A5FA] px-3 py-2 text-[#334155] min-w-[220px]">
                         <div
