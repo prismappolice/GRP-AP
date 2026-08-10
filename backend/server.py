@@ -17,7 +17,7 @@ import hashlib
 import traceback
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Mapping, Optional, Union
 
 import bcrypt
 import jwt
@@ -335,6 +335,7 @@ class PasswordResetTokenORM(Base):
     account_table = Column(String, nullable=True)
     account_id = Column(String, nullable=True)
     email = Column(String, nullable=True)
+    purpose = Column(String, default="password_reset", nullable=False)
     otp_hash = Column(String, nullable=False)
     ip_address = Column(String, nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
@@ -539,6 +540,13 @@ class AdminLogin(BaseModel):
     password: str
 
 
+class AdminLoginVerify(BaseModel):
+    reset_id: str
+    otp: str
+    captcha_id: str
+    captcha_answer: str
+
+
 class AdminPasswordUpdate(BaseModel):
     new_password: str
 
@@ -551,8 +559,21 @@ class PasswordChangeRequest(BaseModel):
     captcha_answer: str
 
 
+class UsernameChangeRequest(BaseModel):
+    new_username: EmailStr
+    otp: str
+    captcha_id: str
+    captcha_answer: str
+
+
+class ProfileNameUpdate(BaseModel):
+    name: str
+
+
 class PasswordResetStartRequest(BaseModel):
     identifier: str
+    captcha_id: str
+    captcha_answer: str
 
 
 class PasswordResetCompleteRequest(BaseModel):
@@ -561,8 +582,21 @@ class PasswordResetCompleteRequest(BaseModel):
     new_password: str
 
 
-class AdminUsernameUpdate(BaseModel):
-    new_username: EmailStr
+class AdminCredentialStatusUpdate(BaseModel):
+    is_active: bool
+
+
+class AdminCredentialCreate(BaseModel):
+    scope: str
+    email: EmailStr
+    name: str
+    phone: str = "N/A"
+    password: str
+    role: Optional[str] = None
+    division: Optional[str] = None
+    subdivision: Optional[str] = None
+    circle: Optional[str] = None
+    station_name: Optional[str] = None
 
 
 class AdminCredentialEntry(BaseModel):
@@ -573,6 +607,7 @@ class AdminCredentialEntry(BaseModel):
     password: str
     role: str
     must_change_password: bool = False
+    is_active: bool = True
 
 
 class AdminLoginOption(BaseModel):
@@ -892,12 +927,14 @@ async def _require_active_session(
 ) -> None:
     await ensure_auth_security_columns(session)
     result = await session.execute(
-        text(f"SELECT active_session_id FROM {table_name} WHERE id = :id LIMIT 1"),
+        text(f"SELECT active_session_id, is_active FROM {table_name} WHERE id = :id LIMIT 1"),
         {"id": user_id},
     )
     row = result.mappings().first()
     if not row or not token_session_id or row["active_session_id"] != token_session_id:
         raise HTTPException(status_code=401, detail="Session is no longer active")
+    if int(row["is_active"] if row["is_active"] is not None else 1) != 1:
+        raise HTTPException(status_code=403, detail="Account is disabled")
 
 
 def _normalize_label(value: str) -> str:
@@ -909,18 +946,12 @@ def _digits_only(value: str) -> str:
 
 
 def _format_superior_officer_label(role: str, name: str) -> str:
-    role_key = str(role or "").lower()
-    role_upper = role_key.upper()
     cleaned_name = str(name or "").strip()
     # Avoid duplicated superior-rank tokens in labels, e.g.:
     # "DIG DIG Railways" -> "DIG Railways"
     # "ADGP ADGP Railways" -> "ADGP Railways"
     cleaned_name = re.sub(r"^(dgp|adgp|dig)\b[\s:\-_/]*", "", cleaned_name, flags=re.IGNORECASE).strip()
-    if role_key == "dgp":
-        return f"DGP {cleaned_name}".strip()
-    if role == "srp" and name.startswith("GRP "):
-        return f"{role_upper} {name.replace('GRP ', '', 1)}"
-    return f"{role_upper} {cleaned_name}".strip()
+    return f"DGP {cleaned_name}".strip()
 
 
 def _extract_js_object_literal(content: str, const_name: str) -> Optional[str]:
@@ -1222,6 +1253,14 @@ async def ensure_auth_security_columns(session: AsyncSession) -> None:
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS active_session_id VARCHAR"))
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE"))
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS must_change_password INTEGER DEFAULT 0"))
+        await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1"))
+        await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS division VARCHAR"))
+        await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS subdivision VARCHAR"))
+        await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS circle VARCHAR"))
+        await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS station_name VARCHAR"))
+    await session.execute(text("ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS purpose VARCHAR DEFAULT 'password_reset'"))
+    await session.execute(text("UPDATE password_reset_tokens SET purpose = 'password_reset' WHERE purpose IS NULL OR purpose = ''"))
+    await session.execute(text("UPDATE dgp SET role = 'dgp' WHERE lower(COALESCE(role, '')) IN ('adgp', 'dig')"))
     await session.commit()
 
 
@@ -1417,6 +1456,23 @@ def _send_password_reset_otp(email_address: str, display_name: str, otp: str) ->
     except Exception as exc:
         logger.warning("Password reset OTP email failed for %s: %s", email_address, exc)
         raise HTTPException(status_code=502, detail="Failed to send reset OTP. Please try again later.") from exc
+
+
+def _send_security_notification(email_address: str, display_name: str, subject: str, body: str) -> None:
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]) or not email_address:
+        return
+    try:
+        msg = email.mime.multipart.MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = SMTP_USER
+        msg["To"] = email_address
+        msg.attach(email.mime.text.MIMEText(body, "plain"))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, email_address, msg.as_string())
+    except Exception as exc:
+        logger.warning("Security notification email failed for %s: %s", email_address, exc)
 
 
 def validate_strong_password(plain_password: str) -> None:
@@ -1876,6 +1932,107 @@ async def get_anti_automation_challenge(request: Request) -> CaptchaChallenge:
     return CaptchaChallenge(captcha_id=captcha_id, question=f"{left} + {right}")
 
 
+async def _start_login_otp(
+    session: AsyncSession,
+    request: Request,
+    account_table: str,
+    account: Mapping[str, Any],
+) -> Dict[str, Any]:
+    enforce_password_reset_rate_limit(request, f"login:{account_table}:{account['id']}")
+    reset_id = str(uuid.uuid4())
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=PASSWORD_RESET_OTP_EXPIRY_MINUTES)
+    await session.execute(
+        text(
+            """
+            UPDATE password_reset_tokens
+            SET used_at = :used_at
+            WHERE account_table = :account_table
+              AND account_id = :account_id
+              AND purpose = 'login'
+              AND used_at IS NULL
+            """
+        ),
+        {"used_at": now, "account_table": account_table, "account_id": str(account["id"])},
+    )
+    await session.execute(
+        text(
+            """
+            INSERT INTO password_reset_tokens
+                (id, account_table, account_id, email, purpose, otp_hash, ip_address, attempts, used_at, expires_at, created_at)
+            VALUES
+                (:id, :account_table, :account_id, :email, 'login', :otp_hash, :ip_address, 0, NULL, :expires_at, :created_at)
+            """
+        ),
+        {
+            "id": reset_id,
+            "account_table": account_table,
+            "account_id": str(account["id"]),
+            "email": str(account["email"]),
+            "otp_hash": _hash_reset_otp(reset_id, otp),
+            "ip_address": _client_ip(request),
+            "expires_at": expires_at,
+            "created_at": now,
+        },
+    )
+    await session.commit()
+    _send_password_reset_otp(str(account["email"]), str(account["name"] or "User"), otp)
+    return {
+        "login_pending": True,
+        "reset_id": reset_id,
+        "masked_email": _mask_email(str(account["email"])),
+        "message": "OTP sent to registered email.",
+    }
+
+
+async def _build_login_success(
+    session: AsyncSession,
+    identifier: str,
+    client_ip: str,
+    account_table: str,
+    account: Mapping[str, Any],
+) -> Dict[str, Any]:
+    if int(account["is_active"] if account["is_active"] is not None else 1) != 1:
+        await record_login_attempt(session, identifier, client_ip, False)
+        raise HTTPException(status_code=403, detail="Account is disabled")
+    audit_read_only = is_audit_account(account)
+    if account_table == "admin":
+        session_id, previous_login_at = await _activate_login_session(session, "admin", account["id"])
+        access_token = create_access_token({"admin_id": account["id"], "is_admin": True, "role": "admin", "audit_read_only": audit_read_only, "sid": session_id})
+        portal_role = "admin"
+        officer_role = None
+    elif account_table == "dgp":
+        session_id, previous_login_at = await _activate_login_session(session, "dgp", account["id"])
+        access_token = create_access_token({"officer_id": account["id"], "officer_role": "dgp", "audit_read_only": audit_read_only, "sid": session_id})
+        portal_role = "officer"
+        officer_role = "dgp"
+    elif account_table == "stations":
+        session_id, previous_login_at = await _activate_login_session(session, "stations", account["id"])
+        access_token = create_access_token({"station_id": account["id"], "role": "station", "audit_read_only": audit_read_only, "sid": session_id})
+        portal_role = "officer"
+        officer_role = "station"
+    else:
+        cred_role = account_table
+        session_id, previous_login_at = await _activate_login_session(session, account_table, account["id"])
+        access_token = create_access_token({"cred_id": account["id"], "cred_role": cred_role, "audit_read_only": audit_read_only, "sid": session_id})
+        portal_role = "officer"
+        officer_role = cred_role
+    await record_login_attempt(session, identifier, client_ip, True)
+    response: Dict[str, Any] = {
+        "msg": "Login successful",
+        "portal_role": portal_role,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": build_auth_user_payload(account["id"], account["email"], account["name"], account["phone"] or "N/A", account["created_at"], audit_read_only, previous_login_at, bool(account["must_change_password"])),
+    }
+    if portal_role == "admin":
+        response.update({"admin_id": account["id"], "email": account["email"], "name": account["name"]})
+    else:
+        response["officer_role"] = officer_role
+    return response
+
+
 @api_router.post("/admin/login")
 async def admin_login(credentials: AdminLogin, request: Request, session: AsyncSession = Depends(get_async_session)) -> Any:
     identifier = str(credentials.identifier or "").strip()
@@ -1884,29 +2041,19 @@ async def admin_login(credentials: AdminLogin, request: Request, session: AsyncS
     await ensure_auth_security_columns(session)
     await ensure_admin_password_patterns(session)
     result = await session.execute(
-        text("SELECT id, email, name, phone, password, created_at, must_change_password FROM admin WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
+        text("SELECT id, email, name, phone, password, created_at, must_change_password, is_active FROM admin WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
         {"id": identifier},
     )
     admin = result.mappings().first()
     if admin and verify_password(credentials.password, str(admin["password"] or "")):
-        audit_read_only = is_audit_account(admin)
-        session_id, previous_login_at = await _activate_login_session(session, "admin", admin["id"])
-        access_token = create_access_token({"admin_id": admin["id"], "is_admin": True, "role": "admin", "audit_read_only": audit_read_only, "sid": session_id})
-        await record_login_attempt(session, identifier, client_ip, True)
-        return {
-            "msg": "Login successful",
-            "portal_role": "admin",
-            "admin_id": admin["id"],
-            "email": admin["email"],
-            "name": admin["name"],
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": build_auth_user_payload(admin["id"], admin["email"], admin["name"], admin["phone"] or "N/A", admin["created_at"], audit_read_only, previous_login_at, bool(admin["must_change_password"])),
-        }
+        if int(admin["is_active"] if admin["is_active"] is not None else 1) != 1:
+            await record_login_attempt(session, identifier, client_ip, False)
+            raise HTTPException(status_code=403, detail="Account is disabled")
+        return await _start_login_otp(session, request, "admin", admin)
 
     await ensure_officer_credentials_table(session)
     officer_result = await session.execute(
-        text("SELECT id, email, name, phone, password, role, created_at, must_change_password FROM dgp WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
+        text("SELECT id, email, name, phone, password, role, created_at, must_change_password, is_active FROM dgp WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
         {"id": identifier},
     )
     officer = officer_result.mappings().first()
@@ -1914,23 +2061,15 @@ async def admin_login(credentials: AdminLogin, request: Request, session: AsyncS
         if not verify_password(credentials.password, str(officer["password"] or "")):
             await record_login_attempt(session, identifier, client_ip, False)
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        audit_read_only = is_audit_account(officer)
-        session_id, previous_login_at = await _activate_login_session(session, "dgp", officer["id"])
-        access_token = create_access_token({"officer_id": officer["id"], "officer_role": "dgp", "audit_read_only": audit_read_only, "sid": session_id})
-        await record_login_attempt(session, identifier, client_ip, True)
-        return {
-            "msg": "Login successful",
-            "portal_role": "officer",
-            "officer_role": "dgp",
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": build_auth_user_payload(officer["id"], officer["email"], officer["name"], officer["phone"] or "N/A", officer["created_at"], audit_read_only, previous_login_at, bool(officer["must_change_password"])),
-        }
+        if int(officer["is_active"] if officer["is_active"] is not None else 1) != 1:
+            await record_login_attempt(session, identifier, client_ip, False)
+            raise HTTPException(status_code=403, detail="Account is disabled")
+        return await _start_login_otp(session, request, "dgp", officer)
 
     for cred_role in ("station", "srp", "dsrp", "irp"):
         cred_table = "stations" if cred_role == "station" else cred_role
         cred_result = await session.execute(
-            text(f"SELECT id, email, name, phone, password, created_at, must_change_password FROM {cred_table} WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
+            text(f"SELECT id, email, name, phone, password, created_at, must_change_password, is_active FROM {cred_table} WHERE email = :id OR id = :id OR name = :id LIMIT 1"),
             {"id": identifier},
         )
         cred = cred_result.mappings().first()
@@ -1938,24 +2077,57 @@ async def admin_login(credentials: AdminLogin, request: Request, session: AsyncS
             if not verify_password(credentials.password, str(cred["password"] or "")):
                 await record_login_attempt(session, identifier, client_ip, False)
                 raise HTTPException(status_code=401, detail=f"Invalid credentials")
-            audit_read_only = is_audit_account(cred)
-            session_id, previous_login_at = await _activate_login_session(session, cred_table, cred["id"])
-            if cred_role == "station":
-                access_token = create_access_token({"station_id": cred["id"], "role": "station", "audit_read_only": audit_read_only, "sid": session_id})
-            else:
-                access_token = create_access_token({"cred_id": cred["id"], "cred_role": cred_role, "audit_read_only": audit_read_only, "sid": session_id})
-            await record_login_attempt(session, identifier, client_ip, True)
-            return {
-                "msg": "Login successful",
-                "portal_role": "officer",
-                "officer_role": cred_role,
-                "access_token": access_token,
-                "token_type": "bearer",
-                "user": build_auth_user_payload(cred["id"], cred["email"], cred["name"], cred["phone"] or "N/A", cred["created_at"], audit_read_only, previous_login_at, bool(cred["must_change_password"])),
-            }
+            if int(cred["is_active"] if cred["is_active"] is not None else 1) != 1:
+                await record_login_attempt(session, identifier, client_ip, False)
+                raise HTTPException(status_code=403, detail="Account is disabled")
+            return await _start_login_otp(session, request, cred_table, cred)
 
     await record_login_attempt(session, identifier, client_ip, False)
     raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+@api_router.post("/admin/login/verify")
+async def verify_admin_login(body: AdminLoginVerify, request: Request, session: AsyncSession = Depends(get_async_session)) -> Any:
+    verify_captcha(body.captcha_id, body.captcha_answer)
+    otp = re.sub(r"\D+", "", str(body.otp or ""))
+    if not re.fullmatch(r"\d{6}", otp):
+        raise HTTPException(status_code=400, detail="Enter the 6-digit OTP.")
+    await ensure_auth_security_columns(session)
+    now = datetime.now(timezone.utc)
+    token_result = await session.execute(
+        text(
+            """
+            SELECT id, account_table, account_id, email, otp_hash, attempts
+            FROM password_reset_tokens
+            WHERE id = :id AND purpose = 'login' AND used_at IS NULL AND expires_at > :now
+            LIMIT 1
+            """
+        ),
+        {"id": str(body.reset_id), "now": now},
+    )
+    token = token_result.mappings().first()
+    if not token:
+        raise HTTPException(status_code=400, detail="Login OTP is invalid or expired.")
+    if str(token["account_table"]) not in {"admin", "dgp", "srp", "dsrp", "irp", "stations"}:
+        raise HTTPException(status_code=400, detail="Login OTP is invalid or expired.")
+    if int(token["attempts"] or 0) >= PASSWORD_RESET_MAX_OTP_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many incorrect OTP attempts. Please request a new OTP.")
+    if not secrets.compare_digest(str(token["otp_hash"]), _hash_reset_otp(str(token["id"]), otp)):
+        await session.execute(text("UPDATE password_reset_tokens SET attempts = attempts + 1 WHERE id = :id"), {"id": token["id"]})
+        await session.commit()
+        raise HTTPException(status_code=400, detail="OTP is incorrect.")
+    table = str(token["account_table"])
+    result = await session.execute(
+        text(f"SELECT id, email, name, phone, created_at, must_change_password, is_active FROM {table} WHERE id = :id LIMIT 1"),
+        {"id": token["account_id"]},
+    )
+    account = result.mappings().first()
+    if not account:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    await session.execute(text("UPDATE password_reset_tokens SET used_at = :used_at WHERE id = :id"), {"used_at": now, "id": token["id"]})
+    response = await _build_login_success(session, str(token["email"]), _client_ip(request), table, account)
+    await session.commit()
+    return response
 
 
 @api_router.post("/auth/logout")
@@ -1985,6 +2157,7 @@ async def request_change_password_otp(
     table, user_id = _token_table_from_payload(payload)
     if not table or not user_id:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    await ensure_auth_security_columns(session)
     result = await session.execute(
         text(f"SELECT email, name FROM {table} WHERE id = :id LIMIT 1"),
         {"id": user_id},
@@ -2000,9 +2173,9 @@ async def request_change_password_otp(
         text(
             """
             INSERT INTO password_reset_tokens
-                (id, account_table, account_id, email, otp_hash, ip_address, attempts, used_at, expires_at, created_at)
+                (id, account_table, account_id, email, purpose, otp_hash, ip_address, attempts, used_at, expires_at, created_at)
             VALUES
-                (:id, :account_table, :account_id, :email, :otp_hash, :ip_address, 0, NULL, :expires_at, :created_at)
+                (:id, :account_table, :account_id, :email, 'password_change', :otp_hash, :ip_address, 0, NULL, :expires_at, :created_at)
             """
         ),
         {
@@ -2056,6 +2229,7 @@ async def change_current_password(
             FROM password_reset_tokens
             WHERE account_table = :account_table
               AND account_id = :account_id
+              AND purpose = 'password_change'
               AND used_at IS NULL
               AND expires_at > :now
             ORDER BY created_at DESC
@@ -2086,7 +2260,7 @@ async def change_current_password(
             """
             UPDATE password_reset_tokens
             SET used_at = :used_at
-            WHERE account_table = :account_table AND account_id = :account_id AND used_at IS NULL
+            WHERE account_table = :account_table AND account_id = :account_id AND purpose = 'password_change' AND used_at IS NULL
             """
         ),
         {"used_at": now, "account_table": table, "account_id": str(user_id)},
@@ -2103,6 +2277,214 @@ async def change_current_password(
     return {"message": "Password changed successfully"}
 
 
+@api_router.get("/auth/me", response_model=User)
+async def get_current_profile(current_user: User = Depends(get_current_user)) -> User:
+    return current_user
+
+
+@api_router.patch("/auth/profile/name", response_model=User)
+async def update_current_profile_name(
+    body: ProfileNameUpdate,
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> User:
+    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    table, user_id = _token_table_from_payload(payload)
+    if not table or not user_id:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    new_name = re.sub(r"\s+", " ", str(body.name or "").strip())
+    if len(new_name) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters.")
+    if len(new_name) > 120:
+        raise HTTPException(status_code=400, detail="Name must be 120 characters or less.")
+    result = await session.execute(
+        text(f"UPDATE {table} SET name = :name WHERE id = :id"),
+        {"name": new_name, "id": user_id},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="self_profile_name_update",
+        target_type=str(current_user.role),
+        target_id=str(user_id),
+        details={"old_name": current_user.name, "new_name": new_name},
+    )
+    await session.commit()
+    return User(
+        **{
+            **current_user.model_dump(),
+            "name": new_name,
+        }
+    )
+
+
+@api_router.post("/auth/change-username/otp")
+async def request_change_username_otp(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    session: AsyncSession = Depends(get_async_session),
+) -> Dict[str, str]:
+    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    table, user_id = _token_table_from_payload(payload)
+    if not table or not user_id:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    await ensure_auth_security_columns(session)
+    enforce_password_reset_rate_limit(request, str(user_id))
+    result = await session.execute(
+        text(f"SELECT email, name FROM {table} WHERE id = :id LIMIT 1"),
+        {"id": user_id},
+    )
+    account = result.mappings().first()
+    if not account or not account["email"]:
+        raise HTTPException(status_code=400, detail="No registered email found for this account.")
+    reset_id = str(uuid.uuid4())
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=PASSWORD_RESET_OTP_EXPIRY_MINUTES)
+    await session.execute(
+        text(
+            """
+            INSERT INTO password_reset_tokens
+                (id, account_table, account_id, email, purpose, otp_hash, ip_address, attempts, used_at, expires_at, created_at)
+            VALUES
+                (:id, :account_table, :account_id, :email, 'username_change', :otp_hash, :ip_address, 0, NULL, :expires_at, :created_at)
+            """
+        ),
+        {
+            "id": reset_id,
+            "account_table": table,
+            "account_id": str(user_id),
+            "email": str(account["email"]),
+            "otp_hash": _hash_reset_otp(reset_id, otp),
+            "ip_address": _client_ip(request),
+            "expires_at": expires_at,
+            "created_at": now,
+        },
+    )
+    await session.commit()
+    _send_password_reset_otp(str(account["email"]), str(account["name"] or "User"), otp)
+    return {
+        "reset_id": reset_id,
+        "message": "OTP sent to registered email.",
+        "masked_email": _mask_email(str(account["email"])),
+    }
+
+
+@api_router.post("/auth/change-username")
+async def change_current_username(
+    body: UsernameChangeRequest,
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
+    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    table, user_id = _token_table_from_payload(payload)
+    if not table or not user_id:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    verify_captcha(body.captcha_id, body.captcha_answer)
+    new_username = str(body.new_username).strip().lower()
+    result = await session.execute(text(f"SELECT email, name FROM {table} WHERE id = :id LIMIT 1"), {"id": user_id})
+    account = result.mappings().first()
+    if not account:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    old_username = str(account["email"] or "").strip().lower()
+    if new_username == old_username:
+        raise HTTPException(status_code=400, detail="New username must be different from current username")
+    for candidate_table in ("admin", "dgp", "srp", "dsrp", "irp", "stations", "public_users"):
+        duplicate = await session.execute(
+            text(f"SELECT id FROM {candidate_table} WHERE lower(email) = :email LIMIT 1"),
+            {"email": new_username},
+        )
+        row = duplicate.mappings().first()
+        if row and not (candidate_table == table and str(row["id"]) == str(user_id)):
+            raise HTTPException(status_code=409, detail="Username already exists")
+    otp = re.sub(r"\D+", "", str(body.otp or ""))
+    if not re.fullmatch(r"\d{6}", otp):
+        raise HTTPException(status_code=400, detail="Enter the 6-digit OTP.")
+    now = datetime.now(timezone.utc)
+    token_result = await session.execute(
+        text(
+            """
+            SELECT id, otp_hash, attempts
+            FROM password_reset_tokens
+            WHERE account_table = :account_table
+              AND account_id = :account_id
+              AND purpose = 'username_change'
+              AND used_at IS NULL
+              AND expires_at > :now
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        ),
+        {"account_table": table, "account_id": str(user_id), "now": now},
+    )
+    token = token_result.mappings().first()
+    if not token:
+        raise HTTPException(status_code=400, detail="Username update OTP is invalid or expired.")
+    if int(token["attempts"] or 0) >= PASSWORD_RESET_MAX_OTP_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many incorrect OTP attempts. Please request a new OTP.")
+    if not secrets.compare_digest(str(token["otp_hash"]), _hash_reset_otp(str(token["id"]), otp)):
+        await session.execute(
+            text("UPDATE password_reset_tokens SET attempts = attempts + 1 WHERE id = :id"),
+            {"id": token["id"]},
+        )
+        await session.commit()
+        raise HTTPException(status_code=400, detail="OTP is incorrect.")
+    await session.execute(
+        text(f"UPDATE {table} SET email = :email, active_session_id = NULL WHERE id = :id"),
+        {"email": new_username, "id": user_id},
+    )
+    await session.execute(
+        text(
+            """
+            UPDATE password_reset_tokens
+            SET used_at = :used_at
+            WHERE account_table = :account_table AND account_id = :account_id AND purpose = 'username_change' AND used_at IS NULL
+            """
+        ),
+        {"used_at": now, "account_table": table, "account_id": str(user_id)},
+    )
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="self_username_change",
+        target_type=str(current_user.role),
+        target_id=str(user_id),
+        details={"old_username": old_username, "new_username": new_username},
+    )
+    await session.commit()
+    display_name = str(account["name"] or "User")
+    _send_security_notification(
+        old_username,
+        display_name,
+        "[GRP AP] Username Changed",
+        (
+            f"Dear {display_name},\n\n"
+            f"Your GRP portal username was changed from {old_username} to {new_username}.\n"
+            f"If you did not make this change, please contact your administrator immediately.\n\n"
+            f"Regards,\nGRP Police Administration"
+        ),
+    )
+    _send_security_notification(
+        new_username,
+        display_name,
+        "[GRP AP] Username Change Confirmed",
+        (
+            f"Dear {display_name},\n\n"
+            f"Your GRP portal username is now {new_username}.\n\n"
+            f"Regards,\nGRP Police Administration"
+        ),
+    )
+    return {"message": "Username updated successfully. Please log in again.", "username": new_username}
+
+
 @api_router.post("/auth/password-reset/request")
 async def request_password_reset(
     body: PasswordResetStartRequest,
@@ -2112,6 +2494,8 @@ async def request_password_reset(
     identifier = str(body.identifier or "").strip()
     if not identifier:
         raise HTTPException(status_code=400, detail="Username or email is required.")
+    verify_captcha(body.captcha_id, body.captcha_answer)
+    await ensure_auth_security_columns(session)
     enforce_password_reset_rate_limit(request, identifier)
     account = await _find_reset_account(session, identifier)
     reset_id = str(uuid.uuid4())
@@ -2122,9 +2506,9 @@ async def request_password_reset(
         text(
             """
             INSERT INTO password_reset_tokens
-                (id, account_table, account_id, email, otp_hash, ip_address, attempts, used_at, expires_at, created_at)
+                (id, account_table, account_id, email, purpose, otp_hash, ip_address, attempts, used_at, expires_at, created_at)
             VALUES
-                (:id, :account_table, :account_id, :email, :otp_hash, :ip_address, 0, NULL, :expires_at, :created_at)
+                (:id, :account_table, :account_id, :email, 'password_reset', :otp_hash, :ip_address, 0, NULL, :expires_at, :created_at)
             """
         ),
         {
@@ -2144,7 +2528,7 @@ async def request_password_reset(
     return {
         "reset_id": reset_id,
         "message": "If the account exists, an OTP has been sent to the registered email.",
-        "masked_email": _mask_email(account["email"]) if account else "",
+        "masked_email": "",
     }
 
 
@@ -2162,9 +2546,9 @@ async def complete_password_reset(
     result = await session.execute(
         text(
             """
-            SELECT id, account_table, account_id, otp_hash, attempts, used_at, expires_at
+            SELECT id, account_table, account_id, otp_hash, attempts, used_at, expires_at, purpose
             FROM password_reset_tokens
-            WHERE id = :id
+            WHERE id = :id AND purpose = 'password_reset'
             LIMIT 1
             """
         ),
@@ -2206,7 +2590,7 @@ async def complete_password_reset(
             """
             UPDATE password_reset_tokens
             SET used_at = :used_at
-            WHERE account_table = :account_table AND account_id = :account_id AND used_at IS NULL
+            WHERE account_table = :account_table AND account_id = :account_id AND purpose = 'password_reset' AND used_at IS NULL
             """
         ),
         {"used_at": now, "account_table": table_name, "account_id": token["account_id"]},
@@ -2243,12 +2627,13 @@ async def get_admin_login_options(
         raise HTTPException(status_code=403, detail="Only admins can view login options")
     try:
         await ensure_officer_credentials_table(session)
+        await ensure_auth_security_columns(session)
         await ensure_admin_password_patterns(session)
 
-        admin_result = await session.execute(text("SELECT id, name FROM admin ORDER BY name, id"))
+        admin_result = await session.execute(text("SELECT id, name FROM admin WHERE is_active = 1 ORDER BY name, id"))
         admins = admin_result.mappings().all()
 
-        officer_result = await session.execute(text("SELECT id, name, role FROM dgp ORDER BY CASE role WHEN 'dgp' THEN 1 WHEN 'adgp' THEN 2 WHEN 'dig' THEN 3 ELSE 4 END"))
+        officer_result = await session.execute(text("SELECT id, name, role FROM dgp WHERE is_active = 1 ORDER BY name"))
         officers = officer_result.mappings().all()
 
         options: List[AdminLoginOption] = []
@@ -2261,22 +2646,22 @@ async def get_admin_login_options(
             options.append(AdminLoginOption(
                 identifier=str(superior_row["id"]),
                 label=_format_superior_officer_label(str(superior_row["role"]), str(superior_row["name"])),
-                scope="officer", account_role=str(superior_row["role"]), group="Superior Officers",
+                scope="officer", account_role="dgp", group="Superior Officers",
             ))
 
-        grouped_result = await session.execute(text("SELECT id, name FROM srp ORDER BY name"))
+        grouped_result = await session.execute(text("SELECT id, name FROM srp WHERE is_active = 1 ORDER BY name"))
         for row in grouped_result.mappings().all():
             options.append(AdminLoginOption(identifier=str(row["id"]), label=str(row["name"]), scope="srp", account_role="srp", group="SRP"))
 
-        dsrp_result = await session.execute(text("SELECT id, name FROM dsrp ORDER BY name"))
+        dsrp_result = await session.execute(text("SELECT id, name FROM dsrp WHERE is_active = 1 ORDER BY name"))
         for row in dsrp_result.mappings().all():
             options.append(AdminLoginOption(identifier=str(row["id"]), label=str(row["name"]), scope="dsrp", account_role="dsrp", group="DSRP"))
 
-        irp_result = await session.execute(text("SELECT id, name FROM irp ORDER BY name"))
+        irp_result = await session.execute(text("SELECT id, name FROM irp WHERE is_active = 1 ORDER BY name"))
         for row in irp_result.mappings().all():
             options.append(AdminLoginOption(identifier=str(row["id"]), label=str(row["name"]), scope="irp", account_role="irp", group="IRP"))
 
-        station_result = await session.execute(text("SELECT id, name FROM stations ORDER BY name"))
+        station_result = await session.execute(text("SELECT id, name FROM stations WHERE is_active = 1 ORDER BY name"))
         for s in station_result.mappings().all():
             options.append(AdminLoginOption(identifier=str(s["id"]), label=str(s["name"]), scope="station", account_role="station", group="Stations"))
 
@@ -2284,11 +2669,6 @@ async def get_admin_login_options(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
-
-
-@api_router.get("/auth/me", response_model=User)
-async def get_me(current_user: User = Depends(get_current_user)) -> User:
-    return current_user
 
 
 # ==================== SRP CREDENTIALS ====================
@@ -2316,7 +2696,7 @@ async def create_srp_credential(
         await session.commit()
         return AdminCredentialEntry(
             scope="srp", id=str(existing["id"]), name=str(existing["name"]),
-            email=data.email, password=hashed_password, role="srp",
+            email=data.email, password="••••••••", role="srp",
         )
     new_id = str(uuid.uuid4())
     await session.execute(
@@ -2326,7 +2706,7 @@ async def create_srp_credential(
     await session.commit()
     return AdminCredentialEntry(
         scope="srp", id=new_id, name=data.name,
-        email=data.email, password=hashed_password, role="srp",
+        email=data.email, password="••••••••", role="srp",
     )
 
 
@@ -3122,26 +3502,173 @@ async def get_admin_credentials(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admins only")
     await ensure_officer_credentials_table(session)
+    await ensure_auth_security_columns(session)
     await ensure_admin_password_patterns(session)
-    admin_result = await session.execute(text("SELECT id, email, name, password FROM admin"))
+    admin_result = await session.execute(text("SELECT id, email, name, password, is_active FROM admin"))
     admins = admin_result.mappings().all()
-    officer_result = await session.execute(text("SELECT id, email, name, password, role FROM dgp"))
+    officer_result = await session.execute(text("SELECT id, email, name, password, role, is_active FROM dgp"))
     officers = officer_result.mappings().all()
-    sub_officer_result = await session.execute(text("SELECT id, email, name, password FROM srp"))
+    sub_officer_result = await session.execute(text("SELECT id, email, name, password, is_active FROM srp"))
     srp_data = sub_officer_result.mappings().all()
-    dsrp_result2 = await session.execute(text("SELECT id, email, name, password FROM dsrp"))
+    dsrp_result2 = await session.execute(text("SELECT id, email, name, password, is_active FROM dsrp"))
     dsrp_data = dsrp_result2.mappings().all()
-    irp_result2 = await session.execute(text("SELECT id, email, name, password FROM irp"))
+    irp_result2 = await session.execute(text("SELECT id, email, name, password, is_active FROM irp"))
     irp_data = irp_result2.mappings().all()
-    station_result2 = await session.execute(text("SELECT id, email, name, password FROM stations"))
+    station_result2 = await session.execute(text("SELECT id, email, name, password, is_active FROM stations"))
     station_data = station_result2.mappings().all()
-    admin_rows = [AdminCredentialEntry(scope="admin", id=str(a["id"]), name=str(a["name"]), email=str(a["email"]), password=_plain_password(str(a["password"]), "admin", str(a["name"])), role="admin") for a in admins]
-    officer_rows = [AdminCredentialEntry(scope="officer", id=str(o["id"]), name=str(o["name"]), email=str(o["email"]), password=_plain_password(str(o["password"]), str(o["role"]), str(o["name"])), role=str(o["role"])) for o in officers]
-    srp_rows = [AdminCredentialEntry(scope="srp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "srp", str(r["name"])), role="srp") for r in srp_data]
-    dsrp_rows = [AdminCredentialEntry(scope="dsrp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "dsrp", str(r["name"])), role="dsrp") for r in dsrp_data]
-    irp_rows = [AdminCredentialEntry(scope="irp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "irp", str(r["name"])), role="irp") for r in irp_data]
-    station_rows = [AdminCredentialEntry(scope="station", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password="••••••••", role="station") for r in station_data]
+    admin_rows = [AdminCredentialEntry(scope="admin", id=str(a["id"]), name=str(a["name"]), email=str(a["email"]), password=_plain_password(str(a["password"]), "admin", str(a["name"])), role="admin", is_active=int(a["is_active"] if a["is_active"] is not None else 1) == 1) for a in admins]
+    officer_rows = [AdminCredentialEntry(scope="officer", id=str(o["id"]), name=str(o["name"]), email=str(o["email"]), password=_plain_password(str(o["password"]), "dgp", str(o["name"])), role="dgp", is_active=int(o["is_active"] if o["is_active"] is not None else 1) == 1) for o in officers]
+    srp_rows = [AdminCredentialEntry(scope="srp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "srp", str(r["name"])), role="srp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in srp_data]
+    dsrp_rows = [AdminCredentialEntry(scope="dsrp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "dsrp", str(r["name"])), role="dsrp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in dsrp_data]
+    irp_rows = [AdminCredentialEntry(scope="irp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "irp", str(r["name"])), role="irp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in irp_data]
+    station_rows = [AdminCredentialEntry(scope="station", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password="••••••••", role="station", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in station_data]
     return admin_rows + officer_rows + srp_rows + dsrp_rows + irp_rows + station_rows
+
+
+@api_router.get("/organization-credentials")
+async def get_public_organization_credentials(session: AsyncSession = Depends(get_async_session)) -> Any:
+    await ensure_auth_security_columns(session)
+    credential_sources = (
+        ("srp", "srp"),
+        ("dsrp", "dsrp"),
+        ("irp", "irp"),
+        ("stations", "station"),
+    )
+    rows: List[Dict[str, Any]] = []
+    for table_name, role in credential_sources:
+        result = await session.execute(
+            text(
+                f"""
+                SELECT name, phone, division, subdivision, circle, station_name
+                FROM {table_name}
+                WHERE is_active = 1
+                ORDER BY name
+                """
+            )
+        )
+        for row in result.mappings().all():
+            rows.append(
+                {
+                    "role": role,
+                    "name": str(row["name"] or ""),
+                    "phone": str(row["phone"] or ""),
+                    "division": str(row["division"] or ""),
+                    "subdivision": str(row["subdivision"] or ""),
+                    "circle": str(row["circle"] or ""),
+                    "station_name": str(row["station_name"] or ""),
+                }
+            )
+    return rows
+
+
+@api_router.post("/admin/credentials", response_model=AdminCredentialEntry)
+async def create_admin_credential(
+    body: AdminCredentialCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> AdminCredentialEntry:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
+    scope = str(body.scope or "").strip().lower()
+    table = _credential_table_for_scope(scope)
+    if table is None:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    new_email = str(body.email).strip().lower()
+    new_name = re.sub(r"\s+", " ", str(body.name or "").strip())
+    if len(new_name) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    phone = str(body.phone or "N/A").strip()[:64] or "N/A"
+    hierarchy_details = {
+        "division": re.sub(r"\s+", " ", str(body.division or "").strip()),
+        "subdivision": re.sub(r"\s+", " ", str(body.subdivision or "").strip()),
+        "circle": re.sub(r"\s+", " ", str(body.circle or "").strip()),
+        "station_name": re.sub(r"\s+", " ", str(body.station_name or "").strip()),
+    }
+    required_hierarchy = {
+        "dsrp": ("division",),
+        "irp": ("division", "subdivision"),
+        "station": ("division", "subdivision", "circle"),
+    }
+    for field_name in required_hierarchy.get(scope, ()):
+        if not hierarchy_details[field_name]:
+            raise HTTPException(status_code=400, detail=f"Select {field_name.replace('_', ' ')}")
+    role_by_scope = {
+        "admin": "admin",
+        "officer": "dgp",
+        "srp": "srp",
+        "dsrp": "dsrp",
+        "irp": "irp",
+        "station": "station",
+    }
+    role = role_by_scope.get(scope, scope)
+    validate_strong_password(body.password)
+    for candidate_table in ("admin", "dgp", "srp", "dsrp", "irp", "stations", "public_users"):
+        duplicate = await session.execute(
+            text(f"SELECT id FROM {candidate_table} WHERE lower(email) = :email LIMIT 1"),
+            {"email": new_email},
+        )
+        if duplicate.mappings().first():
+            raise HTTPException(status_code=409, detail="Username already exists")
+    await ensure_auth_security_columns(session)
+    entry_id = str(uuid.uuid4())
+    hashed_password = hash_password(body.password)
+    if table == "admin":
+        await session.execute(
+            text(
+                """
+                INSERT INTO admin
+                    (id, email, name, phone, password, created_at, must_change_password, is_active, active_session_id)
+                VALUES
+                    (:id, :email, :name, :phone, :password, :created_at, 1, 1, NULL)
+                """
+            ),
+            {"id": entry_id, "email": new_email, "name": new_name, "phone": phone, "password": hashed_password, "created_at": datetime.now(timezone.utc)},
+        )
+    else:
+        await session.execute(
+            text(
+                f"""
+                INSERT INTO {table}
+                    (id, email, name, phone, password, role, division, subdivision, circle, station_name, created_at, must_change_password, is_active, active_session_id)
+                VALUES
+                    (:id, :email, :name, :phone, :password, :role, :division, :subdivision, :circle, :station_name, :created_at, 1, 1, NULL)
+                """
+            ),
+            {
+                "id": entry_id,
+                "email": new_email,
+                "name": new_name,
+                "phone": phone,
+                "password": hashed_password,
+                "role": role,
+                "division": hierarchy_details["division"] or None,
+                "subdivision": hierarchy_details["subdivision"] or None,
+                "circle": hierarchy_details["circle"] or None,
+                "station_name": hierarchy_details["station_name"] or None,
+                "created_at": datetime.now(timezone.utc),
+            },
+        )
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="credential_create",
+        target_type=scope,
+        target_id=entry_id,
+        details={"scope": scope, "email": new_email, "role": role, "hierarchy": hierarchy_details},
+    )
+    await session.commit()
+    return AdminCredentialEntry(
+        scope=scope,
+        id=entry_id,
+        name=new_name,
+        email=new_email,
+        password="••••••••",
+        role=role,
+        must_change_password=True,
+        is_active=True,
+    )
 
 
 @api_router.get("/admin/audit-logs")
@@ -3233,52 +3760,41 @@ async def update_credential_password(
     return {"message": "Password updated successfully"}
 
 
-@api_router.patch("/admin/credentials/{scope}/{entry_id}/username")
-async def update_credential_username(
+@api_router.patch("/admin/credentials/{scope}/{entry_id}/status")
+async def update_credential_status(
     scope: str,
     entry_id: str,
-    body: AdminUsernameUpdate,
+    body: AdminCredentialStatusUpdate,
     request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admins only")
-
     table = _credential_table_for_scope(scope)
     if table is None:
         raise HTTPException(status_code=400, detail="Invalid scope")
-
-    new_username = str(body.new_username).strip().lower()
-    credential_tables = ("admin", "dgp", "srp", "dsrp", "irp", "stations")
-    for candidate_table in credential_tables:
-        duplicate = await session.execute(
-            text(f"SELECT id FROM {candidate_table} WHERE lower(email) = :email LIMIT 1"),
-            {"email": new_username},
-        )
-        row = duplicate.mappings().first()
-        if row and not (candidate_table == table and str(row["id"]) == entry_id):
-            raise HTTPException(status_code=409, detail="Username already exists")
-
+    if table == "admin" and str(current_user.id) == str(entry_id) and not body.is_active:
+        raise HTTPException(status_code=400, detail="You cannot disable your own admin account")
+    await ensure_auth_security_columns(session)
+    active_value = 1 if body.is_active else 0
     result = await session.execute(
-        text(f"UPDATE {table} SET email = :email WHERE id = :id"),
-        {"email": new_username, "id": entry_id},
+        text(f"UPDATE {table} SET is_active = :is_active, active_session_id = CASE WHEN :is_active = 1 THEN active_session_id ELSE NULL END WHERE id = :id"),
+        {"is_active": active_value, "id": entry_id},
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Credential not found")
-
     await write_audit_log(
         session,
         current_user,
         request,
-        action="credential_username_update",
+        action="credential_status_update",
         target_type=scope,
         target_id=entry_id,
-        details={"scope": scope, "new_username": new_username},
+        details={"scope": scope, "is_active": bool(body.is_active)},
     )
     await session.commit()
-    return {"message": "Username updated successfully", "username": new_username}
-
+    return {"message": "Account enabled successfully" if body.is_active else "Account disabled successfully", "is_active": bool(body.is_active)}
 
 
 # ==================== ALERTS ROUTES ====================

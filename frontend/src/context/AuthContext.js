@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { authAPI, securityAPI, setAuthToken as persistAuthToken, getAuthToken } from '@/lib/api';
-import { Eye, EyeOff, X } from 'lucide-react';
+import { Eye, EyeOff, LoaderCircle, X } from 'lucide-react';
 
 const AuthContext = createContext();
 
@@ -34,7 +34,7 @@ function PasswordStrengthHint({ password }) {
         <p className="text-xs font-semibold text-[#0F172A]">Password strength</p>
         <p className={`text-xs font-bold ${strength.className}`}>{strength.label}</p>
       </div>
-      <div className="grid grid-cols-1 gap-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
         {checks.map(item => (
           <p key={item.label} className={`text-xs ${item.ok ? 'text-[#16A34A]' : 'text-[#64748B]'}`}>
             {item.ok ? '✓' : '•'} {item.label}
@@ -200,6 +200,7 @@ export const AuthProvider = ({ children }) => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('isAdmin');
       localStorage.removeItem('admin_display_name');
+      localStorage.removeItem('admin_email');
       localStorage.removeItem('admin_remember');
       localStorage.removeItem('admin_last_login_at');
       localStorage.removeItem('admin_must_change_password');
@@ -283,6 +284,7 @@ export const AuthProvider = ({ children }) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('isAdmin', 'true');
       localStorage.setItem('admin_display_name', adminInfo?.name || 'Admin');
+      if (adminInfo?.email) localStorage.setItem('admin_email', adminInfo.email);
       if (adminInfo?.last_login_at) localStorage.setItem('admin_last_login_at', adminInfo.last_login_at);
       if (adminInfo?.must_change_password) localStorage.setItem('admin_must_change_password', 'true');
       else localStorage.removeItem('admin_must_change_password');
@@ -298,9 +300,24 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('isAdmin');
       localStorage.removeItem('admin_remember');
       localStorage.removeItem('admin_display_name');
+      localStorage.removeItem('admin_email');
       setIsAdmin(false);
       emitAuthChange();
     }
+  };
+
+  const updateCurrentUser = (nextUser) => {
+    if (!nextUser) return;
+    if (isAdmin || detectAdminFromStorage()) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('admin_display_name', nextUser.name || 'Admin');
+        if (nextUser.email) localStorage.setItem('admin_email', nextUser.email);
+        emitAuthChange();
+      }
+      return;
+    }
+    setUser(nextUser);
+    emitAuthChange();
   };
 
   const handleStayLoggedIn = () => {
@@ -379,6 +396,7 @@ export const AuthProvider = ({ children }) => {
       setPasswordChangeVerificationStep(false);
       if (typeof window !== 'undefined') localStorage.removeItem('admin_must_change_password');
       setUser(prev => prev ? { ...prev, must_change_password: false } : prev);
+      logout('/admin-login');
     } catch (error) {
       setPasswordChangeError(error?.response?.data?.detail || 'Failed to change password.');
       loadPasswordChangeCaptcha();
@@ -388,7 +406,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, loginAdmin, loginOfficerViaAdmin, isAdmin, token: authToken }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, loginAdmin, loginOfficerViaAdmin, updateCurrentUser, isAdmin, token: authToken }}>
       {children}
 
       {mustChangePassword && (
@@ -470,11 +488,18 @@ export const AuthProvider = ({ children }) => {
                   type="button"
                   onClick={requestPasswordChangeOtp}
                   disabled={passwordChangeOtpLoading}
-                  className="shrink-0 rounded-md border border-[#2563EB] px-3 py-2 text-sm font-semibold text-[#2563EB] hover:bg-[#EFF6FF] disabled:opacity-60"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-[#2563EB] px-3 py-2 text-sm font-semibold text-[#2563EB] hover:bg-[#EFF6FF] disabled:opacity-60"
                 >
+                  {passwordChangeOtpLoading && <LoaderCircle className="h-4 w-4 animate-spin" />}
                   {passwordChangeOtpLoading ? 'Sending...' : passwordChangeOtpSentTo ? 'Resend' : 'Send OTP'}
                 </button>
               </div>
+              {passwordChangeOtpLoading && (
+                <p className="mt-2 flex items-center gap-2 text-xs font-medium text-[#2563EB]">
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  Sending email OTP...
+                </p>
+              )}
               {passwordChangeOtpSentTo && (
                 <p className="mt-1 text-xs text-[#64748B]">OTP sent to {passwordChangeOtpSentTo}.</p>
               )}
@@ -500,12 +525,21 @@ export const AuthProvider = ({ children }) => {
             <button
               type="submit"
               disabled={passwordChangeLoading || passwordMismatch || (passwordChangeVerificationStep && (passwordChangeOtp.length !== 6 || !passwordChangeCaptchaAnswer.trim()))}
-              className={`w-full rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${
+              className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${
                 passwordChangeVerificationStep ? 'bg-[#16A34A] hover:bg-[#15803D]' : 'bg-[#2563EB] hover:bg-[#1D4ED8]'
               }`}
             >
-              {passwordChangeLoading ? 'Please wait...' : passwordChangeVerificationStep ? 'Submit' : 'Update Password'}
+              {passwordChangeLoading && <LoaderCircle className="h-4 w-4 animate-spin" />}
+              {passwordChangeLoading
+                ? (passwordChangeVerificationStep ? 'Please wait...' : 'Sending email OTP...')
+                : passwordChangeVerificationStep ? 'Submit' : 'Update Password'}
             </button>
+            {passwordChangeLoading && !passwordChangeVerificationStep && (
+              <p className="flex items-center justify-center gap-2 text-xs font-medium text-[#2563EB]">
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                Sending email OTP...
+              </p>
+            )}
           </form>
         </div>
       )}

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import api, { authAPI } from '@/lib/api';
+import api, { authAPI, securityAPI } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, LoaderCircle } from 'lucide-react';
 
 const LOCKOUT_SECONDS = 120;
 const getPasswordChecks = (value = '') => ([
@@ -36,7 +36,7 @@ function PasswordStrengthHint({ password }) {
         <p className="text-xs font-semibold text-[#0F172A]">Password strength</p>
         <p className={`text-xs font-bold ${strength.className}`}>{strength.label}</p>
       </div>
-      <div className="grid grid-cols-1 gap-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
         {checks.map(item => (
           <p key={item.label} className={`text-xs ${item.ok ? 'text-[#16A34A]' : 'text-[#64748B]'}`}>
             {item.ok ? '✓' : '•'} {item.label}
@@ -63,6 +63,8 @@ export default function AdminLoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetId, setResetId] = useState('');
   const [resetMaskedEmail, setResetMaskedEmail] = useState('');
+  const [resetCaptcha, setResetCaptcha] = useState(null);
+  const [resetCaptchaAnswer, setResetCaptchaAnswer] = useState('');
   const [resetForm, setResetForm] = useState({
     identifier: '',
     otp: '',
@@ -72,6 +74,12 @@ export default function AdminLoginPage() {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockout, setLockout] = useState(false);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const [loginOtpStep, setLoginOtpStep] = useState(false);
+  const [loginResetId, setLoginResetId] = useState('');
+  const [loginMaskedEmail, setLoginMaskedEmail] = useState('');
+  const [loginOtp, setLoginOtp] = useState('');
+  const [loginCaptcha, setLoginCaptcha] = useState(null);
+  const [loginCaptchaAnswer, setLoginCaptchaAnswer] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -91,39 +99,51 @@ export default function AdminLoginPage() {
     return () => clearInterval(timer);
   }, [lockout]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (lockout) return;
-    const trimmedIdentifier = identifier.trim();
-    if (!trimmedIdentifier) {
-      toast.error('Please enter username');
-      return;
-    }
-    setLoading(true);
+  const loadLoginCaptcha = async () => {
     try {
-      const response = await api.post('/admin/login', { identifier: trimmedIdentifier, password });
-      if (!response.data?.access_token) {
+      const response = await securityAPI.getChallenge();
+      setLoginCaptcha(response.data);
+      setLoginCaptchaAnswer('');
+    } catch {
+      setLoginCaptcha(null);
+      toast.error('Failed to load security check');
+    }
+  };
+
+  const loadResetCaptcha = async () => {
+    try {
+      const response = await securityAPI.getChallenge();
+      setResetCaptcha(response.data);
+      setResetCaptchaAnswer('');
+    } catch {
+      setResetCaptcha(null);
+      toast.error('Failed to load security check');
+    }
+  };
+
+  const completeLogin = (data) => {
+      if (!data?.access_token) {
         throw new Error('Invalid admin login response');
       }
 
-      if (response.data?.portal_role === 'admin') {
+      if (data?.portal_role === 'admin') {
         localStorage.setItem('isAdmin', 'true');
-        loginAdmin(response.data.access_token, {
-          name: response.data.name,
-          email: response.data.email,
-          last_login_at: response.data.user?.last_login_at,
-          must_change_password: response.data.user?.must_change_password,
+        loginAdmin(data.access_token, {
+          name: data.name,
+          email: data.email,
+          last_login_at: data.user?.last_login_at,
+          must_change_password: data.user?.must_change_password,
         });
         if (rememberMe) localStorage.setItem('admin_remember', 'true');
         toast.success('Admin login successful!');
         setFailedAttempts(0);
         navigate('/admin-dashboard', { replace: true });
-      } else if (response.data?.portal_role === 'officer' && response.data?.user) {
-        const officerRole = response.data.officer_role || '';
+      } else if (data?.portal_role === 'officer' && data?.user) {
+        const officerRole = data.officer_role || '';
         // Normalise role so Header.js policeLinks condition fires immediately
         const roleMap = { station: 'station', srp: 'srp', dsrp: 'dsrp', irp: 'irp', dgp: 'dgp', sirp: 'station' };
         const normalisedRole = roleMap[officerRole] || 'police';
-        loginOfficerViaAdmin(response.data.access_token, { ...response.data.user, role: normalisedRole });
+        loginOfficerViaAdmin(data.access_token, { ...data.user, role: normalisedRole });
         if (rememberMe) localStorage.setItem('user_remember', 'true');
         toast.success('Officer login successful!');
         setFailedAttempts(0);
@@ -139,6 +159,29 @@ export default function AdminLoginPage() {
       } else {
         throw new Error('Unsupported login response');
       }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (lockout) return;
+    const trimmedIdentifier = identifier.trim();
+    if (!trimmedIdentifier) {
+      toast.error('Please enter username');
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await api.post('/admin/login', { identifier: trimmedIdentifier, password });
+      if (response.data?.login_pending) {
+        setLoginResetId(response.data.reset_id || '');
+        setLoginMaskedEmail(response.data.masked_email || '');
+        setLoginOtpStep(true);
+        setLoginOtp('');
+        await loadLoginCaptcha();
+        toast.success(response.data.message || 'OTP sent to registered email');
+      } else {
+        completeLogin(response.data);
+      }
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Admin login failed');
       setFailedAttempts(f => {
@@ -151,16 +194,53 @@ export default function AdminLoginPage() {
     setLoading(false);
   };
 
+  const verifyLoginOtp = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const response = await api.post('/admin/login/verify', {
+        reset_id: loginResetId,
+        otp: loginOtp,
+        captcha_id: loginCaptcha?.captcha_id || '',
+        captcha_answer: loginCaptchaAnswer,
+      });
+      completeLogin(response.data);
+      setLoginOtpStep(false);
+      setLoginResetId('');
+      setLoginMaskedEmail('');
+      setLoginOtp('');
+      setLoginCaptcha(null);
+      setLoginCaptchaAnswer('');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Login verification failed');
+      await loadLoginCaptcha();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelLoginOtp = () => {
+    setLoginOtpStep(false);
+    setLoginResetId('');
+    setLoginMaskedEmail('');
+    setLoginOtp('');
+    setLoginCaptcha(null);
+    setLoginCaptchaAnswer('');
+  };
+
   const openResetMode = () => {
     setResetMode(true);
     setResetId('');
     setResetMaskedEmail('');
+    setResetCaptcha(null);
+    setResetCaptchaAnswer('');
     setResetForm({
       identifier: identifier.trim(),
       otp: '',
       new_password: '',
       confirm_password: '',
     });
+    loadResetCaptcha();
   };
 
   const requestResetOtp = async (e) => {
@@ -172,12 +252,17 @@ export default function AdminLoginPage() {
     }
     setResetLoading(true);
     try {
-      const response = await authAPI.requestPasswordReset({ identifier: trimmedIdentifier });
+      const response = await authAPI.requestPasswordReset({
+        identifier: trimmedIdentifier,
+        captcha_id: resetCaptcha?.captcha_id || '',
+        captcha_answer: resetCaptchaAnswer,
+      });
       setResetId(response.data.reset_id);
       setResetMaskedEmail(response.data.masked_email || '');
       toast.success(response.data.message || 'OTP sent to registered email');
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to send reset OTP');
+      await loadResetCaptcha();
     } finally {
       setResetLoading(false);
     }
@@ -202,6 +287,8 @@ export default function AdminLoginPage() {
       setResetMode(false);
       setResetId('');
       setResetMaskedEmail('');
+      setResetCaptcha(null);
+      setResetCaptchaAnswer('');
       setResetForm({ identifier: '', otp: '', new_password: '', confirm_password: '' });
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to reset password');
@@ -238,6 +325,22 @@ export default function AdminLoginPage() {
                 spellCheck={false}
               />
             </div>
+            {!resetId && (
+              <div>
+                <Label htmlFor="reset-captcha" className="text-sm font-semibold text-[#0F172A]">
+                  Security Check {resetCaptcha?.question ? `(${resetCaptcha.question})` : ''}
+                </Label>
+                <Input
+                  id="reset-captcha"
+                  inputMode="numeric"
+                  placeholder="Answer"
+                  className="mt-2 h-12"
+                  value={resetCaptchaAnswer}
+                  onChange={(e) => setResetCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  required
+                />
+              </div>
+            )}
             {resetId && (
               <>
                 <p className="text-xs text-[#64748B]">
@@ -295,17 +398,91 @@ export default function AdminLoginPage() {
               <button
                 type="button"
                 className="w-full text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
-                onClick={requestResetOtp}
+                onClick={() => {
+                  setResetId('');
+                  setResetMaskedEmail('');
+                  loadResetCaptcha();
+                }}
                 disabled={resetLoading}
               >
-                Resend OTP
+                Request new OTP
               </button>
             )}
             <button
               type="button"
               className="w-full text-sm text-[#64748B] hover:text-[#0F172A]"
-              onClick={() => setResetMode(false)}
+              onClick={() => {
+                setResetMode(false);
+                setResetCaptcha(null);
+                setResetCaptchaAnswer('');
+              }}
               disabled={resetLoading}
+            >
+              Back to login
+            </button>
+          </form>
+          ) : loginOtpStep ? (
+          <form onSubmit={verifyLoginOtp} className="space-y-4" autoComplete="off">
+            <p className="rounded-md border border-[#DBEAFE] bg-[#EFF6FF] p-3 text-sm text-[#1E3A8A]">
+              Email OTP sent to {loginMaskedEmail || 'the registered email'}.
+            </p>
+            <div>
+              <Label htmlFor="login-otp" className="text-sm font-semibold text-[#0F172A]">Email OTP</Label>
+              <Input
+                id="login-otp"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="6-digit OTP"
+                className="mt-2 h-12"
+                value={loginOtp}
+                onChange={(e) => setLoginOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="login-captcha" className="text-sm font-semibold text-[#0F172A]">
+                Security Check {loginCaptcha?.question ? `(${loginCaptcha.question})` : ''}
+              </Label>
+              <Input
+                id="login-captcha"
+                inputMode="numeric"
+                placeholder="Answer"
+                className="mt-2 h-12"
+                value={loginCaptchaAnswer}
+                onChange={(e) => setLoginCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full h-12 bg-[#0F172A] hover:bg-[#1E293B] text-base font-semibold" disabled={loading}>
+              {loading ? 'Verifying...' : 'Verify & Login'}
+            </Button>
+            <button
+              type="button"
+              className="w-full text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const response = await api.post('/admin/login', { identifier: identifier.trim(), password });
+                  setLoginResetId(response.data.reset_id || '');
+                  setLoginMaskedEmail(response.data.masked_email || '');
+                  setLoginOtp('');
+                  await loadLoginCaptcha();
+                  toast.success(response.data.message || 'OTP resent');
+                } catch (error) {
+                  toast.error(error?.response?.data?.detail || 'Failed to resend OTP');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              Resend OTP
+            </button>
+            <button
+              type="button"
+              className="w-full text-sm text-[#64748B] hover:text-[#0F172A]"
+              onClick={cancelLoginOtp}
+              disabled={loading}
             >
               Back to login
             </button>
@@ -373,7 +550,14 @@ export default function AdminLoginPage() {
               </button>
             </div>
             <Button type="submit" className="w-full h-12 bg-[#0F172A] hover:bg-[#1E293B] text-base font-semibold" disabled={loading || lockout}>
-              {lockout ? `Locked (${lockoutRemaining}s)` : loading ? 'Logging in...' : 'Login'}
+              {lockout ? (
+                `Locked (${lockoutRemaining}s)`
+              ) : loading ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <LoaderCircle className="h-5 w-5 animate-spin" />
+                  Sending OTP...
+                </span>
+              ) : 'Continue'}
             </Button>
 
             {lockout && <div className="text-xs text-red-600 text-center">Too many failed attempts. Please wait 2 minutes.</div>}
