@@ -836,7 +836,7 @@ export const AdminStationsPage = () => {
                   </label>
                   <label className="space-y-1">
                     <span className="text-xs font-bold uppercase text-[#475569]">Username / Email</span>
-                    <Input className="bg-white text-[#0F172A]" value={newUser.email} onChange={(e) => updateNewUser('email', e.target.value)} placeholder="user@example.com" type="email" required />
+                    <Input className="bg-white text-[#0F172A]" value={newUser.email} onChange={(e) => updateNewUser('email', e.target.value)} placeholder="Login username" type="email" required />
                   </label>
                   <label className="space-y-1">
                     <span className="text-xs font-bold uppercase text-[#475569]">Phone</span>

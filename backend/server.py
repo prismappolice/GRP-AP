@@ -14,7 +14,6 @@ import re
 import uuid
 import secrets
 import hashlib
-import traceback
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Annotated, Any, Dict, List, Mapping, Optional, Union
@@ -99,6 +98,7 @@ PASSWORD_RESET_MAX_ATTEMPTS = 5
 PASSWORD_RESET_WINDOW_SECONDS = 15 * 60
 PASSWORD_RESET_OTP_EXPIRY_MINUTES = 10
 PASSWORD_RESET_MAX_OTP_ATTEMPTS = 5
+PASSWORD_HISTORY_LIMIT = 5
 
 # ==================== EMAIL CONFIG ====================
 SMTP_HOST: str = os.environ.get("SMTP_HOST", "")
@@ -1261,6 +1261,22 @@ async def ensure_auth_security_columns(session: AsyncSession) -> None:
     await session.execute(text("ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS purpose VARCHAR DEFAULT 'password_reset'"))
     await session.execute(text("UPDATE password_reset_tokens SET purpose = 'password_reset' WHERE purpose IS NULL OR purpose = ''"))
     await session.execute(text("UPDATE dgp SET role = 'dgp' WHERE lower(COALESCE(role, '')) IN ('adgp', 'dig')"))
+    await session.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS password_history (
+                id VARCHAR PRIMARY KEY,
+                account_table VARCHAR NOT NULL,
+                account_id VARCHAR NOT NULL,
+                password_hash VARCHAR NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+            """
+        )
+    )
+    await session.execute(
+        text("CREATE INDEX IF NOT EXISTS idx_password_history_account ON password_history(account_table, account_id, created_at DESC)")
+    )
     await session.commit()
 
 
@@ -1489,6 +1505,67 @@ def validate_strong_password(plain_password: str) -> None:
     missing = [label for pattern, label in checks if not re.search(pattern, plain_password)]
     if missing:
         raise HTTPException(status_code=400, detail=f"Password must include {', '.join(missing)}")
+
+
+async def _ensure_password_not_recently_used(
+    session: AsyncSession,
+    account_table: str,
+    account_id: Any,
+    plain_password: str,
+    current_hash: str = "",
+) -> None:
+    if current_hash and verify_password(plain_password, current_hash):
+        raise HTTPException(status_code=400, detail="New password was used recently. Please choose a different password.")
+    await ensure_auth_security_columns(session)
+    result = await session.execute(
+        text(
+            """
+            SELECT password_hash
+            FROM password_history
+            WHERE account_table = :account_table AND account_id = :account_id
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """
+        ),
+        {"account_table": account_table, "account_id": str(account_id), "limit": PASSWORD_HISTORY_LIMIT},
+    )
+    for row in result.mappings().all():
+        if verify_password(plain_password, str(row["password_hash"] or "")):
+            raise HTTPException(status_code=400, detail="New password was used recently. Please choose a different password.")
+
+
+async def _remember_password_hash(session: AsyncSession, account_table: str, account_id: Any, password_hash: str) -> None:
+    await ensure_auth_security_columns(session)
+    await session.execute(
+        text(
+            """
+            INSERT INTO password_history (id, account_table, account_id, password_hash, created_at)
+            VALUES (:id, :account_table, :account_id, :password_hash, :created_at)
+            """
+        ),
+        {
+            "id": str(uuid.uuid4()),
+            "account_table": account_table,
+            "account_id": str(account_id),
+            "password_hash": password_hash,
+            "created_at": datetime.now(timezone.utc),
+        },
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM password_history
+            WHERE id IN (
+                SELECT id
+                FROM password_history
+                WHERE account_table = :account_table AND account_id = :account_id
+                ORDER BY created_at DESC
+                OFFSET :limit
+            )
+            """
+        ),
+        {"account_table": account_table, "account_id": str(account_id), "limit": PASSWORD_HISTORY_LIMIT},
+    )
 
 
 def _safe_upload_extension(filename: Optional[str]) -> str:
@@ -2211,13 +2288,12 @@ async def change_current_password(
     if not table or not user_id:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     verify_captcha(body.captcha_id, body.captcha_answer)
-    result = await session.execute(text(f"SELECT password FROM {table} WHERE id = :id LIMIT 1"), {"id": user_id})
+    result = await session.execute(text(f"SELECT password, email, name FROM {table} WHERE id = :id LIMIT 1"), {"id": user_id})
     row = result.mappings().first()
     if not row or not verify_password(body.current_password, str(row["password"] or "")):
         raise HTTPException(status_code=401, detail="Invalid current password")
     validate_strong_password(body.new_password)
-    if verify_password(body.new_password, str(row["password"] or "")):
-        raise HTTPException(status_code=400, detail="New password must be different from current password")
+    await _ensure_password_not_recently_used(session, table, user_id, body.new_password, str(row["password"] or ""))
     otp = re.sub(r"\D+", "", str(body.otp or ""))
     if not re.fullmatch(r"\d{6}", otp):
         raise HTTPException(status_code=400, detail="Enter the 6-digit OTP.")
@@ -2255,6 +2331,7 @@ async def change_current_password(
         text(f"UPDATE {table} SET password = :password, must_change_password = 0, active_session_id = NULL WHERE id = :id"),
         {"password": hashed_password, "id": user_id},
     )
+    await _remember_password_hash(session, table, user_id, hashed_password)
     await session.execute(
         text(
             """
@@ -2274,6 +2351,12 @@ async def change_current_password(
         target_id=str(user_id),
     )
     await session.commit()
+    _send_security_notification(
+        str(row["email"] or ""),
+        str(row["name"] or "User"),
+        "[GRP AP] Password Changed",
+        "Your GRP portal password was changed successfully. If you did not perform this action, contact your administrator immediately.",
+    )
     return {"message": "Password changed successfully"}
 
 
@@ -2571,20 +2654,20 @@ async def complete_password_reset(
     if table_name not in {"admin", "dgp", "srp", "dsrp", "irp", "stations"}:
         raise HTTPException(status_code=400, detail="Reset OTP is invalid or expired.")
     account_result = await session.execute(
-        text(f"SELECT password FROM {table_name} WHERE id = :id LIMIT 1"),
+        text(f"SELECT password, email, name FROM {table_name} WHERE id = :id LIMIT 1"),
         {"id": token["account_id"]},
     )
     account = account_result.mappings().first()
     if not account:
         raise HTTPException(status_code=400, detail="Reset OTP is invalid or expired.")
-    if verify_password(body.new_password, str(account["password"] or "")):
-        raise HTTPException(status_code=400, detail="New password must be different from current password")
+    await _ensure_password_not_recently_used(session, table_name, token["account_id"], body.new_password, str(account["password"] or ""))
     hashed_password = hash_password(body.new_password)
     await ensure_auth_security_columns(session)
     await session.execute(
         text(f"UPDATE {table_name} SET password = :password, must_change_password = 0, active_session_id = NULL WHERE id = :id"),
         {"password": hashed_password, "id": token["account_id"]},
     )
+    await _remember_password_hash(session, table_name, token["account_id"], hashed_password)
     await session.execute(
         text(
             """
@@ -2615,6 +2698,12 @@ async def complete_password_reset(
         },
     )
     await session.commit()
+    _send_security_notification(
+        str(account["email"] or ""),
+        str(account["name"] or "User"),
+        "[GRP AP] Password Reset Completed",
+        "Your GRP portal password was reset successfully. If you did not perform this action, contact your administrator immediately.",
+    )
     return {"message": "Password reset successfully. Please login with your new password."}
 
 
@@ -2666,9 +2755,9 @@ async def get_admin_login_options(
             options.append(AdminLoginOption(identifier=str(s["id"]), label=str(s["name"]), scope="station", account_role="station", group="Stations"))
 
         return options
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
+    except Exception as exc:
+        logger.exception("Failed to load admin login options: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ==================== SRP CREDENTIALS ====================
@@ -3658,6 +3747,7 @@ async def create_admin_credential(
         target_id=entry_id,
         details={"scope": scope, "email": new_email, "role": role, "hierarchy": hierarchy_details},
     )
+    await _remember_password_hash(session, table, entry_id, hashed_password)
     await session.commit()
     return AdminCredentialEntry(
         scope=scope,
@@ -3714,6 +3804,19 @@ async def update_credential_password(
         raise HTTPException(status_code=403, detail="Admins only")
     plain_password = body.new_password
     validate_strong_password(plain_password)
+    table = _credential_table_for_scope(scope)
+    if table is None:
+        raise HTTPException(status_code=400, detail="Invalid scope")
+    if table == "dgp":
+        await ensure_officer_credentials_table(session)
+    account_result = await session.execute(
+        text(f"SELECT password, email, name FROM {table} WHERE id = :id LIMIT 1"),
+        {"id": entry_id},
+    )
+    account = account_result.mappings().first()
+    if not account:
+        raise HTTPException(status_code=404, detail=f"{scope.upper()} not found")
+    await _ensure_password_not_recently_used(session, table, entry_id, plain_password, str(account["password"] or ""))
     hashed_password = bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     if scope == "srp":
         res = await session.execute(
@@ -3738,7 +3841,6 @@ async def update_credential_password(
         if admin_result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Admin not found")
     elif scope in ("srp", "dsrp", "irp", "station"):
-        table = scope if scope != "station" else "stations"
         res = await session.execute(
             text(f"UPDATE {table} SET password = :password, must_change_password = 1, active_session_id = NULL WHERE id = :id"),
             {"password": hashed_password, "id": entry_id},
@@ -3756,7 +3858,14 @@ async def update_credential_password(
         target_id=entry_id,
         details={"scope": scope},
     )
+    await _remember_password_hash(session, table, entry_id, hashed_password)
     await session.commit()
+    _send_security_notification(
+        str(account["email"] or ""),
+        str(account["name"] or "User"),
+        "[GRP AP] Temporary Password Set",
+        "Your GRP portal password was changed by an administrator. You must change this temporary password on your next login.",
+    )
     return {"message": "Password updated successfully"}
 
 
@@ -4370,8 +4479,9 @@ async def chat_endpoint(request: ChatRequest, session: AsyncSession = Depends(ge
     try:
         reply = _get_chat_reply(request.message, request.language)
         return {"response": reply, "session_id": request.session_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat error: {e}")
+    except Exception as exc:
+        logger.exception("Chat endpoint failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ==================== INCLUDE ROUTER ====================
