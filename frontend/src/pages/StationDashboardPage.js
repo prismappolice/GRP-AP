@@ -8,6 +8,7 @@ import {
   Building2, FileText, CheckCircle, Clock, Search as SearchIcon, RefreshCw, Download, ArrowUpRight, Upload, X, Check, Search, LogIn, Bell,
 } from 'lucide-react';
 import { stationAPI, complaintsAPI } from '@/lib/api';
+import { sanitizeSpreadsheetValue } from '@/lib/utils';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
@@ -25,7 +26,7 @@ function exportToCSV(filename, colDefs, rows) {
   if (!rows.length) return;
   const headerRow = colDefs.map(h => `"${h.label}"`).join(',');
   const dataRows = rows.map(row =>
-    colDefs.map(h => `"${String(row[h.key] || '').replace(/_/g, ' ').replace(/"/g, '""')}"`).join(',')
+    colDefs.map(h => `"${String(sanitizeSpreadsheetValue(String(row[h.key] || '').replace(/_/g, ' '))).replace(/"/g, '""')}"`).join(',')
   );
   const csv = [headerRow, ...dataRows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });

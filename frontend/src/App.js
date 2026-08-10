@@ -51,6 +51,7 @@ const AdminAuditLogsPage = React.lazy(() => import('@/pages/AdminAuditLogsPage')
 const AdminStationsPage = React.lazy(() => import('@/pages/AdminStationsPage'));
 const AdminStaticContentPage = React.lazy(() => import('@/pages/AdminStaticContentPage'));
 const AdminComplaintsPage = React.lazy(() => import('@/pages/AdminComplaintsPage'));
+const ProfilePage = React.lazy(() => import('@/pages/ProfilePage'));
 const StationDashboardPage = React.lazy(() => import('@/pages/StationDashboardPage').then(m => ({ default: m.StationDashboardPage })));
 const IRPDashboardPage = React.lazy(() => import('@/pages/IRPDashboardPage').then(m => ({ default: m.IRPDashboardPage })));
 const DSRPDashboardPage = React.lazy(() => import('@/pages/DSRPDashboardPage').then(m => ({ default: m.DSRPDashboardPage })));
@@ -106,6 +107,25 @@ const StationPoliceRoute = ({ children }) => {
   // Only station users can access station upload page
   if (user.role !== 'station') {
     return <Navigate to="/complaint" replace />;
+  }
+
+  return children;
+};
+
+const ProfileRoute = ({ children }) => {
+  const { user, loading, isAdmin } = useAuth();
+  const effectiveIsAdmin = isAdmin || (typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true');
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2563EB]"></div>
+      </div>
+    );
+  }
+
+  if (!effectiveIsAdmin && !user) {
+    return <Navigate to="/admin-login" replace />;
   }
 
   return children;
@@ -173,6 +193,7 @@ const AppContent = () => {
           <Route path="/complaint" element={<ComplaintPage />} />
           <Route path="/login" element={<Navigate to="/complaint" replace />} />
           <Route path="/dashboard" element={<Navigate to="/complaint" replace />} />
+          <Route path="/profile" element={<ProfileRoute><ProfilePage /></ProfileRoute>} />
           <Route path="/station-dashboard" element={<PoliceRoute><StationDashboardPage /></PoliceRoute>} />
           <Route path="/irp-dashboard" element={<PoliceRoute><IRPDashboardPage /></PoliceRoute>} />
           <Route path="/dsrp-dashboard" element={<PoliceRoute><DSRPDashboardPage /></PoliceRoute>} />

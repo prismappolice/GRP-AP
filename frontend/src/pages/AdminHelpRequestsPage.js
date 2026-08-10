@@ -8,6 +8,7 @@ import { getAuthToken, helpAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { Mail, Phone, HelpCircle, Clock, CheckCircle2, XCircle, Search, Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { sanitizeSpreadsheetRows } from '@/lib/utils';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -157,14 +158,14 @@ const AdminHelpRequestsPage = () => {
       { key: 'status', label: 'Status' },
       { key: 'replied', label: 'Replied' },
     ];
-    const data = filteredRequests.map((row, idx) =>
+    const data = sanitizeSpreadsheetRows(filteredRequests.map((row, idx) =>
       headers.reduce((obj, h) => {
         if (h.key === 'sno') obj[h.label] = idx + 1;
         else if (h.key === 'replied') obj[h.label] = row[h.key] ? 'Yes' : 'No';
         else obj[h.label] = String(row[h.key] || '');
         return obj;
       }, {})
-    );
+    ));
     const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
     ws['!cols'] = headers.map(h => ({
       wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2

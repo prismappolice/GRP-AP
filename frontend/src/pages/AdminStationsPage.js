@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { Users, Shield, Award, Network, Building2, Eye, EyeOff, Search } from 'lucide-react';
+import { Users, Shield, Award, Network, Building2, Eye, EyeOff, Search, Plus, X } from 'lucide-react';
+import { stations } from '@/data/stations';
 // import removed: adminStationHierarchy, getAdminHierarchyCounts
 
 const normalizeValue = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -35,6 +36,74 @@ const getRolePriority = (role) => {
 };
 
 const IRP_RPS_NAMES = ['IRP Vijayawada', 'IRP Guntur', 'IRP Rajahmundry', 'IRP Visakhapatnam'];
+
+const emptyNewUser = {
+  accountType: 'station',
+  name: '',
+  email: '',
+  phone: '',
+  password: '',
+  division: '',
+  subdivision: '',
+  circle: '',
+  stationName: '',
+};
+
+const hierarchyRoleLabels = {
+  dsrp: [{ field: 'division', label: 'Under SRP / Division' }],
+  irp: [
+    { field: 'subdivision', label: 'Under DSRP / Sub Division' },
+    { field: 'division', label: 'Under SRP / Division' },
+  ],
+  station: [
+    { field: 'circle', label: 'Under IRP / Circle' },
+    { field: 'subdivision', label: 'Under DSRP / Sub Division' },
+    { field: 'division', label: 'Under SRP / Division' },
+  ],
+};
+
+const getDivisionName = (division) => division?.division || division?.name || '';
+
+const hierarchyOptions = stations.flatMap((division) => {
+  const divisionName = getDivisionName(division);
+  return (division.subdivisions || []).flatMap((subdivision) =>
+    (subdivision.circles || []).flatMap((circle) => {
+      const base = {
+        division: divisionName,
+        subdivision: subdivision.name,
+        circle: circle.name,
+        circlePhone: circle.phone || '',
+      };
+      const stationRows = (circle.stations || []).map((station) => ({
+        ...base,
+        stationName: station.name,
+        stationPhone: station.phone || '',
+      }));
+      return [{ ...base, stationName: '', stationPhone: '' }, ...stationRows];
+    })
+  );
+});
+
+const uniqueHierarchyValues = (field, filters = {}) => {
+  const seen = new Set();
+  return hierarchyOptions
+    .filter((row) =>
+      Object.entries(filters).every(([key, value]) => !value || row[key] === value)
+    )
+    .map((row) => row[field])
+    .filter(Boolean)
+    .filter((value) => {
+      if (seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    })
+    .sort((left, right) => left.localeCompare(right));
+};
+
+const findHierarchyRow = (field, value, filters = {}) =>
+  hierarchyOptions.find((row) =>
+    row[field] === value && Object.entries(filters).every(([key, filterValue]) => !filterValue || row[key] === filterValue)
+  );
 
 const sortByRoleSequence = (rows) =>
   [...rows].sort((left, right) => {
@@ -283,7 +352,9 @@ export const AdminStationsPage = () => {
   const [error, setError] = useState('');
   const [pwdDrafts, setPwdDrafts] = useState({});
   const [pwdVisible, setPwdVisible] = useState({});
-  const [usernameDrafts, setUsernameDrafts] = useState({});
+  const [createLoading, setCreateLoading] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newUser, setNewUser] = useState(emptyNewUser);
   const [searchTerm, setSearchTerm] = useState('');
   const [stationSearch, setStationSearch] = useState('');
   const [adminSearch, setAdminSearch] = useState('');
@@ -315,17 +386,10 @@ export const AdminStationsPage = () => {
     setPwdDrafts((prev) => ({ ...prev, [key]: value }));
   };
 
-  const onUsernameDraftChange = (key, value) => {
-    setUsernameDrafts((prev) => ({ ...prev, [key]: value }));
-  };
-
   const centralAdmins = credentials.filter((c) => c.scope === 'admin');
   const superiorOfficerCredentials = credentials
     .filter((c) => c.scope === 'officer')
-    .sort((left, right) => {
-      const order = { dgp: -1, adgp: 0, dig: 1 };
-      return (order[String(left.role || '').toLowerCase()] ?? 99) - (order[String(right.role || '').toLowerCase()] ?? 99);
-    });
+    .sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
 
   // SRPs Table
   const srpNames = ['SRP Vijayawada', 'SRP Guntakal'];
@@ -395,6 +459,174 @@ export const AdminStationsPage = () => {
     }
   };
 
+  const updateStatus = async (scope, id, nextActive) => {
+    try {
+      await api.patch(`/admin/credentials/${scope}/${id}/status`, { is_active: nextActive });
+      toast.success(nextActive ? 'Account enabled successfully' : 'Account disabled successfully');
+      await loadData();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Status update failed');
+    }
+  };
+
+  const updateNewUser = (field, value) => {
+    setNewUser((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateNewUserRole = (accountType) => {
+    setNewUser((prev) => ({
+      ...prev,
+      accountType,
+      division: '',
+      subdivision: '',
+      circle: '',
+      stationName: '',
+    }));
+  };
+
+  const updateNewUserHierarchy = (field, value) => {
+    setNewUser((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'stationName') {
+        const row = findHierarchyRow('stationName', value);
+        if (row) {
+          next.circle = row.circle;
+          next.subdivision = row.subdivision;
+          next.division = row.division;
+          next.name = value || next.name;
+          next.phone = row.stationPhone || next.phone;
+        }
+      } else if (field === 'circle') {
+        const row = findHierarchyRow('circle', value, { subdivision: next.subdivision, division: next.division })
+          || findHierarchyRow('circle', value);
+        if (row) {
+          next.subdivision = row.subdivision;
+          next.division = row.division;
+          if (prev.accountType === 'irp') {
+            next.name = value || next.name;
+            next.phone = row.circlePhone || next.phone;
+          }
+        }
+        if (!value) {
+          next.stationName = '';
+        }
+      } else if (field === 'subdivision') {
+        const row = findHierarchyRow('subdivision', value, { division: next.division }) || findHierarchyRow('subdivision', value);
+        if (row) {
+          next.division = row.division;
+          if (prev.accountType === 'dsrp') {
+            next.name = value || next.name;
+          }
+        }
+        if (!value) {
+          next.circle = '';
+          next.stationName = '';
+        }
+      } else if (field === 'division' && prev.accountType === 'srp') {
+        next.name = value ? `SRP ${value}` : next.name;
+      }
+      return next;
+    });
+  };
+
+  const requireHierarchySelection = () => {
+    const fields = hierarchyRoleLabels[newUser.accountType] || [];
+    const missing = fields.find(({ field }) => !String(newUser[field] || '').trim());
+    if (missing) {
+      toast.error(`Select ${missing.label}`);
+      return false;
+    }
+    return true;
+  };
+
+  const getHierarchySelectOptions = (field) => {
+    if (field === 'stationName') {
+      return uniqueHierarchyValues('stationName');
+    }
+    if (field === 'circle') {
+      return uniqueHierarchyValues('circle', {
+        stationName: newUser.stationName,
+        subdivision: newUser.subdivision,
+        division: newUser.division,
+      });
+    }
+    if (field === 'subdivision') {
+      return uniqueHierarchyValues('subdivision', {
+        stationName: newUser.stationName,
+        circle: newUser.circle,
+        division: newUser.division,
+      });
+    }
+    if (field === 'division') {
+      return uniqueHierarchyValues('division', {
+        stationName: newUser.stationName,
+        circle: newUser.circle,
+        subdivision: newUser.subdivision,
+      });
+    }
+    return [];
+  };
+
+  const hierarchyPlaceholder = {
+    stationName: 'Select station',
+    circle: 'Select IRP / circle',
+    subdivision: 'Select DSRP / sub division',
+    division: 'Select SRP / division',
+  };
+
+  const renderHierarchySelect = ({ field, label }) => {
+    const options = getHierarchySelectOptions(field);
+    return (
+      <label key={field} className="space-y-1">
+        <span className="text-xs font-bold uppercase text-[#475569]">{label}</span>
+        <select
+          value={newUser[field]}
+          onChange={(e) => updateNewUserHierarchy(field, e.target.value)}
+          className="h-10 w-full rounded-md border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none transition-colors focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE] disabled:bg-white disabled:text-[#94A3B8]"
+          required
+        >
+          <option value="">{hierarchyPlaceholder[field]}</option>
+          {options.map((value) => (
+            <option key={value} value={value}>{value}</option>
+          ))}
+        </select>
+      </label>
+    );
+  };
+
+  const createCredential = async (event) => {
+    event.preventDefault();
+    if (!requireHierarchySelection()) {
+      return;
+    }
+    const superiorRoles = new Set(['dgp']);
+    const scope = superiorRoles.has(newUser.accountType) ? 'officer' : newUser.accountType;
+    const role = superiorRoles.has(newUser.accountType) ? 'dgp' : undefined;
+    setCreateLoading(true);
+    try {
+      await api.post('/admin/credentials', {
+        scope,
+        role,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone || 'N/A',
+        password: newUser.password,
+        division: newUser.division || null,
+        subdivision: newUser.subdivision || null,
+        circle: newUser.circle || null,
+        station_name: newUser.stationName || null,
+      });
+      toast.success('User added successfully');
+      setNewUser(emptyNewUser);
+      setIsCreateOpen(false);
+      await loadData();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to add user');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   const adminTableRef = useRef(null);
   const officerTableRef = useRef(null);
   const srpTableRef = useRef(null);
@@ -407,28 +639,6 @@ export const AdminStationsPage = () => {
     const term = value.trim().toLowerCase();
     if (!term) return true;
     return String(row.email || row.id || '').toLowerCase().includes(term);
-  };
-
-  const updateUsername = async (scope, id, currentUsername) => {
-    const key = `${scope}:${id}`;
-    const newUsername = (usernameDrafts[key] || '').trim();
-    if (!newUsername) {
-      toast.error('Enter a new username');
-      return;
-    }
-    if (newUsername.toLowerCase() === String(currentUsername || '').toLowerCase()) {
-      toast.error('New username is same as current username');
-      return;
-    }
-
-    try {
-      await api.patch(`/admin/credentials/${scope}/${id}/username`, { new_username: newUsername });
-      toast.success('Username updated successfully');
-      setUsernameDrafts((prev) => ({ ...prev, [key]: '' }));
-      await loadData();
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Username update failed');
-    }
   };
 
   const renderFlatAdminTable = (title, rows, roleLabel, emptyLabel, extraHeader, tableRef) => {
@@ -457,8 +667,8 @@ export const AdminStationsPage = () => {
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Role</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Name</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Username</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Change Username</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Change Password</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -470,44 +680,19 @@ export const AdminStationsPage = () => {
                 rows.map((row, idx) => {
                   const credentialKey = `${row.scope}:${row.id}`;
                   const canUpdatePassword = Boolean(row.scope && row.id);
-                  const canUpdateUsername = Boolean(row.scope && row.id);
                   const currentUsername = row.email || row.id || '';
-                  const hasUsernameDraft = Boolean((usernameDrafts[credentialKey] || '').trim());
                   const hasPasswordDraft = Boolean((pwdDrafts[credentialKey] || '').trim());
-                  // Show 'ADGP' for DIG row in Superior Officers Table
+                  const isActive = row.is_active !== false;
                   let displayRole = row.role;
                   if (typeof roleLabel === 'function') {
                     displayRole = roleLabel(row);
                   }
-                  if (row.scope === 'officer' && String(row.role).toLowerCase() === 'adgp') {
-                    displayRole = 'ADGP';
-                  }
                   return (
-                    <TableRow key={row.id || idx} className="border border-[#60A5FA]">
+                    <TableRow key={row.id || idx} className={`border border-[#60A5FA] ${isActive ? '' : 'bg-[#F8FAFC] text-[#94A3B8]'}`}>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{idx + 1}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{displayRole}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{row.name || '--'}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{currentUsername || '--'}</TableCell>
-                      <TableCell className="border border-[#60A5FA] align-middle">
-                        <div className="mx-auto flex min-w-[240px] max-w-lg gap-2">
-                          <Input
-                            placeholder={canUpdateUsername ? 'New username' : 'Unavailable'}
-                            type="email"
-                            autoComplete="off"
-                            value={usernameDrafts[credentialKey] || ''}
-                            onChange={(e) => onUsernameDraftChange(credentialKey, e.target.value)}
-                            className="text-sm"
-                            disabled={!canUpdateUsername}
-                          />
-                          <Button
-                            disabled={!canUpdateUsername}
-                            className={updateButtonClass(hasUsernameDraft)}
-                            onClick={() => updateUsername(row.scope, row.id, currentUsername)}
-                          >
-                            Update
-                          </Button>
-                        </div>
-                      </TableCell>
                       <TableCell className="border border-[#60A5FA] align-middle">
                         <div className="mx-auto flex min-w-[200px] max-w-lg gap-2">
                           <div className="relative flex-1">
@@ -539,6 +724,18 @@ export const AdminStationsPage = () => {
                             Update
                           </Button>
                         </div>
+                      </TableCell>
+                      <TableCell className="border border-[#60A5FA] text-center align-middle">
+                        <Button
+                          variant="outline"
+                          className={isActive
+                            ? 'border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2]'
+                            : 'border-[#16A34A] text-[#166534] hover:bg-[#F0FDF4]'
+                          }
+                          onClick={() => updateStatus(row.scope, row.id, !isActive)}
+                        >
+                          {isActive ? 'Disable' : 'Enable'}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -597,6 +794,68 @@ export const AdminStationsPage = () => {
             </div>
           </div>
 
+          <div className="mb-8 rounded-lg border border-[#BFDBFE] bg-[#F8FAFC] p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-[#0F172A]">Add User</h3>
+                <p className="mt-1 text-sm text-[#64748B]">Create temporary credentials for a new login.</p>
+              </div>
+              <Button
+                type="button"
+                variant={isCreateOpen ? 'outline' : 'default'}
+                onClick={() => setIsCreateOpen((prev) => !prev)}
+                className={isCreateOpen ? 'border-[#CBD5E1] text-[#334155] hover:bg-white' : 'bg-[#2563EB] hover:bg-[#1D4ED8]'}
+              >
+                {isCreateOpen ? <X className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                {isCreateOpen ? 'Close' : 'Add User'}
+              </Button>
+            </div>
+
+            {isCreateOpen && (
+              <form onSubmit={createCredential} className="mt-5 border-t border-[#DBEAFE] pt-5">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold uppercase text-[#475569]">Role</span>
+                    <select
+                      value={newUser.accountType}
+                      onChange={(e) => updateNewUserRole(e.target.value)}
+                      className="h-10 w-full rounded-md border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none transition-colors focus:border-[#2563EB] focus:ring-2 focus:ring-[#DBEAFE] disabled:bg-white disabled:text-[#94A3B8]"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="dgp">DGP</option>
+                      <option value="srp">SRP</option>
+                      <option value="dsrp">DSRP</option>
+                      <option value="irp">IRP</option>
+                      <option value="station">Station</option>
+                    </select>
+                  </label>
+                  {(hierarchyRoleLabels[newUser.accountType] || []).map(renderHierarchySelect)}
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold uppercase text-[#475569]">Name</span>
+                    <Input className="bg-white text-[#0F172A]" value={newUser.name} onChange={(e) => updateNewUser('name', e.target.value)} placeholder="Display name" required />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold uppercase text-[#475569]">Username / Email</span>
+                    <Input className="bg-white text-[#0F172A]" value={newUser.email} onChange={(e) => updateNewUser('email', e.target.value)} placeholder="user@example.com" type="email" required />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold uppercase text-[#475569]">Phone</span>
+                    <Input className="bg-white text-[#0F172A]" value={newUser.phone} onChange={(e) => updateNewUser('phone', e.target.value)} placeholder="Optional" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold uppercase text-[#475569]">Temporary Password</span>
+                    <Input className="bg-white text-[#0F172A]" value={newUser.password} onChange={(e) => updateNewUser('password', e.target.value)} placeholder="Strong password" type="password" autoComplete="new-password" required />
+                  </label>
+                  <div className="flex items-end">
+                    <Button type="submit" disabled={createLoading} className="h-10 w-full bg-[#2563EB] hover:bg-[#1D4ED8]">
+                      {createLoading ? 'Adding...' : 'Create User'}
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
+
           {renderFlatAdminTable(
             '1. Central Admin Table',
             centralAdmins.filter(r => matchesUsernameSearch(r, adminSearch)),
@@ -608,7 +867,7 @@ export const AdminStationsPage = () => {
           {renderFlatAdminTable(
             '2. Superior Officers Table',
             superiorOfficerCredentials.filter(r => matchesUsernameSearch(r, officerSearch)),
-            (row) => (String(row.role || '').toLowerCase() === 'adgp' ? 'ADGP' : String(row.role || '').toUpperCase()),
+            () => 'DGP',
             'No superior officer credentials available.',
             <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={officerSearch} onChange={e => setOfficerSearch(e.target.value)} placeholder="Search by username..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
             officerTableRef

@@ -9,13 +9,14 @@ import { srpAPI } from '@/lib/api';
 import { getStationHierarchy, getSRPScopeDetails } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
 import { useSearchParams } from 'react-router-dom';
+import { sanitizeSpreadsheetValue } from '@/lib/utils';
 
 const PIE_COLORS = { pending: '#F59E0B', investigating: '#3B82F6', resolved: '#10B981', approved: '#059669', rejected: '#EF4444' };
 const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#78716C'];
 
 function exportToCSV(filename, colDefs, rows) {
   const headerRow = colDefs.map(h => `"${h.label}"`).join(',');
-  const dataRows = rows.map(row => colDefs.map(h => `"${String(row[h.key]||'').replace(/_/g,' ').replace(/"/g,'""')}"`).join(','));
+  const dataRows = rows.map(row => colDefs.map(h => `"${String(sanitizeSpreadsheetValue(String(row[h.key]||'').replace(/_/g,' '))).replace(/"/g,'""')}"`).join(','));
   const csv = [headerRow, ...dataRows].join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
   const url = URL.createObjectURL(blob);

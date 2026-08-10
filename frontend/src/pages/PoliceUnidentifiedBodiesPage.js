@@ -10,6 +10,7 @@ import { saveAs } from 'file-saver';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI, normalizeMediaUrl } from '@/lib/api';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
+import { sanitizeSpreadsheetValue } from '@/lib/utils';
 
 const UB_COLS = [
   { key: 'station', label: 'Station' },
@@ -41,7 +42,7 @@ function exportToCSV(filename, rows) {
   const headerRow = UB_COLS.map(h => `"${h.label}"`).join(',');
   const dataRows = rows.map(row =>
     UB_COLS.map(h => {
-      const val = h.key === 'media_count' ? String(row.mediaUrls?.length || 0) : String(row[h.key] || '');
+      const val = h.key === 'media_count' ? String(row.mediaUrls?.length || 0) : String(sanitizeSpreadsheetValue(String(row[h.key] || '')));
       return `"${val.replace(/"/g, '""')}"`;
     }).join(',')
   );
