@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ArrowUpRight, Building2, Download, Filter, RefreshCw, Search, Image as ImageIcon, Eye, LogIn, FileText, Clock, ThumbsUp, ThumbsDown, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { srpAPI } from '@/lib/api';
+import { downloadCSV } from '@/lib/csv';
 import { getStationHierarchy, getSRPScopeDetails } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
 import { useSearchParams } from 'react-router-dom';
@@ -14,12 +15,7 @@ const PIE_COLORS = { pending: '#F59E0B', investigating: '#3B82F6', resolved: '#1
 const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#78716C'];
 
 function exportToCSV(filename, colDefs, rows) {
-  const headerRow = colDefs.map(h => `"${h.label}"`).join(',');
-  const dataRows = rows.map(row => colDefs.map(h => `"${String(row[h.key]||'').replace(/_/g,' ').replace(/"/g,'""')}"`).join(','));
-  const csv = [headerRow, ...dataRows].join('\n');
-  const blob = new Blob([csv], {type:'text/csv'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+  downloadCSV(filename, colDefs.map(h => h.label), rows.map(row => colDefs.map(h => row[h.key] || '')));
 }
 
 function getStationPhone(stationName) {

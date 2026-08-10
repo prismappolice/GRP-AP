@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI, normalizeMediaUrl } from '@/lib/api';
+import { downloadCSV } from '@/lib/csv';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
 
@@ -38,21 +39,11 @@ function groupRecords(records) {
 
 function exportToCSV(filename, rows) {
   if (!rows.length) return;
-  const headerRow = UB_COLS.map(h => `"${h.label}"`).join(',');
-  const dataRows = rows.map(row =>
-    UB_COLS.map(h => {
-      const val = h.key === 'media_count' ? String(row.mediaUrls?.length || 0) : String(row[h.key] || '');
-      return `"${val.replace(/"/g, '""')}"`;
-    }).join(',')
+  downloadCSV(
+    filename,
+    UB_COLS.map(h => h.label),
+    rows.map(row => UB_COLS.map(h => (h.key === 'media_count' ? row.mediaUrls?.length || 0 : row[h.key] || '')))
   );
-  const csv = [headerRow, ...dataRows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 function getAPIForRole(role) {

@@ -11,6 +11,7 @@ import { stationAPI, complaintsAPI } from '@/lib/api';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
+import { downloadCSV } from '@/lib/csv';
 
 const PIE_COLORS = {
   pending: '#F59E0B',
@@ -23,18 +24,7 @@ const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA
 
 function exportToCSV(filename, colDefs, rows) {
   if (!rows.length) return;
-  const headerRow = colDefs.map(h => `"${h.label}"`).join(',');
-  const dataRows = rows.map(row =>
-    colDefs.map(h => `"${String(row[h.key] || '').replace(/_/g, ' ').replace(/"/g, '""')}"`).join(',')
-  );
-  const csv = [headerRow, ...dataRows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCSV(filename, colDefs.map(h => h.label), rows.map(row => colDefs.map(h => row[h.key] || '')));
 }
 
 
