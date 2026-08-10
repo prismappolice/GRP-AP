@@ -102,6 +102,9 @@ Thumbs.db
 *.db
 *.sqlite
 *.dump
+*_backup.sql
+backup_*.sql
+*.pgdump
 backend/grp.db
 agenthub/agents/youtube/db
 
