@@ -279,9 +279,7 @@ export const ComplaintPage = () => {
                 />
                 {fieldErrors.incident_date && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.incident_date}</p>}
               </div>
-            </div>
-
-            <div>
+              <div>
                 <Label htmlFor="location">6. Location *</Label>
                 <Input
                   id="location"
@@ -291,6 +289,7 @@ export const ComplaintPage = () => {
                   onChange={(e) => { setFormData({...formData, location: e.target.value}); if (fieldErrors.location) setFieldErrors(p => ({...p, location: ''})); }}
                 />
                 {fieldErrors.location && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.location}</p>}
+              </div>
             </div>
 
             <div>
@@ -319,7 +318,7 @@ export const ComplaintPage = () => {
             </div>
 
             <div>
-              <Label>10. Supporting Documents</Label>
+              <Label>9. Supporting Documents</Label>
               <input
                 ref={supportingDocsRef}
                 type="file"
