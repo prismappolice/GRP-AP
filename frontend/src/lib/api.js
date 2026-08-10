@@ -56,12 +56,53 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const detail = String(error?.response?.data?.detail || '');
+    const status = error?.response?.status;
+    const shouldClearSession = (status === 401 && [
+      'Token has expired',
+      'Session is no longer active',
+      'Invalid authentication credentials',
+      'Invalid token',
+    ].includes(detail)) || (status === 403 && detail === 'Account is disabled');
+    if (shouldClearSession && typeof window !== 'undefined') {
+      setAuthToken(null);
+      localStorage.removeItem('isAdmin');
+      localStorage.removeItem('admin_display_name');
+      localStorage.removeItem('admin_email');
+      localStorage.removeItem('admin_remember');
+      localStorage.removeItem('admin_last_login_at');
+      localStorage.removeItem('admin_must_change_password');
+      localStorage.removeItem('grp_login_time');
+      window.dispatchEvent(new Event('grp-auth-changed'));
+      if (!window.location.pathname.includes('/admin-login')) {
+        window.location.replace('/admin-login');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
 
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
+  updateProfileName: (data) => api.patch('/auth/profile/name', data),
+  logout: () => api.post('/auth/logout'),
+  requestChangePasswordOtp: () => api.post('/auth/change-password/otp'),
+  changePassword: (data) => api.post('/auth/change-password', data),
+  requestChangeUsernameOtp: () => api.post('/auth/change-username/otp'),
+  changeUsername: (data) => api.post('/auth/change-username', data),
+  requestPasswordReset: (data) => api.post('/auth/password-reset/request', data),
+  completePasswordReset: (data) => api.post('/auth/password-reset/complete', data),
+};
+
+export const securityAPI = {
+  getChallenge: () => api.get('/anti-automation/challenge'),
 };
 
 export const complaintsAPI = {

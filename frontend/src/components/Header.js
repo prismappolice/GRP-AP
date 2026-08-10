@@ -111,7 +111,6 @@ export const Header = () => {
 
   const adminLinks = [
     { to: '/admin-dashboard', label: 'Dashboard', testId: 'admin-dashboard-link' },
-    { to: '/admin/audit-logs', label: 'Audit Logs', testId: 'admin-audit-logs-link' },
   ];
 
   const handleLogout = () => {
@@ -214,10 +213,11 @@ export const Header = () => {
             )}
 
             {(effectiveIsAdmin || isPoliceSession) ? (
-              <div className="flex items-center">
+              <div className="flex items-center gap-2">
                 {loggedInDisplayName ? (
+                  <>
                   <Button
-                    onClick={handleSessionLogout}
+                    onClick={() => navigate('/profile')}
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2"
@@ -225,8 +225,18 @@ export const Header = () => {
                   >
                     <User className="w-4 h-4" />
                     <span>{loggedInDisplayName}</span>
-                    <LogOut className="w-4 h-4 ml-1" />
                   </Button>
+                  <Button
+                    onClick={handleSessionLogout}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                    aria-label="Logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </Button>
+                  </>
                 ) : null}
               </div>
             ) : (
@@ -262,16 +272,21 @@ export const Header = () => {
                 </NavLink>
               ))}
               {(effectiveIsAdmin || isPoliceSession) ? (
-                <button onClick={() => { handleSessionLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-md border border-[#60A5FA] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
+                <button onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-md border border-[#60A5FA] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
                   <User className="w-4 h-4" />
-                  <span>{loggedInDisplayName}</span>
-                  <LogOut className="w-4 h-4" />
+                  <span>My Profile</span>
                 </button>
               ) : (
                 <Link to="/admin-login" onClick={() => setMobileMenuOpen(false)} className="text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] px-2 py-1 rounded-md transition-colors">
                   Admin Login
                 </Link>
               )}
+              {(effectiveIsAdmin || isPoliceSession) ? (
+                <button onClick={() => { handleSessionLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-md border border-[#60A5FA] bg-white px-3 py-2 text-sm font-semibold text-[#0F172A] hover:text-[#2563EB] transition-colors text-left w-fit">
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout</span>
+                </button>
+              ) : null}
           </div>
         </div>
       )}
