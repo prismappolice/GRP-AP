@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, AlertCircle, CheckCircle, Upload } from 'lucide-react';
-import { complaintsAPI } from '@/lib/api';
+import { complaintsAPI, securityAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -49,6 +49,23 @@ export const ComplaintPage = () => {
   const [supportingDocs, setSupportingDocs] = useState([]);
   const supportingDocsRef = useRef(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [captcha, setCaptcha] = useState(null);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+
+  const loadCaptcha = async () => {
+    try {
+      const response = await securityAPI.getChallenge();
+      setCaptcha(response.data);
+      setCaptchaAnswer('');
+    } catch {
+      setCaptcha(null);
+      setCaptchaAnswer('');
+    }
+  };
+
+  useEffect(() => {
+    loadCaptcha();
+  }, []);
 
   const resetComplaintForm = () => {
     setTrackingNumber(null);
@@ -61,8 +78,10 @@ export const ComplaintPage = () => {
       description: '',
       station: 'Unassigned',
       incident_date: '',
+      location: '',
     });
     setSupportingDocs([]);
+    setCaptchaAnswer('');
     if (supportingDocsRef.current) {
       supportingDocsRef.current.value = '';
     }
@@ -95,6 +114,7 @@ export const ComplaintPage = () => {
     if (!formData.location.trim()) errors.location = 'Please fill this field';
     if (!formData.address.trim()) errors.address = 'Please fill this field';
     if (!formData.description.trim()) errors.description = 'Please fill this field';
+    if (!captchaAnswer.trim()) errors.captcha = 'Security check is required';
     return errors;
   };
 
@@ -110,11 +130,14 @@ export const ComplaintPage = () => {
     try {
       const data = new FormData();
       Object.entries({ ...formData, complainant_email: (formData.complainant_email || '').trim() }).forEach(([k, v]) => data.append(k, v));
+      data.append('captcha_id', captcha?.captcha_id || '');
+      data.append('captcha_answer', captchaAnswer);
       supportingDocs.forEach(file => data.append('supporting_docs', file));
       const response = await complaintsAPI.create(data);
       setTrackingNumber(response.data.tracking_number);
     } catch (error) {
       toast.error(formatErrorDetail(error?.response?.data?.detail));
+      await loadCaptcha();
     } finally {
       setLoading(false);
     }
@@ -365,6 +388,22 @@ export const ComplaintPage = () => {
                   )}
                 </div>
               )}
+            </div>
+
+            <div>
+              <Label htmlFor="complaint-captcha">10. Security Check {captcha?.question ? `(${captcha.question})` : ''} *</Label>
+              <Input
+                id="complaint-captcha"
+                inputMode="numeric"
+                className={`mt-2 ${fieldErrors.captcha ? 'border-[#DC2626]' : ''}`}
+                placeholder={captcha ? 'Enter answer' : 'Loading security check...'}
+                value={captchaAnswer}
+                onChange={(e) => {
+                  setCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4));
+                  if (fieldErrors.captcha) setFieldErrors(p => ({ ...p, captcha: '' }));
+                }}
+              />
+              {fieldErrors.captcha && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.captcha}</p>}
             </div>
 
             <div className="bg-[#FEF2F2] border border-[#FECACA] p-4 rounded-md flex gap-3">
