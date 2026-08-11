@@ -1,23 +1,26 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Download, FileText, X } from 'lucide-react';
-import { normalizeMediaUrl } from '@/lib/api';
+import { getAuthToken, normalizeMediaUrl } from '@/lib/api';
+
+const toRelativePath = (url) => {
+  try { const p = new URL(url); return p.pathname + p.search; } catch { return url; }
+};
+
+const fetchFileWithAuth = async (url) => {
+  const fetchUrl = toRelativePath(normalizeMediaUrl(url));
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const response = await fetch(fetchUrl, { headers });
+  if (!response.ok) throw new Error('Unable to load document');
+  return response.blob();
+};
 
 const downloadFile = async (url, filename) => {
-  // Use a relative path so the request goes through the dev proxy (same-origin).
-  // In production the backend is on the same origin anyway.
-  let fetchUrl = url;
   try {
-    const parsed = new URL(url);
-    fetchUrl = parsed.pathname + parsed.search;
-  } catch { /* url is already relative */ }
-
-  try {
-    const resp = await fetch(fetchUrl);
-    if (!resp.ok) throw new Error('fetch failed');
-    const blob = await resp.blob();
+    const blob = await fetchFileWithAuth(url);
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
@@ -29,7 +32,7 @@ const downloadFile = async (url, filename) => {
   } catch {
     // last resort
     const a = document.createElement('a');
-    a.href = fetchUrl;
+    a.href = toRelativePath(normalizeMediaUrl(url));
     a.download = filename || url.split('/').pop() || 'download';
     document.body.appendChild(a);
     a.click();
@@ -40,10 +43,6 @@ const downloadFile = async (url, filename) => {
 const isVideo = (url) => /\.(mp4|webm|ogg|mov|avi)$/i.test(url || '');
 const isImage = (url) => /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(url || '');
 const isPdf = (url) => /\.pdf$/i.test(url || '');
-
-const toRelativePath = (url) => {
-  try { const p = new URL(url); return p.pathname + p.search; } catch { return url; }
-};
 
 const imageToBytes = (src) => new Promise((resolve, reject) => {
   const img = new Image();
@@ -68,14 +67,17 @@ const downloadAllAsPdf = async (mediaUrls, trackingNumber) => {
     const normalized = toRelativePath(normalizeMediaUrl(url));
     try {
       if (isImage(url)) {
-        const bytes = await imageToBytes(normalized);
+        const blob = await fetchFileWithAuth(normalized);
+        const blobUrl = URL.createObjectURL(blob);
+        const bytes = await imageToBytes(blobUrl);
+        URL.revokeObjectURL(blobUrl);
         const img = await mergedPdf.embedPng(bytes);
         const { width, height } = img.scale(1);
         const page = mergedPdf.addPage([width, height]);
         page.drawImage(img, { x: 0, y: 0, width, height });
       } else if (isPdf(url)) {
-        const resp = await fetch(normalized);
-        const bytes = await resp.arrayBuffer();
+        const blob = await fetchFileWithAuth(normalized);
+        const bytes = await blob.arrayBuffer();
         const srcDoc = await PDFDocument.load(bytes);
         const copied = await mergedPdf.copyPages(srcDoc, srcDoc.getPageIndices());
         copied.forEach((p) => mergedPdf.addPage(p));
@@ -114,11 +116,49 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
   const mediaUrls = useMemo(() => parseDocs(docs), [docs]);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [objectUrls, setObjectUrls] = useState({});
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const createdUrls = [];
+
+    const loadDocuments = async () => {
+      setLoadError('');
+      const nextUrls = {};
+
+      await Promise.all(mediaUrls.map(async (url) => {
+        try {
+          const blob = await fetchFileWithAuth(url);
+          if (cancelled) return;
+          const objectUrl = URL.createObjectURL(blob);
+          createdUrls.push(objectUrl);
+          nextUrls[url] = objectUrl;
+        } catch {
+          nextUrls[url] = normalizeMediaUrl(url);
+          if (/\/complaint_uploads\//i.test(String(url))) {
+            setLoadError('Unable to load protected document. Please login again and retry.');
+          }
+        }
+      }));
+
+      if (!cancelled) setObjectUrls(nextUrls);
+    };
+
+    if (mediaUrls.length) {
+      loadDocuments();
+    }
+
+    return () => {
+      cancelled = true;
+      createdUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [mediaUrls]);
 
   if (!mediaUrls.length) return null;
 
   const activeUrl = mediaUrls[mediaIndex];
-  const normalizedActiveUrl = normalizeMediaUrl(activeUrl);
+  const normalizedActiveUrl = objectUrls[activeUrl] || normalizeMediaUrl(activeUrl);
 
   // Use the same overlay/modal pattern as homepage lightbox
   return (
@@ -144,6 +184,11 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
         </div>
 
         <div className="space-y-4 flex-1 flex flex-col">
+          {loadError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              {loadError}
+            </div>
+          )}
           <div className="relative rounded-xl overflow-hidden bg-[#F1F5F9] flex items-center justify-center min-h-[180px] max-h-[65vh]">
             {isVideo(activeUrl) ? (
               <video key={activeUrl} src={normalizedActiveUrl} controls className="w-full max-h-[62vh] object-contain" />
@@ -195,7 +240,7 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
                   {isVideo(url) ? (
                     <div className="w-full h-full bg-[#E2E8F0] flex items-center justify-center text-xs font-bold text-[#64748B]">▶</div>
                   ) : isImage(url) ? (
-                    <img src={normalizeMediaUrl(url)} alt={`thumb-${i}`} className="w-full h-full object-cover" />
+                    <img src={objectUrls[url] || normalizeMediaUrl(url)} alt={`thumb-${i}`} className="w-full h-full object-cover" />
                   ) : isPdf(url) ? (
                     <div className="w-full h-full bg-[#FDE68A] flex items-center justify-center text-[10px] font-bold text-[#92400E]">PDF</div>
                   ) : (
