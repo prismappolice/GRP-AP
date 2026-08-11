@@ -64,8 +64,8 @@ const AdminHelpRequestsPage = () => {
       await helpAPI.updateStatus(id, newStatus);
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
       toast.success('Status updated');
-    } catch {
-      toast.error('Failed to update status');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Failed to update status');
     } finally {
       setUpdatingId(null);
     }
@@ -387,7 +387,9 @@ const AdminHelpRequestsPage = () => {
                         )}
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-3">
-                        {req.status !== 'closed' ? (
+                        {isReadOnlySession ? (
+                          <span className="text-xs font-semibold text-[#64748B]">Read-only</span>
+                        ) : req.status !== 'closed' ? (
                           <button
                             className="px-3 py-1 bg-[#6B7280] text-white text-xs font-medium rounded hover:bg-[#4B5563] transition-colors disabled:opacity-50"
                             disabled={updatingId === req.id}
