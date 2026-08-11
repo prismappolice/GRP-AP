@@ -85,13 +85,25 @@ const AdminHelpRequestsPage = () => {
     if (!replyMessage.trim()) return;
     setSendingReply(true);
     try {
-      await helpAPI.reply(replyTarget.id, replyMessage.trim());
-      // Update local state for replied request
-      setRequests(prev => prev.map(r =>
-        r.id === replyTarget.id ? { ...r, replied: true, status: 'replied', reply_count: (Number(r.reply_count) || 0) + 1, latest_reply_message: replyMessage.trim(), latest_reply_at: new Date().toISOString() } : r
-      ));
+      const response = await helpAPI.reply(replyTarget.id, replyMessage.trim());
+      const updatedItem = response?.data?.item;
+      setRequests(prev => prev.map(r => {
+        if (r.id !== replyTarget.id) return r;
+        return updatedItem || {
+          ...r,
+          replied: true,
+          status: 'replied',
+          reply_count: (Number(r.reply_count) || 0) + 1,
+          latest_reply_message: replyMessage.trim(),
+          latest_reply_at: new Date().toISOString(),
+        };
+      }));
       setReplySentMap(prev => ({ ...prev, [replyTarget.id]: replyMessage.trim() }));
-      toast.success(`Reply sent to ${replyTarget.email}`);
+      if (response?.data?.email_sent === false) {
+        toast.warning(response?.data?.message || 'Reply saved, but email delivery failed');
+      } else {
+        toast.success(`Reply sent to ${replyTarget.email}`);
+      }
       closeReplyDialog();
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to send reply email');
@@ -143,7 +155,7 @@ const AdminHelpRequestsPage = () => {
       );
     }
     return list;
-  }, [requests, searchText, statusFilter]);
+  }, [requests, searchText, statusFilter, dateFrom, dateTo]);
 
   function exportToExcel() {
     if (!filteredRequests.length) { toast.error('No data to export'); return; }
@@ -358,17 +370,18 @@ const AdminHelpRequestsPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-3">
-                        {req.replied ? (
-                          <Badge className="text-xs bg-indigo-500 text-white">Replied</Badge>
-                        ) : isReadOnlySession ? (
+                        {isReadOnlySession ? (
                           <span className="text-xs font-semibold text-[#64748B]">Read-only</span>
                         ) : req.email ? (
-                          <button
-                            className="px-3 py-1 bg-[#2563EB] text-white text-xs font-medium rounded hover:bg-[#1D4ED8] transition-colors"
-                            onClick={() => openReplyDialog(req)}
-                          >
-                            Reply
-                          </button>
+                          <div className="flex flex-col items-start gap-1.5">
+                            {req.replied && <Badge className="text-xs bg-indigo-500 text-white">Replied</Badge>}
+                            <button
+                              className="px-3 py-1 bg-[#2563EB] text-white text-xs font-medium rounded hover:bg-[#1D4ED8] transition-colors"
+                              onClick={() => openReplyDialog(req)}
+                            >
+                              {req.replied ? 'Reply Again' : 'Reply'}
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs text-[#94A3B8]">No email</span>
                         )}
@@ -422,13 +435,13 @@ const AdminHelpRequestsPage = () => {
                 {viewTarget.latest_reply_at && <p className="mt-1 text-xs text-[#64748B]">Sent: {formatDate(viewTarget.latest_reply_at)}</p>}
               </div>
             )}
-            {!viewTarget.replied && !replySentMap[viewTarget.id] && !isReadOnlySession && (
+            {!isReadOnlySession && viewTarget.email && (
             <div className="mt-5 flex justify-end">
               <button
                 onClick={() => { setViewTarget(null); openReplyDialog(viewTarget); }}
                 className="px-4 py-2 text-sm font-medium text-white bg-[#2563EB] rounded-lg hover:bg-[#1D4ED8] transition-colors"
               >
-                Reply
+                {viewTarget.replied || replySentMap[viewTarget.id] ? 'Reply Again' : 'Reply'}
               </button>
             </div>
             )}

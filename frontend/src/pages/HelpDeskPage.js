@@ -1,17 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { HelpCircle } from 'lucide-react';
-import { helpAPI } from '@/lib/api';
+import { helpAPI, securityAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 export const HelpDeskPage = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', message: '' });
+  const [captcha, setCaptcha] = useState(null);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [errors, setErrors] = useState({});
+
+  const loadCaptcha = async () => {
+    try {
+      const response = await securityAPI.getChallenge();
+      setCaptcha(response.data);
+      setCaptchaAnswer('');
+    } catch (error) {
+      setCaptcha(null);
+      setCaptchaAnswer('');
+    }
+  };
+
+  useEffect(() => {
+    loadCaptcha();
+  }, []);
 
   const validate = () => {
     const newErrors = {};
@@ -24,6 +41,9 @@ export const HelpDeskPage = () => {
     }
     if (formData.email.trim() && !emailRegex.test(formData.email.trim())) {
       newErrors.email = 'Enter a valid email address.';
+    }
+    if (!captchaAnswer.trim()) {
+      newErrors.captcha = 'Security check is required.';
     }
     return newErrors;
   };
@@ -38,11 +58,18 @@ export const HelpDeskPage = () => {
     setErrors({});
     setLoading(true);
     try {
-      await helpAPI.create(formData);
+      await helpAPI.create({
+        ...formData,
+        captcha_id: captcha?.captcha_id || '',
+        captcha_answer: captchaAnswer,
+      });
       toast.success('Help request submitted successfully');
       setFormData({ name: '', phone: '', email: '', message: '' });
+      await loadCaptcha();
     } catch (error) {
-      toast.error('Failed to submit request');
+      const detail = error?.response?.data?.detail;
+      toast.error(detail || 'Failed to submit request');
+      await loadCaptcha();
     } finally {
       setLoading(false);
     }
@@ -95,6 +122,22 @@ export const HelpDeskPage = () => {
             <div>
               <Label>Message *</Label>
               <Textarea className="mt-2 min-h-[150px]" value={formData.message} onChange={(e) => setFormData({...formData, message: e.target.value})} required data-testid="message-textarea" />
+            </div>
+            <div>
+              <Label htmlFor="help-captcha">Security Check {captcha?.question ? `(${captcha.question})` : ''} *</Label>
+              <Input
+                id="help-captcha"
+                inputMode="numeric"
+                className={`mt-2 ${errors.captcha ? 'border-red-500 focus:border-red-500' : ''}`}
+                value={captchaAnswer}
+                onChange={(e) => {
+                  setCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4));
+                  if (errors.captcha) setErrors(prev => ({ ...prev, captcha: undefined }));
+                }}
+                placeholder={captcha ? 'Enter answer' : 'Loading security check...'}
+                data-testid="captcha-input"
+              />
+              {errors.captcha && <p className="text-xs text-red-500 mt-1">{errors.captcha}</p>}
             </div>
             <Button type="submit" className="w-full bg-[#D97706] hover:bg-[#B45309]" disabled={loading} data-testid="submit-help-button">
               {loading ? 'Submitting...' : 'Submit Request'}

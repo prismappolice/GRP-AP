@@ -4078,8 +4078,6 @@ async def reply_to_help_request(
         raise HTTPException(status_code=400, detail="Reply message is required")
     if len(reply_message) > 5000:
         raise HTTPException(status_code=400, detail="Reply message is too long")
-    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
-        raise HTTPException(status_code=503, detail="Email service is not configured")
     result = await session.execute(select(HelpRequestORM).where(HelpRequestORM.id == request_id))
     item = result.scalar_one_or_none()
     if not item:
@@ -4089,6 +4087,39 @@ async def reply_to_help_request(
         raise HTTPException(status_code=400, detail="No email address for this request")
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", recipient_email):
         raise HTTPException(status_code=400, detail="Invalid recipient email address")
+    item.replied = 1
+    item.status = "replied"  # type: ignore[assignment]
+    session.add(HelpRequestReplyORM(
+        id=str(uuid.uuid4()),
+        help_request_id=request_id,
+        reply_message=reply_message,
+        recipient_email=recipient_email,
+        sent_by_id=current_user.id,
+        sent_by_role=current_user.role,
+        created_at=datetime.now(timezone.utc),
+    ))
+    await write_audit_log(
+        session,
+        current_user,
+        request,
+        action="help_request_reply",
+        target_type="help_request",
+        target_id=request_id,
+        details={"recipient": recipient_email},
+    )
+    await session.commit()
+    await session.refresh(item)
+
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
+        return JSONResponse(
+            content={
+                "success": True,
+                "email_sent": False,
+                "message": "Reply saved, but email service is not configured",
+                "item": await _help_request_to_payload(session, item),
+            }
+        )
+
     try:
         msg = email.mime.multipart.MIMEMultipart()
         msg["Subject"] = "Reply from GRP Police Help Desk"
@@ -4106,33 +4137,18 @@ async def reply_to_help_request(
             smtp_server.starttls()
             smtp_server.login(SMTP_USER, SMTP_PASSWORD)
             smtp_server.sendmail(SMTP_USER, recipient_email, msg.as_string())
-        # Mark as replied
-        item.replied = 1
-        item.status = "replied"  # type: ignore[assignment]
-        session.add(HelpRequestReplyORM(
-            id=str(uuid.uuid4()),
-            help_request_id=request_id,
-            reply_message=reply_message,
-            recipient_email=recipient_email,
-            sent_by_id=current_user.id,
-            sent_by_role=current_user.role,
-            created_at=datetime.now(timezone.utc),
-        ))
-        await write_audit_log(
-            session,
-            current_user,
-            request,
-            action="help_request_reply",
-            target_type="help_request",
-            target_id=request_id,
-            details={"recipient": recipient_email},
-        )
-        await session.commit()
-        await session.refresh(item)
-        return JSONResponse(content={"success": True, "message": "Reply sent successfully", "item": await _help_request_to_payload(session, item)})
+        return JSONResponse(content={"success": True, "email_sent": True, "message": "Reply sent successfully", "item": await _help_request_to_payload(session, item)})
     except Exception as exc:
         logger.warning("Failed to send help request reply email: %s", exc)
-        raise HTTPException(status_code=502, detail="Failed to send reply email. Please check SMTP configuration.") from exc
+        return JSONResponse(
+            content={
+                "success": True,
+                "email_sent": False,
+                "message": "Reply saved, but email delivery failed. Please check SMTP configuration.",
+                "item": await _help_request_to_payload(session, item),
+            },
+            status_code=202,
+        )
 
 
 @api_router.post("/help-requests", response_model=HelpRequest)
