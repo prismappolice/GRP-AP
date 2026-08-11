@@ -4159,9 +4159,23 @@ async def create_help_request(
 ) -> HelpRequest:
     enforce_public_submission_rate_limit(request, "help-requests")
     verify_captcha(request_data.captcha_id, request_data.captcha_answer)
+    name = str(request_data.name or "").strip()
+    phone = re.sub(r"\D+", "", str(request_data.phone or ""))
+    email = str(request_data.email or "").strip()
+    message = str(request_data.message or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if not re.fullmatch(r"[6-9]\d{9}", phone):
+        raise HTTPException(status_code=400, detail="Enter a valid 10-digit Indian mobile number")
+    if email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        raise HTTPException(status_code=400, detail="Enter a valid email address")
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required")
+    if len(message) > 5000:
+        raise HTTPException(status_code=400, detail="Message is too long")
     orm = HelpRequestORM(
-        id=str(uuid.uuid4()), name=request_data.name, phone=request_data.phone,
-        email=request_data.email, message=request_data.message, status="pending",
+        id=str(uuid.uuid4()), name=name, phone=phone,
+        email=email, message=message, status="pending",
         created_at=datetime.now(timezone.utc),
     )
     session.add(orm)

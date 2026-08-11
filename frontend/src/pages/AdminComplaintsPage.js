@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search, RefreshCw, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
 import api, { complaintsAPI, getAuthToken } from '@/lib/api';
+import { sanitizeSpreadsheetRows } from '@/lib/csv';
 import { getAllStations } from '@/lib/policeScope';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 import { useSearchParams } from 'react-router-dom';
@@ -180,7 +181,7 @@ const AdminComplaintsPage = () => {
         return obj;
       }, {})
     );
-    const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
+    const ws = XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: headers.map(h => h.label) });
     // Auto-width columns
     const colWidths = headers.map(h => ({
       wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2

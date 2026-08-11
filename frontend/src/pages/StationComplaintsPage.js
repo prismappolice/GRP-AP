@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, ArrowUpDown, Building2, ChevronDown, Download, Eye, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { stationAPI, normalizeMediaUrl } from '@/lib/api';
+import { sanitizeSpreadsheetRows } from '@/lib/csv';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 
 const STATUS_COLORS = {
@@ -342,7 +343,7 @@ function exportToExcel(filename, rows) {
     return obj;
   });
   const allLabels = ['S.No', ...STATION_EXPORT_COLS.map(h => h.label)];
-  const ws = XLSX.utils.json_to_sheet(data, { header: allLabels });
+  const ws = XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: allLabels });
   ws['!cols'] = allLabels.map(label => ({
     wch: Math.max(label.length, ...data.map(r => String(r[label] || '').length)) + 2
   }));

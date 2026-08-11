@@ -7,6 +7,7 @@ import { adminAPI } from '@/lib/api';
 import { Download, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { sanitizeSpreadsheetRows } from '@/lib/csv';
 
 const actionLabels = {
   credential_password_update: 'Password Update',
@@ -87,7 +88,7 @@ const AdminAuditLogsPage = () => {
         Details: JSON.stringify(details),
       };
     });
-    const ws = XLSX.utils.json_to_sheet(rows);
+    const ws = XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(rows));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Audit Logs');
     XLSX.writeFile(wb, `audit_logs_${new Date().toISOString().slice(0, 10)}.xlsx`);
