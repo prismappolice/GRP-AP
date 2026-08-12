@@ -1439,27 +1439,27 @@ def _send_portal_otp(email_address: str, display_name: str, otp: str, purpose: s
         raise HTTPException(status_code=503, detail="OTP email is not configured.")
     purpose_copy = {
         "login": {
-            "subject": "[GRP AP] Login OTP",
+            "subject": "GRP Andhra Pradesh Login OTP",
             "line": "Your GRP portal login OTP is",
             "fallback": "login",
         },
         "password_reset": {
-            "subject": "[GRP AP] Password Reset OTP",
+            "subject": "GRP Andhra Pradesh Password Reset OTP",
             "line": "Your GRP portal password reset OTP is",
             "fallback": "password reset",
         },
         "password_change": {
-            "subject": "[GRP AP] Password Change OTP",
+            "subject": "GRP Andhra Pradesh Password Change OTP",
             "line": "Your GRP portal password change OTP is",
             "fallback": "password change",
         },
         "username_change": {
-            "subject": "[GRP AP] Username Update OTP",
+            "subject": "GRP Andhra Pradesh Username Update OTP",
             "line": "Your GRP portal username update OTP is",
             "fallback": "username update",
         },
     }.get(purpose, {
-        "subject": "[GRP AP] OTP",
+        "subject": "GRP Andhra Pradesh OTP",
         "line": "Your GRP portal OTP is",
         "fallback": "this action",
     })
