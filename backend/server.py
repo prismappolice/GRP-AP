@@ -604,6 +604,7 @@ class AdminCredentialEntry(BaseModel):
     id: str
     name: str
     email: str
+    phone: str = 'N/A'
     password: str
     role: str
     must_change_password: bool = False
@@ -3554,24 +3555,24 @@ async def get_admin_credentials(
     await ensure_officer_credentials_table(session)
     await ensure_auth_security_columns(session)
     await ensure_admin_password_patterns(session)
-    admin_result = await session.execute(text("SELECT id, email, name, password, is_active FROM admin"))
+    admin_result = await session.execute(text("SELECT id, email, name, phone, password, is_active FROM admin"))
     admins = admin_result.mappings().all()
-    officer_result = await session.execute(text("SELECT id, email, name, password, role, is_active FROM dgp"))
+    officer_result = await session.execute(text("SELECT id, email, name, phone, password, role, is_active FROM dgp"))
     officers = officer_result.mappings().all()
-    sub_officer_result = await session.execute(text("SELECT id, email, name, password, is_active FROM srp"))
+    sub_officer_result = await session.execute(text("SELECT id, email, name, phone, password, is_active FROM srp"))
     srp_data = sub_officer_result.mappings().all()
-    dsrp_result2 = await session.execute(text("SELECT id, email, name, password, is_active FROM dsrp"))
+    dsrp_result2 = await session.execute(text("SELECT id, email, name, phone, password, is_active FROM dsrp"))
     dsrp_data = dsrp_result2.mappings().all()
-    irp_result2 = await session.execute(text("SELECT id, email, name, password, is_active FROM irp"))
+    irp_result2 = await session.execute(text("SELECT id, email, name, phone, password, is_active FROM irp"))
     irp_data = irp_result2.mappings().all()
-    station_result2 = await session.execute(text("SELECT id, email, name, password, is_active FROM stations"))
+    station_result2 = await session.execute(text("SELECT id, email, name, phone, password, is_active FROM stations"))
     station_data = station_result2.mappings().all()
-    admin_rows = [AdminCredentialEntry(scope="admin", id=str(a["id"]), name=str(a["name"]), email=str(a["email"]), password=_plain_password(str(a["password"]), "admin", str(a["name"])), role="admin", is_active=int(a["is_active"] if a["is_active"] is not None else 1) == 1) for a in admins]
-    officer_rows = [AdminCredentialEntry(scope="officer", id=str(o["id"]), name=str(o["name"]), email=str(o["email"]), password=_plain_password(str(o["password"]), "dgp", str(o["name"])), role="dgp", is_active=int(o["is_active"] if o["is_active"] is not None else 1) == 1) for o in officers]
-    srp_rows = [AdminCredentialEntry(scope="srp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "srp", str(r["name"])), role="srp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in srp_data]
-    dsrp_rows = [AdminCredentialEntry(scope="dsrp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "dsrp", str(r["name"])), role="dsrp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in dsrp_data]
-    irp_rows = [AdminCredentialEntry(scope="irp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password=_plain_password(str(r["password"]), "irp", str(r["name"])), role="irp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in irp_data]
-    station_rows = [AdminCredentialEntry(scope="station", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), password="••••••••", role="station", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in station_data]
+    admin_rows = [AdminCredentialEntry(scope="admin", id=str(a["id"]), name=str(a["name"]), email=str(a["email"]), phone=str(a["phone"] or "N/A"), password=_plain_password(str(a["password"]), "admin", str(a["name"])), role="admin", is_active=int(a["is_active"] if a["is_active"] is not None else 1) == 1) for a in admins]
+    officer_rows = [AdminCredentialEntry(scope="officer", id=str(o["id"]), name=str(o["name"]), email=str(o["email"]), phone=str(o["phone"] or "N/A"), password=_plain_password(str(o["password"]), "dgp", str(o["name"])), role="dgp", is_active=int(o["is_active"] if o["is_active"] is not None else 1) == 1) for o in officers]
+    srp_rows = [AdminCredentialEntry(scope="srp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password=_plain_password(str(r["password"]), "srp", str(r["name"])), role="srp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in srp_data]
+    dsrp_rows = [AdminCredentialEntry(scope="dsrp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password=_plain_password(str(r["password"]), "dsrp", str(r["name"])), role="dsrp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in dsrp_data]
+    irp_rows = [AdminCredentialEntry(scope="irp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password=_plain_password(str(r["password"]), "irp", str(r["name"])), role="irp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in irp_data]
+    station_rows = [AdminCredentialEntry(scope="station", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password="••••••••", role="station", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in station_data]
     return admin_rows + officer_rows + srp_rows + dsrp_rows + irp_rows + station_rows
 
 
