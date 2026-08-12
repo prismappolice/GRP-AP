@@ -143,75 +143,28 @@ export const ComplaintPage = () => {
     }
   };
 
-  const [countdown, setCountdown] = useState(30);
-
-  useEffect(() => {
-    if (!trackingNumber) return;
-    setCountdown(30);
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) { clearInterval(interval); resetComplaintForm(); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [trackingNumber]);
-
   if (trackingNumber) {
     return (
       <div className="min-h-screen pt-12 bg-[#F8FAFC] pb-12">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-
-          {/* Section 1: Success Header */}
-          <Card className="p-6 border border-[#BBF7D0] bg-[#F0FDF4] text-center">
-            <CheckCircle className="w-14 h-14 text-[#16A34A] mx-auto mb-3" />
-            <h2 className="text-2xl font-extrabold heading-font text-[#15803D]">e-Complaint Registered!</h2>
-            <p className="text-sm text-[#166534] mt-1">Your complaint has been successfully submitted to the GRP portal.</p>
-          </Card>
-
-          {/* Section 2: Complaint No */}
-          <Card className="p-6 border border-[#60A5FA] bg-white text-center">
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-widest mb-2">Your Complaint No</p>
-            <p className="text-3xl font-extrabold text-[#2563EB] tracking-widest">{trackingNumber}</p>
-            <p className="text-xs text-[#94A3B8] mt-2">Please save this number for future reference.</p>
-          </Card>
-
-          {/* Section 3: What Happens Next */}
-          <Card className="p-6 border border-[#E2E8F0] bg-white">
-            <p className="text-xs font-bold text-[#0F172A] uppercase tracking-widest mb-3">What Happens Next</p>
-            <p className="text-sm text-[#475569]">
-              Your complaint will be reviewed by the GRP Admin and forwarded to the concerned police station. You will receive email notifications for any updates on your complaint.
-            </p>
-          </Card>
-
-          {/* Section 4: Submitted Details Summary */}
-          <Card className="p-6 border border-[#E2E8F0] bg-white">
-            <p className="text-xs font-bold text-[#0F172A] uppercase tracking-widest mb-3">Submitted Details</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <span className="text-[#64748B] font-medium">Name</span>
-              <span className="text-[#0F172A] font-semibold">{formData.complainant_name || '-'}</span>
-              <span className="text-[#64748B] font-medium">Phone</span>
-              <span className="text-[#0F172A] font-semibold">{formData.complainant_phone || '-'}</span>
-              <span className="text-[#64748B] font-medium">Complaint Type</span>
-              <span className="text-[#0F172A] font-semibold capitalize">{String(formData.complaint_type || '-').replace(/_/g, ' ')}</span>
-              <span className="text-[#64748B] font-medium">Incident Date</span>
-              <span className="text-[#0F172A] font-semibold">{formData.incident_date || '-'}</span>
+        <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Card className="p-7 sm:p-8 border border-[#BBF7D0] bg-white text-center shadow-sm">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#DCFCE7]">
+              <CheckCircle className="h-10 w-10 text-[#16A34A]" />
             </div>
-          </Card>
-
-          {/* Section 5: Actions */}
-          <Card className="p-6 border border-[#E2E8F0] bg-white">
-            <p className="text-xs text-[#94A3B8] text-center mb-4">
-              This page will reset in <span className="font-bold text-[#2563EB]">{countdown}</span> seconds...
-            </p>
+            <h2 className="text-2xl sm:text-3xl font-extrabold heading-font text-[#15803D]">
+              Your complaint has been registered successfully
+            </h2>
+            <div className="mt-6 rounded-lg border border-[#60A5FA] bg-[#EFF6FF] px-4 py-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#475569]">Complaint / Tracking Number</p>
+              <p className="mt-2 break-all font-mono text-3xl font-extrabold tracking-widest text-[#2563EB]">{trackingNumber}</p>
+            </div>
             <Button
               onClick={resetComplaintForm}
-              className="w-full bg-[#2563EB] hover:bg-[#1D4ED8]"
+              className="mt-6 h-12 w-full bg-[#2563EB] text-base font-semibold hover:bg-[#1D4ED8]"
             >
               File Another e-Complaint
             </Button>
           </Card>
-
         </div>
       </div>
     );
