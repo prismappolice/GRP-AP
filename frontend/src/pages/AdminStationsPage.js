@@ -642,7 +642,7 @@ export const AdminStationsPage = () => {
     return String(row.email || row.id || '').toLowerCase().includes(term);
   };
 
-  const renderFlatAdminTable = (title, rows, roleLabel, emptyLabel, extraHeader, tableRef) => {
+  const renderFlatAdminTable = (title, rows, roleLabel, emptyLabel, extraHeader, tableRef, showPasswordColumn = false) => {
     const updateButtonClass = (isActive) => (
       isActive
         ? 'bg-[#16A34A] text-white hover:bg-[#15803D] shadow-sm'
@@ -668,14 +668,14 @@ export const AdminStationsPage = () => {
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Role</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Name</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Username</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Change Password</TableHead>
+                {showPasswordColumn && <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Change Password</TableHead>}
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow className="border border-[#60A5FA]">
-                  <TableCell colSpan={6} className="border border-[#60A5FA] text-center py-4 text-[#64748B]">{emptyLabel}</TableCell>
+                  <TableCell colSpan={showPasswordColumn ? 6 : 5} className="border border-[#60A5FA] text-center py-4 text-[#64748B]">{emptyLabel}</TableCell>
                 </TableRow>
               ) : (
                 rows.map((row, idx) => {
@@ -694,6 +694,7 @@ export const AdminStationsPage = () => {
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{displayRole}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{row.name || '--'}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{currentUsername || '--'}</TableCell>
+                      {showPasswordColumn && (
                       <TableCell className="border border-[#60A5FA] align-middle">
                         <div className="mx-auto flex min-w-[200px] max-w-lg gap-2">
                           <div className="relative flex-1">
@@ -726,6 +727,7 @@ export const AdminStationsPage = () => {
                           </Button>
                         </div>
                       </TableCell>
+                      )}
                       <TableCell className="border border-[#60A5FA] text-center align-middle">
                         <Button
                           variant="outline"
@@ -863,7 +865,8 @@ export const AdminStationsPage = () => {
             'admin',
             'No central admin credentials available.',
             <div className="relative"><Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder="Search by username..." className="pl-9 pr-3 h-8 text-sm border border-[#60A5FA] rounded-md outline-none focus:border-[#2563EB] w-52" /></div>,
-            adminTableRef
+            adminTableRef,
+            true
           )}
           {renderFlatAdminTable(
             '2. Superior Officers Table',
