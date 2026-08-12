@@ -95,9 +95,10 @@ _public_submission_attempts: dict = defaultdict(list)
 _captcha_challenges: Dict[str, Dict[str, Any]] = {}
 _password_reset_attempts: dict = defaultdict(list)
 PASSWORD_RESET_MAX_ATTEMPTS = 5
-PASSWORD_RESET_WINDOW_SECONDS = 15 * 60
-PASSWORD_RESET_OTP_EXPIRY_MINUTES = 10
+PASSWORD_RESET_WINDOW_SECONDS = 10 * 60
+PASSWORD_RESET_OTP_EXPIRY_MINUTES = 5
 PASSWORD_RESET_MAX_OTP_ATTEMPTS = 5
+PASSWORD_RESET_COOLDOWN_SECONDS = 60 * 60
 PASSWORD_HISTORY_LIMIT = 5
 
 # ==================== EMAIL CONFIG ====================
@@ -1381,16 +1382,38 @@ async def record_login_attempt(session: AsyncSession, identifier: str, ip_addres
     await session.commit()
 
 
+def _format_retry_after(seconds: int) -> str:
+    seconds = max(1, int(seconds))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    parts = []
+    if hours:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    if secs or not parts:
+        parts.append(f"{secs} second{'s' if secs != 1 else ''}")
+    return " ".join(parts)
+
+
 def enforce_password_reset_rate_limit(request: Request, identifier: str) -> None:
     key = f"{_client_ip(request)}:{str(identifier or '').strip().lower()[:120]}"
     now = time.time()
-    attempts = [ts for ts in _password_reset_attempts[key] if now - ts < PASSWORD_RESET_WINDOW_SECONDS]
-    if len(attempts) >= PASSWORD_RESET_MAX_ATTEMPTS:
+    attempts = [ts for ts in _password_reset_attempts[key] if now - ts < PASSWORD_RESET_WINDOW_SECONDS + PASSWORD_RESET_COOLDOWN_SECONDS]
+    recent_attempts = [ts for ts in attempts if now - ts < PASSWORD_RESET_WINDOW_SECONDS]
+    if len(recent_attempts) >= PASSWORD_RESET_MAX_ATTEMPTS:
+        retry_after = int(PASSWORD_RESET_COOLDOWN_SECONDS - (now - min(recent_attempts)))
+        retry_after = max(1, retry_after)
         _password_reset_attempts[key] = attempts
-        raise HTTPException(status_code=429, detail="Too many reset requests. Please try again later.")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": f"For security reasons, you can request a new OTP after {_format_retry_after(retry_after)}.",
+                "retry_after_seconds": retry_after,
+            },
+        )
     attempts.append(now)
     _password_reset_attempts[key] = attempts
-
 
 def _hash_reset_otp(reset_id: str, otp: str) -> str:
     payload = f"{SECRET_KEY}:{reset_id}:{otp}".encode("utf-8")

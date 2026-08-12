@@ -26,6 +26,19 @@ const getPasswordStrength = (value = '') => {
   return { label: 'Strong', className: 'text-[#16A34A]', passed };
 };
 
+
+
+const getOtpCooldownMessage = (error) => {
+  const detail = error?.response?.data?.detail;
+  if (detail && typeof detail === 'object') {
+    return detail.message || '';
+  }
+  if (typeof detail === 'string' && error?.response?.status === 429) {
+    return detail;
+  }
+  return '';
+};
+
 function PasswordStrengthHint({ password }) {
   const checks = getPasswordChecks(password);
   const strength = getPasswordStrength(password);
@@ -67,6 +80,7 @@ export default function AdminLoginPage() {
   const [resetCaptcha, setResetCaptcha] = useState(null);
   const [resetCaptchaAnswer, setResetCaptchaAnswer] = useState('');
   const [resetFieldError, setResetFieldError] = useState('');
+  const [resetOtpCooldownError, setResetOtpCooldownError] = useState('');
   const [resetForm, setResetForm] = useState({
     identifier: '',
     otp: '',
@@ -82,6 +96,7 @@ export default function AdminLoginPage() {
   const [loginOtp, setLoginOtp] = useState('');
   const [loginCaptcha, setLoginCaptcha] = useState(null);
   const [loginCaptchaAnswer, setLoginCaptchaAnswer] = useState('');
+  const [loginOtpCooldownError, setLoginOtpCooldownError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -167,6 +182,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     if (lockout) return;
     setLoginFieldError('');
+    setLoginOtpCooldownError('');
     const trimmedIdentifier = identifier.trim();
     if (!trimmedIdentifier) {
       toast.error('Please enter username');
@@ -181,15 +197,20 @@ export default function AdminLoginPage() {
         setLoginOtpStep(true);
         setLoginOtp('');
         await loadLoginCaptcha();
+        setLoginOtpCooldownError('');
         toast.success(response.data.message || 'OTP sent to registered email');
       } else {
         completeLogin(response.data);
       }
     } catch (error) {
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setLoginOtpCooldownError(cooldownMessage);
       const detail = error?.response?.data?.detail || '';
       const invalidCredentials = error?.response?.status === 401 || /invalid|credential|username|email|password/i.test(detail);
       if (invalidCredentials) {
         setLoginFieldError('Invalid username or password');
+      } else if (cooldownMessage) {
+        toast.error(cooldownMessage);
       } else {
         toast.error(detail || 'Admin login failed');
       }
@@ -257,6 +278,7 @@ export default function AdminLoginPage() {
   const requestResetOtp = async (e) => {
     e.preventDefault();
     setResetFieldError('');
+    setResetOtpCooldownError('');
     const trimmedIdentifier = resetForm.identifier.trim();
     if (!trimmedIdentifier) {
       toast.error('Please enter username or email');
@@ -271,12 +293,17 @@ export default function AdminLoginPage() {
       });
       setResetId(response.data.reset_id);
       setResetMaskedEmail(response.data.masked_email || '');
+      setResetOtpCooldownError('');
       toast.success(response.data.message || 'OTP sent to registered email');
     } catch (error) {
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setResetOtpCooldownError(cooldownMessage);
       const detail = error?.response?.data?.detail || '';
       const invalidIdentifier = error?.response?.status === 401 || error?.response?.status === 404 || /invalid|not found|username|email|credential/i.test(detail);
       if (invalidIdentifier) {
         setResetFieldError('Invalid username or password');
+      } else if (cooldownMessage) {
+        toast.error(cooldownMessage);
       } else {
         toast.error(detail || 'Failed to send reset OTP');
       }
@@ -369,7 +396,7 @@ export default function AdminLoginPage() {
             {resetId && (
               <>
                 <p className="text-xs text-[#64748B]">
-                  OTP sent to {resetMaskedEmail || 'the registered email'}. It expires in 10 minutes.
+                  OTP sent to {resetMaskedEmail || 'the registered email'}. It expires in 5 minutes.
                 </p>
                 <div>
                   <Label htmlFor="reset-otp" className="text-sm font-semibold text-[#0F172A]">Email OTP</Label>

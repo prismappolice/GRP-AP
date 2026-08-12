@@ -42,6 +42,18 @@ function PasswordStrengthHint({ password }) {
   );
 }
 
+
+const getOtpCooldownMessage = (error) => {
+  const detail = error?.response?.data?.detail;
+  if (detail && typeof detail === 'object') {
+    return detail.message || '';
+  }
+  if (typeof detail === 'string' && error?.response?.status === 429) {
+    return detail;
+  }
+  return '';
+};
+
 const emptyPasswordForm = {
   current_password: '',
   new_password: '',
@@ -68,6 +80,8 @@ export default function ProfilePage() {
   const [usernameForm, setUsernameForm] = React.useState(emptyUsernameForm);
   const [passwordOtpSentTo, setPasswordOtpSentTo] = React.useState('');
   const [usernameOtpSentTo, setUsernameOtpSentTo] = React.useState('');
+  const [passwordOtpCooldownError, setPasswordOtpCooldownError] = React.useState('');
+  const [usernameOtpCooldownError, setUsernameOtpCooldownError] = React.useState('');
   const [passwordCaptcha, setPasswordCaptcha] = React.useState(null);
   const [usernameCaptcha, setUsernameCaptcha] = React.useState(null);
   const [passwordLoading, setPasswordLoading] = React.useState(false);
@@ -186,14 +200,18 @@ export default function ProfilePage() {
       toast.error('Passwords do not match');
       return;
     }
+    setPasswordOtpCooldownError('');
     setPasswordOtpLoading(true);
     try {
       const response = await authAPI.requestChangePasswordOtp();
       setPasswordOtpSentTo(response.data.masked_email || 'registered email');
+      setPasswordOtpCooldownError('');
       await loadCaptcha('password');
       toast.success('OTP sent to registered email');
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to send email OTP');
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setPasswordOtpCooldownError(cooldownMessage);
+      toast.error(cooldownMessage || error?.response?.data?.detail || 'Failed to send email OTP');
     } finally {
       setPasswordOtpLoading(false);
     }
@@ -229,14 +247,18 @@ export default function ProfilePage() {
       toast.error('Enter new login email first');
       return;
     }
+    setUsernameOtpCooldownError('');
     setUsernameOtpLoading(true);
     try {
       const response = await authAPI.requestChangeUsernameOtp();
       setUsernameOtpSentTo(response.data.masked_email || 'registered email');
+      setUsernameOtpCooldownError('');
       await loadCaptcha('username');
       toast.success('OTP sent to registered email');
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to send email OTP');
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setUsernameOtpCooldownError(cooldownMessage);
+      toast.error(cooldownMessage || error?.response?.data?.detail || 'Failed to send email OTP');
     } finally {
       setUsernameOtpLoading(false);
     }
@@ -405,6 +427,7 @@ export default function ProfilePage() {
                     sentTo={usernameOtpSentTo}
                     loading={usernameOtpLoading}
                     onRequestOtp={requestUsernameOtp}
+                    cooldownMessage={usernameOtpCooldownError}
                   />
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button
@@ -467,6 +490,7 @@ export default function ProfilePage() {
                 sentTo={passwordOtpSentTo}
                 loading={passwordOtpLoading}
                 onRequestOtp={requestPasswordOtp}
+                cooldownMessage={passwordOtpCooldownError}
               />
               <SubmitButton loading={passwordLoading} label="Change Password" loadingLabel="Updating password..." />
             </form>
@@ -504,7 +528,7 @@ function SecurePasswordInput({ id, label, value, onChange, type, onToggle, visib
   );
 }
 
-function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerChange, sentTo, loading, onRequestOtp }) {
+function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerChange, sentTo, loading, onRequestOtp, cooldownMessage }) {
   return (
     <div className="space-y-3">
       <button
@@ -522,7 +546,10 @@ function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerCha
           Sending email OTP...
         </p>
       )}
-      {sentTo && <p className="text-xs text-[#64748B]">OTP sent to {sentTo}.</p>}
+      {sentTo && <p className="text-xs text-[#64748B]">OTP sent to {sentTo}. It expires in 5 minutes.</p>}
+      {cooldownMessage && (
+        <p className="rounded-md border border-[#FCA5A5] bg-[#FEF2F2] px-3 py-2 text-sm font-semibold text-[#B91C1C]">{cooldownMessage}</p>
+      )}
       {sentTo && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
