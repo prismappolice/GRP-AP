@@ -1254,6 +1254,7 @@ async def ensure_auth_security_columns(session: AsyncSession) -> None:
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE"))
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS must_change_password INTEGER DEFAULT 0"))
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1"))
+        await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS role VARCHAR"))
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS division VARCHAR"))
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS subdivision VARCHAR"))
         await session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS circle VARCHAR"))
@@ -3682,6 +3683,8 @@ async def create_admin_credential(
     for field_name in required_hierarchy.get(scope, ()):
         if not hierarchy_details[field_name]:
             raise HTTPException(status_code=400, detail=f"Select {field_name.replace('_', ' ')}")
+    if scope == "station" and not hierarchy_details["station_name"]:
+        hierarchy_details["station_name"] = new_name
     role_by_scope = {
         "admin": "admin",
         "officer": "dgp",

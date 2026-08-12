@@ -52,6 +52,7 @@ export default function AdminLoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loginFieldError, setLoginFieldError] = useState('');
   const [rememberMe, setRememberMe] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('admin_remember') === 'true';
@@ -65,6 +66,7 @@ export default function AdminLoginPage() {
   const [resetMaskedEmail, setResetMaskedEmail] = useState('');
   const [resetCaptcha, setResetCaptcha] = useState(null);
   const [resetCaptchaAnswer, setResetCaptchaAnswer] = useState('');
+  const [resetFieldError, setResetFieldError] = useState('');
   const [resetForm, setResetForm] = useState({
     identifier: '',
     otp: '',
@@ -164,6 +166,7 @@ export default function AdminLoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (lockout) return;
+    setLoginFieldError('');
     const trimmedIdentifier = identifier.trim();
     if (!trimmedIdentifier) {
       toast.error('Please enter username');
@@ -183,7 +186,13 @@ export default function AdminLoginPage() {
         completeLogin(response.data);
       }
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Admin login failed');
+      const detail = error?.response?.data?.detail || '';
+      const invalidCredentials = error?.response?.status === 401 || /invalid|credential|username|email|password/i.test(detail);
+      if (invalidCredentials) {
+        setLoginFieldError('Invalid username or password');
+      } else {
+        toast.error(detail || 'Admin login failed');
+      }
       setFailedAttempts(f => {
         if (f + 1 >= 3) {
           setLockout(true);
@@ -230,6 +239,8 @@ export default function AdminLoginPage() {
 
   const openResetMode = () => {
     setResetMode(true);
+    setLoginFieldError('');
+    setResetFieldError('');
     setResetId('');
     setResetMaskedEmail('');
     setResetCaptcha(null);
@@ -245,6 +256,7 @@ export default function AdminLoginPage() {
 
   const requestResetOtp = async (e) => {
     e.preventDefault();
+    setResetFieldError('');
     const trimmedIdentifier = resetForm.identifier.trim();
     if (!trimmedIdentifier) {
       toast.error('Please enter username or email');
@@ -261,7 +273,13 @@ export default function AdminLoginPage() {
       setResetMaskedEmail(response.data.masked_email || '');
       toast.success(response.data.message || 'OTP sent to registered email');
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to send reset OTP');
+      const detail = error?.response?.data?.detail || '';
+      const invalidIdentifier = error?.response?.status === 401 || error?.response?.status === 404 || /invalid|not found|username|email|credential/i.test(detail);
+      if (invalidIdentifier) {
+        setResetFieldError('Invalid username or password');
+      } else {
+        toast.error(detail || 'Failed to send reset OTP');
+      }
       await loadResetCaptcha();
     } finally {
       setResetLoading(false);
@@ -315,15 +333,22 @@ export default function AdminLoginPage() {
                 id="reset-identifier"
                 type="text"
                 placeholder="Enter username or email"
-                className="mt-2 h-12"
+                className={`mt-2 h-12 ${resetFieldError ? 'border-[#DC2626] focus-visible:ring-[#FCA5A5]' : ''}`}
                 value={resetForm.identifier}
-                onChange={(e) => setResetForm(prev => ({ ...prev, identifier: e.target.value }))}
+                onChange={(e) => {
+                  setResetForm(prev => ({ ...prev, identifier: e.target.value }));
+                  if (resetFieldError) setResetFieldError('');
+                }}
                 disabled={Boolean(resetId)}
                 required
                 autoComplete="username"
                 autoCapitalize="none"
                 spellCheck={false}
+                aria-invalid={Boolean(resetFieldError)}
               />
+              {resetFieldError && (
+                <p className="mt-1 text-sm font-medium text-[#DC2626]">Invalid username or password</p>
+              )}
             </div>
             {!resetId && (
               <div>
@@ -498,7 +523,10 @@ export default function AdminLoginPage() {
                 placeholder="Enter username or email"
                 className="mt-2 h-12"
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                onChange={(e) => {
+                  setIdentifier(e.target.value);
+                  if (loginFieldError) setLoginFieldError('');
+                }}
                 required
                 autoComplete="username"
                 autoCapitalize="none"
@@ -513,11 +541,15 @@ export default function AdminLoginPage() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter admin password"
-                  className="mt-2 h-12 pr-11"
+                  className={`mt-2 h-12 pr-11 ${loginFieldError ? 'border-[#DC2626] focus-visible:ring-[#FCA5A5]' : ''}`}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (loginFieldError) setLoginFieldError('');
+                  }}
                   required
                   autoComplete="current-password"
+                  aria-invalid={Boolean(loginFieldError)}
                 />
                 <button
                   type="button"
@@ -529,6 +561,9 @@ export default function AdminLoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {loginFieldError && (
+                <p className="mt-1 text-sm font-medium text-[#DC2626]">Invalid username or password</p>
+              )}
             </div>
             <div className="flex items-center justify-between gap-3 pt-1">
               <label htmlFor="admin-remember" className="inline-flex items-center gap-2 text-sm font-medium text-[#0F172A] cursor-pointer">

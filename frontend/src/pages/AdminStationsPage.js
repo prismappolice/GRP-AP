@@ -50,6 +50,7 @@ const emptyNewUser = {
 };
 
 const hierarchyRoleLabels = {
+  srp: [{ field: 'division', label: 'Under SRP / Division' }],
   dsrp: [{ field: 'division', label: 'Under SRP / Division' }],
   irp: [
     { field: 'subdivision', label: 'Under DSRP / Sub Division' },
@@ -614,7 +615,7 @@ export const AdminStationsPage = () => {
         division: newUser.division || null,
         subdivision: newUser.subdivision || null,
         circle: newUser.circle || null,
-        station_name: newUser.stationName || null,
+        station_name: newUser.stationName || (newUser.accountType === 'station' ? newUser.name : null),
       });
       toast.success('User added successfully');
       setNewUser(emptyNewUser);
