@@ -4,6 +4,14 @@ import { Eye, EyeOff, KeyRound, LoaderCircle, Mail, ShieldCheck, UserCircle } fr
 import { authAPI, securityAPI } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
+const OTP_EXPIRY_SECONDS = 180;
+const formatOtpCountdown = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return mins + ':' + String(secs).padStart(2, '0');
+};
+
 const getPasswordChecks = (value = '') => ([
   { label: 'Minimum 12 characters', ok: value.length >= 12 },
   { label: 'No spaces', ok: value.length > 0 && !/\s/.test(value) },
@@ -529,16 +537,31 @@ function SecurePasswordInput({ id, label, value, onChange, type, onToggle, visib
 }
 
 function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerChange, sentTo, loading, onRequestOtp, cooldownMessage }) {
+  const [remaining, setRemaining] = React.useState(0);
+
+  React.useEffect(() => {
+    if (sentTo) setRemaining(OTP_EXPIRY_SECONDS);
+    else setRemaining(0);
+  }, [sentTo]);
+
+  React.useEffect(() => {
+    if (remaining <= 0) return undefined;
+    const timer = setInterval(() => {
+      setRemaining((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [remaining]);
+
   return (
     <div className="space-y-3">
       <button
         type="button"
         onClick={onRequestOtp}
-        disabled={loading}
+        disabled={loading || Boolean(sentTo)}
         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#2563EB] px-4 text-sm font-semibold text-[#2563EB] hover:bg-[#EFF6FF] disabled:opacity-60"
       >
         {loading && <LoaderCircle className="h-4 w-4 animate-spin" />}
-        {loading ? 'Sending...' : sentTo ? 'Resend OTP' : 'Send Email OTP'}
+        {loading ? 'Sending...' : 'Send Email OTP'}
       </button>
       {loading && (
         <p className="flex items-center gap-2 text-xs font-medium text-[#2563EB]">
@@ -546,7 +569,7 @@ function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerCha
           Sending email OTP...
         </p>
       )}
-      {sentTo && <p className="text-xs text-[#64748B]">OTP sent to {sentTo}. It expires in 5 minutes.</p>}
+      {sentTo && <p className="text-xs text-[#64748B]">OTP sent to {sentTo}.</p>}
       {cooldownMessage && (
         <p className="rounded-md border border-[#FCA5A5] bg-[#FEF2F2] px-3 py-2 text-sm font-semibold text-[#B91C1C]">{cooldownMessage}</p>
       )}
@@ -564,6 +587,19 @@ function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerCha
               placeholder="6-digit OTP"
               required
             />
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-[#B91C1C]">
+                {remaining > 0 ? <>OTP will expire in {formatOtpCountdown(remaining)}</> : 'OTP expired. Please request a new OTP.'}
+              </p>
+              <button
+                type="button"
+                onClick={onRequestOtp}
+                disabled={loading || remaining > 0}
+                className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] disabled:cursor-not-allowed disabled:text-[#94A3B8]"
+              >
+                Resend OTP?
+              </button>
+            </div>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-[#0F172A]" htmlFor={`captcha-${sentTo}`}>Security Check</label>
@@ -595,3 +631,4 @@ function SubmitButton({ loading, label, loadingLabel }) {
     </button>
   );
 }
+

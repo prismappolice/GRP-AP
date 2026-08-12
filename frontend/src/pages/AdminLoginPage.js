@@ -9,6 +9,46 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, LoaderCircle } from 'lucide-react';
 
 const LOCKOUT_SECONDS = 120;
+const OTP_EXPIRY_SECONDS = 180;
+const formatOtpCountdown = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return mins + ':' + String(secs).padStart(2, '0');
+};
+
+function OtpResendControl({ resendKey, loading, onResend }) {
+  const [remaining, setRemaining] = useState(OTP_EXPIRY_SECONDS);
+
+  useEffect(() => {
+    setRemaining(OTP_EXPIRY_SECONDS);
+  }, [resendKey]);
+
+  useEffect(() => {
+    if (remaining <= 0) return undefined;
+    const timer = setInterval(() => {
+      setRemaining((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [remaining]);
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-[#B91C1C]">
+        {remaining > 0 ? <>OTP will expire in {formatOtpCountdown(remaining)}</> : 'OTP expired. Please request a new OTP.'}
+      </p>
+      <button
+        type="button"
+        className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] disabled:cursor-not-allowed disabled:text-[#94A3B8]"
+        disabled={loading || remaining > 0}
+        onClick={onResend}
+      >
+        Resend OTP?
+      </button>
+    </div>
+  );
+}
+
 const getPasswordChecks = (value = '') => ([
   { label: 'Minimum 12 characters', ok: value.length >= 12 },
   { label: 'No spaces', ok: value.length > 0 && !/\s/.test(value) },
@@ -396,7 +436,7 @@ export default function AdminLoginPage() {
             {resetId && (
               <>
                 <p className="text-xs text-[#64748B]">
-                  OTP sent to {resetMaskedEmail || 'the registered email'}. It expires in 5 minutes.
+                  OTP sent to {resetMaskedEmail || 'the registered email'}.
                 </p>
                 <div>
                   <Label htmlFor="reset-otp" className="text-sm font-semibold text-[#0F172A]">Email OTP</Label>
@@ -409,6 +449,16 @@ export default function AdminLoginPage() {
                     value={resetForm.otp}
                     onChange={(e) => setResetForm(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                     required
+                  />
+                  <OtpResendControl
+                    resendKey={resetId}
+                    loading={resetLoading}
+                    onResend={() => {
+                      setResetId('');
+                      setResetMaskedEmail('');
+                      setResetForm(prev => ({ ...prev, otp: '' }));
+                      loadResetCaptcha();
+                    }}
                   />
                   <PasswordStrengthHint password={resetForm.new_password} />
                 </div>
@@ -446,20 +496,6 @@ export default function AdminLoginPage() {
             <Button type="submit" className="w-full h-12 bg-[#0F172A] hover:bg-[#1E293B] text-base font-semibold" disabled={resetLoading}>
               {resetLoading ? 'Please wait...' : resetId ? 'Reset Password' : 'Send OTP'}
             </Button>
-            {resetId && (
-              <button
-                type="button"
-                className="w-full text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
-                onClick={() => {
-                  setResetId('');
-                  setResetMaskedEmail('');
-                  loadResetCaptcha();
-                }}
-                disabled={resetLoading}
-              >
-                Request new OTP
-              </button>
-            )}
             <button
               type="button"
               className="w-full text-sm text-[#64748B] hover:text-[#0F172A]"
@@ -490,6 +526,19 @@ export default function AdminLoginPage() {
                 onChange={(e) => setLoginOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
               />
+              <OtpResendControl
+                resendKey={loginResetId}
+                loading={loading}
+                onResend={async () => {
+                  setLoginOtp('');
+                  setLoginOtpStep(false);
+                  setLoginResetId('');
+                  setLoginMaskedEmail('');
+                  setLoginCaptcha(null);
+                  setLoginCaptchaAnswer('');
+                  await handleSubmit({ preventDefault: () => {} });
+                }}
+              />
             </div>
             <div>
               <Label htmlFor="login-captcha" className="text-sm font-semibold text-[#0F172A]">
@@ -508,28 +557,6 @@ export default function AdminLoginPage() {
             <Button type="submit" className="w-full h-12 bg-[#0F172A] hover:bg-[#1E293B] text-base font-semibold" disabled={loading}>
               {loading ? 'Verifying...' : 'Verify & Login'}
             </Button>
-            <button
-              type="button"
-              className="w-full text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  const response = await api.post('/admin/login', { identifier: identifier.trim(), password });
-                  setLoginResetId(response.data.reset_id || '');
-                  setLoginMaskedEmail(response.data.masked_email || '');
-                  setLoginOtp('');
-                  await loadLoginCaptcha();
-                  toast.success(response.data.message || 'OTP resent');
-                } catch (error) {
-                  toast.error(error?.response?.data?.detail || 'Failed to resend OTP');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={loading}
-            >
-              Resend OTP
-            </button>
             <button
               type="button"
               className="w-full text-sm text-[#64748B] hover:text-[#0F172A]"
@@ -630,3 +657,4 @@ export default function AdminLoginPage() {
     </div>
   );
 }
+

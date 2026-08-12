@@ -96,7 +96,7 @@ _captcha_challenges: Dict[str, Dict[str, Any]] = {}
 _password_reset_attempts: dict = defaultdict(list)
 PASSWORD_RESET_MAX_ATTEMPTS = 5
 PASSWORD_RESET_WINDOW_SECONDS = 10 * 60
-PASSWORD_RESET_OTP_EXPIRY_MINUTES = 5
+PASSWORD_RESET_OTP_EXPIRY_MINUTES = 3
 PASSWORD_RESET_MAX_OTP_ATTEMPTS = 5
 PASSWORD_RESET_COOLDOWN_SECONDS = 60 * 60
 PASSWORD_HISTORY_LIMIT = 5
@@ -1494,7 +1494,7 @@ def _send_portal_otp(email_address: str, display_name: str, otp: str, purpose: s
         body = (
             f"Dear {display_name or 'User'},\n\n"
             f"{purpose_copy['line']}: {otp}\n\n"
-            f"This OTP is valid for {PASSWORD_RESET_OTP_EXPIRY_MINUTES} minutes. "
+            f"This OTP will expire in {PASSWORD_RESET_OTP_EXPIRY_MINUTES} minutes. "
             f"If you did not request this {purpose_copy['fallback']}, please ignore this email and contact your administrator.\n\n"
             f"Regards,\nGRP Police Administration"
         )
