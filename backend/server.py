@@ -1384,7 +1384,7 @@ async def record_login_attempt(session: AsyncSession, identifier: str, ip_addres
             "identifier": identifier[:255],
             "ip_address": ip_address,
             "success": 1 if success else 0,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.utcnow(),
         },
     )
     if success:
@@ -1549,7 +1549,7 @@ async def _remember_password_hash(session: AsyncSession, account_table: str, acc
             "account_table": account_table,
             "account_id": str(account_id),
             "password_hash": password_hash,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.utcnow(),
         },
     )
     await session.execute(
@@ -1666,7 +1666,7 @@ async def write_audit_log(
             "target_id": target_id,
             "ip_address": _client_ip(request),
             "details": json.dumps(details or {}, ensure_ascii=False),
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.utcnow(),
         },
     )
 
@@ -2791,7 +2791,7 @@ async def create_srp_credential(
     new_id = str(uuid.uuid4())
     await session.execute(
         text("INSERT INTO srp (id, email, name, phone, password, role, created_at) VALUES (:id, :email, :name, :phone, :password, 'srp', :created_at)"),
-        {"id": new_id, "email": data.email, "name": data.name, "phone": data.phone or "", "password": hashed_password, "created_at": datetime.now(timezone.utc)},
+        {"id": new_id, "email": data.email, "name": data.name, "phone": data.phone or "", "password": hashed_password, "created_at": datetime.utcnow()},
     )
     await session.commit()
     return AdminCredentialEntry(
@@ -3715,7 +3715,7 @@ async def create_admin_credential(
                     (:id, :email, :name, :phone, :password, :created_at, 1, 1, NULL)
                 """
             ),
-            {"id": entry_id, "email": new_email, "name": new_name, "phone": phone, "password": hashed_password, "created_at": datetime.now(timezone.utc)},
+            {"id": entry_id, "email": new_email, "name": new_name, "phone": phone, "password": hashed_password, "created_at": datetime.utcnow()},
         )
     else:
         await session.execute(
@@ -3738,7 +3738,7 @@ async def create_admin_credential(
                 "subdivision": hierarchy_details["subdivision"] or None,
                 "circle": hierarchy_details["circle"] or None,
                 "station_name": hierarchy_details["station_name"] or None,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.utcnow(),
             },
         )
     await write_audit_log(
