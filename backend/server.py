@@ -1434,19 +1434,45 @@ async def _find_reset_account(session: AsyncSession, identifier: str) -> Optiona
     return None
 
 
-def _send_password_reset_otp(email_address: str, display_name: str, otp: str) -> None:
+def _send_portal_otp(email_address: str, display_name: str, otp: str, purpose: str = "password_reset") -> None:
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
-        raise HTTPException(status_code=503, detail="Password reset email is not configured.")
+        raise HTTPException(status_code=503, detail="OTP email is not configured.")
+    purpose_copy = {
+        "login": {
+            "subject": "[GRP AP] Login OTP",
+            "line": "Your GRP portal login OTP is",
+            "fallback": "login",
+        },
+        "password_reset": {
+            "subject": "[GRP AP] Password Reset OTP",
+            "line": "Your GRP portal password reset OTP is",
+            "fallback": "password reset",
+        },
+        "password_change": {
+            "subject": "[GRP AP] Password Change OTP",
+            "line": "Your GRP portal password change OTP is",
+            "fallback": "password change",
+        },
+        "username_change": {
+            "subject": "[GRP AP] Username Update OTP",
+            "line": "Your GRP portal username update OTP is",
+            "fallback": "username update",
+        },
+    }.get(purpose, {
+        "subject": "[GRP AP] OTP",
+        "line": "Your GRP portal OTP is",
+        "fallback": "this action",
+    })
     try:
         msg = email.mime.multipart.MIMEMultipart("alternative")
-        msg["Subject"] = "[GRP AP] Password Reset OTP"
+        msg["Subject"] = purpose_copy["subject"]
         msg["From"] = SMTP_USER
         msg["To"] = email_address
         body = (
             f"Dear {display_name or 'User'},\n\n"
-            f"Your GRP portal password reset OTP is: {otp}\n\n"
+            f"{purpose_copy['line']}: {otp}\n\n"
             f"This OTP is valid for {PASSWORD_RESET_OTP_EXPIRY_MINUTES} minutes. "
-            f"If you did not request this reset, please ignore this email and contact your administrator.\n\n"
+            f"If you did not request this {purpose_copy['fallback']}, please ignore this email and contact your administrator.\n\n"
             f"Regards,\nGRP Police Administration"
         )
         msg.attach(email.mime.text.MIMEText(body, "plain"))
@@ -1457,9 +1483,12 @@ def _send_password_reset_otp(email_address: str, display_name: str, otp: str) ->
     except HTTPException:
         raise
     except Exception as exc:
-        logger.warning("Password reset OTP email failed for %s: %s", email_address, exc)
-        raise HTTPException(status_code=502, detail="Failed to send reset OTP. Please try again later.") from exc
+        logger.warning("OTP email failed for %s: %s", email_address, exc)
+        raise HTTPException(status_code=502, detail="Failed to send OTP. Please try again later.") from exc
 
+
+def _send_password_reset_otp(email_address: str, display_name: str, otp: str) -> None:
+    _send_portal_otp(email_address, display_name, otp, "password_reset")
 
 def _send_security_notification(email_address: str, display_name: str, subject: str, body: str) -> None:
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]) or not email_address:
@@ -2041,7 +2070,7 @@ async def _start_login_otp(
         },
     )
     await session.commit()
-    _send_password_reset_otp(str(account["email"]), str(account["name"] or "User"), otp)
+    _send_portal_otp(str(account["email"]), str(account["name"] or "User"), otp, "login")
     return {
         "login_pending": True,
         "reset_id": reset_id,
@@ -2254,7 +2283,7 @@ async def request_change_password_otp(
         },
     )
     await session.commit()
-    _send_password_reset_otp(str(account["email"]), str(account["name"] or "User"), otp)
+    _send_portal_otp(str(account["email"]), str(account["name"] or "User"), otp, "password_change")
     return {
         "reset_id": reset_id,
         "message": "OTP sent to registered email.",
@@ -2437,7 +2466,7 @@ async def request_change_username_otp(
         },
     )
     await session.commit()
-    _send_password_reset_otp(str(account["email"]), str(account["name"] or "User"), otp)
+    _send_portal_otp(str(account["email"]), str(account["name"] or "User"), otp, "username_change")
     return {
         "reset_id": reset_id,
         "message": "OTP sent to registered email.",
