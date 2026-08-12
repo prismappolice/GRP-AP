@@ -155,7 +155,7 @@ export const ComplaintPage = () => {
               Your complaint has been registered successfully
             </h2>
             <div className="mt-6 rounded-lg border border-[#60A5FA] bg-[#EFF6FF] px-4 py-5">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#475569]">Complaint / Tracking Number</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#475569]">Complaint Number</p>
               <p className="mt-2 break-all font-mono text-3xl font-extrabold tracking-widest text-[#2563EB]">{trackingNumber}</p>
             </div>
             <Button

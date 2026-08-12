@@ -676,21 +676,6 @@ class ComplaintStatusUpdate(BaseModel):
     rejection_reason: Optional[str] = None
 
 
-class PublicComplaintTracking(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # type: ignore[call-overload]
-    tracking_number: str
-    complainant_name: Optional[str] = None
-    complainant_phone: Optional[str] = None
-    complainant_email: Optional[str] = None
-    complaint_type: str
-    description: str
-    station: str
-    incident_date: str
-    status: str = "pending"
-    rejection_reason: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 class UnidentifiedBodyRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -2820,22 +2805,6 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
     )
 
 
-def _complaint_to_public_tracking_schema(c: ComplaintORM) -> PublicComplaintTracking:
-    return PublicComplaintTracking(
-        tracking_number=str(c.tracking_number),
-        complainant_name=None,
-        complainant_phone=None,
-        complainant_email=None,
-        complaint_type=str(c.complaint_type),
-        description=str(c.description),
-        station=str(c.station),
-        incident_date=str(c.incident_date),
-        status=str(c.status),
-        rejection_reason=c.rejection_reason,
-        created_at=c.created_at,
-        updated_at=c.updated_at,
-    )
-
 
 @api_router.post("/complaints", response_model=Complaint)
 async def create_complaint(
@@ -2938,15 +2907,6 @@ async def get_complaints(
     result = await session.execute(stmt)
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
-
-@api_router.get("/complaints/track/{tracking_number}", response_model=PublicComplaintTracking)
-async def track_complaint(tracking_number: str, session: AsyncSession = Depends(get_async_session)) -> PublicComplaintTracking:
-    await ensure_complaints_table_columns(session)
-    result = await session.execute(select(ComplaintORM).where(ComplaintORM.tracking_number == tracking_number))
-    complaint = result.scalar_one_or_none()
-    if not complaint:
-        raise HTTPException(status_code=404, detail="Complaint not found")
-    return _complaint_to_public_tracking_schema(complaint)
 
 
 @api_router.get("/complaints/{complaint_id}", response_model=Complaint)

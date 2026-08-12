@@ -111,7 +111,6 @@ export const complaintsAPI = {
   }),
   getAll: () => api.get('/complaints'),
   getById: (id) => api.get(`/complaints/${id}`),
-  track: (trackingNumber) => api.get(`/complaints/track/${trackingNumber}`),
   update: (id, data) => api.patch(`/complaints/${id}`, data),
   assign: (id, station) => api.patch(`/complaints/${id}/assign`, { station }),
   updateStatus: (id, statusOrData, rejectionReason) => {
