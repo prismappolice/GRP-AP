@@ -10,7 +10,55 @@ import { complaintsAPI, securityAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ALLOWED_FILE_TYPES_LABEL = 'PDF / DOC / DOCX / JPG / PNG / MP4 / MOV / AVI / WEBM';
+const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 5;
+const MIN_INCIDENT_DATE = '1900-01-01';
+const ALLOWED_FILE_TYPES_LABEL = 'PDF / JPG / JPEG / PNG / GIF / WEBP';
+const TEXT_LIMITS = {
+  complainant_name: [2, 100],
+  address: [5, 300],
+  description: [10, 2000],
+  location: [2, 150],
+};
+const UNSAFE_TEXT_REGEX = /[<>]|javascript:|vbscript:|data:text\/html|onerror\s*=|onload\s*=/i;
+const ALLOWED_UPLOAD_TYPES = {
+  'application/pdf': ['.pdf'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/gif': ['.gif'],
+  'image/webp': ['.webp'],
+};
+const BLOCKED_UPLOAD_EXTENSIONS = ['.html', '.htm', '.php', '.phtml', '.phar', '.jsp', '.asp', '.aspx', '.js', '.svg', '.exe', '.sh', '.bat', '.cmd'];
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const normalizeText = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+
+const validateTextField = (value, label, limits) => {
+  const normalized = normalizeText(value);
+  const [minLength, maxLength] = limits;
+  if (normalized.length < minLength) return `${label} must be at least ${minLength} characters`;
+  if (normalized.length > maxLength) return `${label} must be ${maxLength} characters or less`;
+  if (UNSAFE_TEXT_REGEX.test(normalized)) return `${label} contains unsafe content`;
+  return '';
+};
+
+const validateUploadFile = (file) => {
+  const lowerName = String(file?.name || '').toLowerCase();
+  const suffixes = lowerName.match(/\.[a-z0-9]+/g) || [];
+  const ext = suffixes[suffixes.length - 1] || '';
+  if (!ext || suffixes.some((suffix) => BLOCKED_UPLOAD_EXTENSIONS.includes(suffix))) {
+    return 'Executable or active-content files are not allowed';
+  }
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    return 'Each file must be 5 MB or less';
+  }
+  const allowedExts = ALLOWED_UPLOAD_TYPES[file.type] || [];
+  if (!allowedExts.includes(ext)) {
+    return `Only ${ALLOWED_FILE_TYPES_LABEL} files are allowed`;
+  }
+  return '';
+};
 
 const formatErrorDetail = (detail) => {
   if (!detail) return 'Failed to register complaint';
@@ -42,7 +90,6 @@ export const ComplaintPage = () => {
     address: '',
     complaint_type: '',
     description: '',
-    station: 'Unassigned',
     incident_date: '',
     location: '',
   });
@@ -76,25 +123,36 @@ export const ComplaintPage = () => {
       address: '',
       complaint_type: '',
       description: '',
-      station: 'Unassigned',
       incident_date: '',
       location: '',
     });
     setSupportingDocs([]);
+    setCaptcha(null);
     setCaptchaAnswer('');
     if (supportingDocsRef.current) {
       supportingDocsRef.current.value = '';
     }
+    loadCaptcha();
   };
 
   const handleSupportingDocsChange = (e) => {
     const nextFiles = Array.from(e.target.files || []);
     if (!nextFiles.length) return;
+    const invalidReason = nextFiles.map(validateUploadFile).find(Boolean);
+    if (invalidReason) {
+      toast.error(invalidReason);
+      e.target.value = '';
+      return;
+    }
     setSupportingDocs((prev) => {
       const existingKeys = new Set(prev.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
       const uniqueNewFiles = nextFiles.filter(
         (file) => !existingKeys.has(`${file.name}-${file.size}-${file.lastModified}`)
       );
+      if (prev.length + uniqueNewFiles.length > MAX_UPLOAD_FILES) {
+        toast.error(`Upload up to ${MAX_UPLOAD_FILES} files only`);
+        return prev;
+      }
       return [...prev, ...uniqueNewFiles];
     });
     e.target.value = '';
@@ -106,15 +164,24 @@ export const ComplaintPage = () => {
 
   const validateForm = () => {
     const errors = {};
-    if (!formData.complainant_name.trim()) errors.complainant_name = 'Please fill this field';
+    const today = todayIso();
+    const nameError = validateTextField(formData.complainant_name, 'Full name', TEXT_LIMITS.complainant_name);
+    const locationError = validateTextField(formData.location, 'Location', TEXT_LIMITS.location);
+    const addressError = validateTextField(formData.address, 'Address', TEXT_LIMITS.address);
+    const descriptionError = validateTextField(formData.description, 'Description', TEXT_LIMITS.description);
+    if (nameError) errors.complainant_name = nameError;
+    if (formData.complainant_name && !/^[A-Za-z][A-Za-z0-9 .'-]*$/.test(normalizeText(formData.complainant_name))) errors.complainant_name = 'Full name contains invalid characters';
     if (!formData.complaint_type) errors.complaint_type = 'Please select a complaint type';
-    if (!/^\d{10}$/.test(formData.complainant_phone || '')) errors.complainant_phone = 'Phone number must be exactly 10 digits';
+    if (!/^[6-9]\d{9}$/.test(formData.complainant_phone || '')) errors.complainant_phone = 'Phone number must be a valid 10 digit Indian mobile number';
     if (!EMAIL_REGEX.test((formData.complainant_email || '').trim())) errors.complainant_email = 'Please enter a valid email address';
     if (!formData.incident_date) errors.incident_date = 'Please fill this field';
-    if (!formData.location.trim()) errors.location = 'Please fill this field';
-    if (!formData.address.trim()) errors.address = 'Please fill this field';
-    if (!formData.description.trim()) errors.description = 'Please fill this field';
-    if (!captchaAnswer.trim()) errors.captcha = 'Security check is required';
+    else if (formData.incident_date < MIN_INCIDENT_DATE) errors.incident_date = `Date cannot be before ${MIN_INCIDENT_DATE}`;
+    else if (formData.incident_date > today) errors.incident_date = 'Date of incident cannot be in the future';
+    if (locationError) errors.location = locationError;
+    if (addressError) errors.address = addressError;
+    if (descriptionError) errors.description = descriptionError;
+    if (!captcha?.captcha_id) errors.captcha = 'Security check could not be loaded. Please refresh and try again';
+    else if (!captchaAnswer.trim()) errors.captcha = 'Security check is required';
     return errors;
   };
 
@@ -129,7 +196,21 @@ export const ComplaintPage = () => {
     setLoading(true);
     try {
       const data = new FormData();
-      Object.entries({ ...formData, complainant_email: (formData.complainant_email || '').trim() }).forEach(([k, v]) => data.append(k, v));
+      [
+        'complainant_name',
+        'complainant_phone',
+        'complainant_email',
+        'address',
+        'complaint_type',
+        'description',
+        'incident_date',
+        'location',
+      ].forEach((key) => {
+        const value = key === 'complainant_email'
+          ? (formData[key] || '').trim().toLowerCase()
+          : normalizeText(formData[key]);
+        data.append(key, value);
+      });
       data.append('captcha_id', captcha?.captcha_id || '');
       data.append('captcha_answer', captchaAnswer);
       supportingDocs.forEach(file => data.append('supporting_docs', file));
@@ -194,6 +275,7 @@ export const ComplaintPage = () => {
                   placeholder="Your full name"
                   value={formData.complainant_name}
                   onChange={(e) => { setFormData({...formData, complainant_name: e.target.value}); if (fieldErrors.complainant_name) setFieldErrors(p => ({...p, complainant_name: ''})); }}
+                  maxLength={100}
                 />
                 {fieldErrors.complainant_name && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_name}</p>}
               </div>
@@ -207,7 +289,6 @@ export const ComplaintPage = () => {
                     <SelectItem value="theft">Theft</SelectItem>
                     <SelectItem value="harassment">Harassment</SelectItem>
                     <SelectItem value="missing_person">Missing Person</SelectItem>
-                    <SelectItem value="nuisance">Nuisance</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
@@ -240,6 +321,7 @@ export const ComplaintPage = () => {
                   placeholder="Your email address"
                   value={formData.complainant_email}
                   onChange={(e) => { setFormData({...formData, complainant_email: e.target.value}); if (fieldErrors.complainant_email) setFieldErrors(p => ({...p, complainant_email: ''})); }}
+                  maxLength={254}
                 />
                 {fieldErrors.complainant_email && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.complainant_email}</p>}
               </div>
@@ -251,6 +333,8 @@ export const ComplaintPage = () => {
                   className={`mt-2 ${fieldErrors.incident_date ? 'border-[#DC2626]' : ''}`}
                   value={formData.incident_date}
                   onChange={(e) => { setFormData({...formData, incident_date: e.target.value}); if (fieldErrors.incident_date) setFieldErrors(p => ({...p, incident_date: ''})); }}
+                  min={MIN_INCIDENT_DATE}
+                  max={todayIso()}
                   data-testid="incident-date-input"
                 />
                 {fieldErrors.incident_date && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.incident_date}</p>}
@@ -263,6 +347,7 @@ export const ComplaintPage = () => {
                   placeholder="Incident location (station, train, etc.)"
                   value={formData.location}
                   onChange={(e) => { setFormData({...formData, location: e.target.value}); if (fieldErrors.location) setFieldErrors(p => ({...p, location: ''})); }}
+                  maxLength={150}
                 />
                 {fieldErrors.location && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.location}</p>}
               </div>
@@ -276,6 +361,7 @@ export const ComplaintPage = () => {
                 placeholder="Your full address including state and pincode. This will help in directing your complaint to the correct police station."
                 value={formData.address}
                 onChange={(e) => { setFormData({...formData, address: e.target.value}); if (fieldErrors.address) setFieldErrors(p => ({...p, address: ''})); }}
+                maxLength={300}
               />
               {fieldErrors.address && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.address}</p>}
             </div>
@@ -288,6 +374,7 @@ export const ComplaintPage = () => {
                 placeholder="Provide detailed description of the incident with correct location, date, and time. This will help the authorities in their investigation."
                 value={formData.description}
                 onChange={(e) => { setFormData({...formData, description: e.target.value}); if (fieldErrors.description) setFieldErrors(p => ({...p, description: ''})); }}
+                maxLength={2000}
                 data-testid="description-textarea"
               />
               {fieldErrors.description && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.description}</p>}
@@ -298,7 +385,7 @@ export const ComplaintPage = () => {
               <input
                 ref={supportingDocsRef}
                 type="file"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4,.mov,.avi,.webm"
+                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                 multiple
                 className="hidden"
                 onChange={handleSupportingDocsChange}
@@ -344,7 +431,10 @@ export const ComplaintPage = () => {
             </div>
 
             <div>
-              <Label htmlFor="complaint-captcha">10. Security Check {captcha?.question ? `(${captcha.question})` : ''} *</Label>
+              <Label htmlFor="complaint-captcha">10. Security Check *</Label>
+              {captcha?.image && (
+                <img src={captcha.image} alt="Security check" className="mt-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+              )}
               <Input
                 id="complaint-captcha"
                 inputMode="numeric"
@@ -352,9 +442,10 @@ export const ComplaintPage = () => {
                 placeholder={captcha ? 'Enter answer' : 'Loading security check...'}
                 value={captchaAnswer}
                 onChange={(e) => {
-                  setCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4));
+                  setCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 5));
                   if (fieldErrors.captcha) setFieldErrors(p => ({ ...p, captcha: '' }));
                 }}
+                required
               />
               {fieldErrors.captcha && <p className="mt-1 text-xs text-[#DC2626]">{fieldErrors.captcha}</p>}
             </div>
@@ -379,7 +470,7 @@ export const ComplaintPage = () => {
               <Button
                 type="submit"
                 className="w-full sm:flex-1 bg-[#2563EB] hover:bg-[#1D4ED8] py-6 text-lg"
-                disabled={loading}
+                disabled={loading || !captcha}
                 data-testid="submit-complaint-button"
               >
                 {loading ? 'Submitting...' : 'Submit e-Complaint'}

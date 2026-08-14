@@ -12,6 +12,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { downloadCSV } from '@/lib/csv';
+import { LastLoginNotice } from '@/components/LastLoginNotice';
 
 const PIE_COLORS = {
   pending: '#F59E0B',
@@ -65,6 +66,7 @@ export const StationDashboardPage = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('dismissed_station_alerts') || '[]'); } catch { return []; }
   });
+  const previousLoginAt = user?.last_login_at || (typeof window !== 'undefined' ? sessionStorage.getItem('grp_last_login_at') : '');
 
   const fetchData = async () => {
     setLoading(true);
@@ -249,7 +251,7 @@ export const StationDashboardPage = () => {
             </p>
             {(() => {
               const stored = localStorage.getItem('grp_login_time');
-              const ts = stored ? Number(stored) : (() => { try { const tok = localStorage.getItem('grp_auth_token'); if (!tok) return null; const p = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); return p?.iat ? p.iat * 1000 : null; } catch { return null; } })();
+              const ts = stored ? Number(stored) : (() => { try { const tok = sessionStorage.getItem('grp_auth_token'); if (!tok) return null; const p = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); return p?.iat ? p.iat * 1000 : null; } catch { return null; } })();
               if (!ts) return null;
               if (!stored) localStorage.setItem('grp_login_time', ts.toString());
               return (
@@ -259,6 +261,7 @@ export const StationDashboardPage = () => {
                 </p>
               );
             })()}
+            <LastLoginNotice value={previousLoginAt} className="justify-end" />
           </div>
         </div>
 

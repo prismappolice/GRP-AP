@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { stations } from '../data/stations';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Phone, MapPin, Building2 } from 'lucide-react';
 import { useStaticPageContent } from '@/lib/staticPageContent';
-import api from '@/lib/api';
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 const cleanPhone = (value) => String(value || '').trim();
@@ -161,22 +160,8 @@ const OrganizationTable = ({ division, credentials, search }) => {
 
 export const OrganizationPage = () => {
   const pageContent = useStaticPageContent('organization');
-  const [credentials, setCredentials] = useState([]);
+  const credentials = [];
   const [searchByDivision, setSearchByDivision] = useState({});
-
-  useEffect(() => {
-    let active = true;
-    api.get('/organization-credentials')
-      .then((response) => {
-        if (active) setCredentials(response.data || []);
-      })
-      .catch(() => {
-        if (active) setCredentials([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   return (
     <div className="min-h-screen pt-12 bg-[#F8FAFC] pb-12">
@@ -223,7 +208,7 @@ export const OrganizationPage = () => {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h2 className="text-xl sm:text-3xl font-extrabold heading-font text-[#0F172A] mb-2">GRP {division.division}</h2>
-                      <p className="text-sm sm:text-base text-[#475569]">Live organization details from active credentials.</p>
+                      <p className="text-sm sm:text-base text-[#475569]">Public organization structure and station contact details.</p>
                     </div>
                     <input
                       type="text"

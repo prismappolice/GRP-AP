@@ -39,6 +39,13 @@ Restart the backend service after deployment. Startup creates these new tables i
 - `login_attempts`
 - `help_request_replies`
 
+Backend service hardening:
+
+- Run Uvicorn bound to localhost only, not `0.0.0.0`.
+- Include `--no-server-header --no-date-header` in the backend service command.
+- Example systemd unit is available at `backend/scripts/grp-backend.service`.
+- Verify public traffic reaches the backend only through nginx.
+
 ## 4. Upload Data Sync
 
 Do not overwrite live upload folders unless live files are missing. If restore is needed, copy only missing files into:
@@ -54,12 +61,12 @@ Create one read-only audit account per role on live, then verify each login can 
 
 Suggested usernames:
 
-- `audit-admin@grp.local`
-- `audit-dgp@grp.local`
-- `audit-srp@grp.local`
-- `audit-dsrp@grp.local`
-- `audit-irp@grp.local`
-- `audit-station@grp.local`
+- `audit-admin[at]grp[dot]local`
+- `audit-dgp[at]grp[dot]local`
+- `audit-srp[at]grp[dot]local`
+- `audit-dsrp[at]grp[dot]local`
+- `audit-irp[at]grp[dot]local`
+- `audit-station[at]grp[dot]local`
 
 After creating them, test a blocked mutation. It should return:
 
@@ -86,3 +93,9 @@ Security checks:
 - Help request reply must store reply history.
 - Aadhar values in DB must be masked like `XXXXXXXX1234`.
 - Login brute-force attempts must return `429` after repeated failures.
+- Response headers must not disclose backend/framework versions. Check:
+
+```bash
+curl -I https://grp.prismappolice.in/admin-dashboard
+curl -I https://grp.prismappolice.in/api/latest-news
+```

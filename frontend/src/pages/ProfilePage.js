@@ -603,13 +603,16 @@ function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerCha
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-[#0F172A]" htmlFor={`captcha-${sentTo}`}>Security Check</label>
+            {captcha?.image && (
+              <img src={captcha.image} alt="Security check" className="mb-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+            )}
             <input
               id={`captcha-${sentTo}`}
               inputMode="numeric"
               value={captchaAnswer}
-              onChange={(event) => onCaptchaAnswerChange(event.target.value.replace(/\D/g, '').slice(0, 3))}
+              onChange={(event) => onCaptchaAnswerChange(event.target.value.replace(/\D/g, '').slice(0, 5))}
               className="w-full rounded-md border border-[#CBD5E1] px-3 py-3 text-sm outline-none focus:border-[#2563EB]"
-              placeholder={captcha ? `${captcha.question} = ?` : 'Loading...'}
+              placeholder={captcha ? 'Enter the code shown' : 'Loading...'}
               required
             />
           </div>

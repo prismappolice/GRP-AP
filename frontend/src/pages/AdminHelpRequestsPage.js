@@ -8,7 +8,7 @@ import { getAuthToken, helpAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { Mail, Phone, HelpCircle, Clock, CheckCircle2, XCircle, Search, Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { sanitizeSpreadsheetRows } from '@/lib/csv';
+import { sanitizeSpreadsheetRows, sanitizeWorksheetCells } from '@/lib/csv';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -178,7 +178,7 @@ const AdminHelpRequestsPage = () => {
         return obj;
       }, {})
     );
-    const ws = XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: headers.map(h => h.label) });
+    const ws = sanitizeWorksheetCells(XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: headers.map(h => h.label) }));
     ws['!cols'] = headers.map(h => ({
       wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2
     }));

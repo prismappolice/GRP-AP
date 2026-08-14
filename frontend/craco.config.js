@@ -23,6 +23,7 @@ if (config.enableHealthCheck) {
 }
 
 let webpackConfig = {
+  eslint: false,
   webpack: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

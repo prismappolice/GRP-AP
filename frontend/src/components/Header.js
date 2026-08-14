@@ -6,7 +6,7 @@ import { Phone, Menu, LogOut, User, Bell } from 'lucide-react';
 import api from '@/lib/api';
 
 export const Header = () => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
@@ -25,7 +25,7 @@ export const Header = () => {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [mobileMenuOpen]);
-  const effectiveIsAdmin = isAdmin || (typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true');
+  const effectiveIsAdmin = Boolean(isAdmin && token);
   const adminDisplayName = effectiveIsAdmin && typeof window !== 'undefined'
     ? (localStorage.getItem('admin_display_name') || 'Admin')
     : '';

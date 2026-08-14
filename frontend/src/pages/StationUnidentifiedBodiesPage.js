@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { stationAPI, unidentifiedBodiesAPI, normalizeMediaUrl } from '@/lib/api';
-import { sanitizeSpreadsheetRows } from '@/lib/csv';
+import { sanitizeSpreadsheetRows, sanitizeWorksheetCells } from '@/lib/csv';
 import { stations } from '@/data/stations';
 import { Upload, RefreshCw, Image as ImageIcon, Building2, Video, Eye, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp, Search, X, ChevronLeft, ChevronRight, Download, FileText, Clock, ArrowUpDown } from 'lucide-react';
 
@@ -266,7 +266,7 @@ const StationUnidentifiedBodiesPage = () => {
         return obj;
       }, {})
     );
-    const ws = XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: headers.map(h => h.label) });
+    const ws = sanitizeWorksheetCells(XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: headers.map(h => h.label) }));
     ws['!cols'] = headers.map(h => ({ wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'UnidentifiedBodies');

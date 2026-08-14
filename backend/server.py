@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import base64
 import smtplib
 import email.mime.text
 import email.mime.multipart
@@ -15,7 +16,7 @@ import uuid
 import secrets
 import hashlib
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Annotated, Any, Dict, List, Mapping, Optional, Union
 
 import bcrypt
@@ -56,17 +57,43 @@ SECRET_KEY: str = os.environ.get("JWT_SECRET_KEY", "")
 if not SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY environment variable must be set before starting the server.")
 ALGORITHM = "HS256"
-PASSWORD_NAME_STOPWORDS = {"grp", "sub", "division", "circle", "rps", "rpop", "port", "rs"}
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+
+def _bounded_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+ACCESS_TOKEN_EXPIRE_MINUTES = _bounded_int_env("ACCESS_TOKEN_EXPIRE_MINUTES", 30, 1, 30)
 TRUSTED_HOSTS = {
     host.strip().lower()
     for host in os.environ.get("TRUSTED_HOSTS", "13.233.250.180,grp.prismappolice.in,www.grp.prismappolice.in,localhost,127.0.0.1").split(",")
     if host.strip()
 }
+TRUSTED_HOST_PATTERN = re.compile(r"^[a-z0-9.-]+$")
 TERMINAL_COMPLAINT_STATUSES = {"approved", "resolved", "closed", "rejected"}
 MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
+MAX_UPLOAD_FILES_PER_REQUEST = 5
 PUBLIC_SUBMISSION_MAX_ATTEMPTS = 5
 PUBLIC_SUBMISSION_WINDOW_SECONDS = 10 * 60
+MIN_INCIDENT_DATE = date(1900, 1, 1)
+ALLOWED_PUBLIC_COMPLAINT_TYPES = {"theft", "harassment", "missing_person", "other"}
+PUBLIC_TEXT_LIMITS = {
+    "complainant_name": (2, 100),
+    "address": (5, 300),
+    "state": (2, 80),
+    "description": (10, 2000),
+    "location": (2, 150),
+}
+HELP_REQUEST_TEXT_LIMITS = {
+    "name": (2, 100),
+    "message": (10, 2000),
+}
+SPREADSHEET_FORMULA_PREFIX_PATTERN = re.compile(r"^[\s]*[=+\-@\t\r\n]")
+AADHAAR_FIELD_PATTERN = re.compile(r"(aadhaar|aadhar|adhar)", re.IGNORECASE)
 IMAGE_MIME_EXTENSIONS = {
     "image/jpeg": {".jpg", ".jpeg"},
     "image/png": {".png"},
@@ -84,6 +111,33 @@ DOC_MIME_EXTENSIONS = {
     "application/pdf": {".pdf"},
     **IMAGE_MIME_EXTENSIONS,
 }
+PUBLIC_COMPLAINT_FORM_FIELDS = {
+    "complainant_name",
+    "complainant_phone",
+    "complainant_email",
+    "address",
+    "state",
+    "complaint_type",
+    "description",
+    "location",
+    "incident_date",
+    "captcha_id",
+    "captcha_answer",
+    "supporting_docs",
+}
+ACTIVE_CONTENT_SIGNATURES = (
+    b"/JavaScript",
+    b"/JS",
+    b"/OpenAction",
+    b"/AA",
+    b"/Launch",
+    b"/SubmitForm",
+    b"/ImportData",
+    b"/RichMedia",
+    b"/EmbeddedFile",
+    b"/AcroForm",
+    b"/XFA",
+)
 
 # ==================== RATE LIMITING (in-memory) ====================
 import time
@@ -98,6 +152,7 @@ PASSWORD_RESET_MAX_ATTEMPTS = 5
 PASSWORD_RESET_WINDOW_SECONDS = 10 * 60
 PASSWORD_RESET_OTP_EXPIRY_MINUTES = 3
 PASSWORD_RESET_MAX_OTP_ATTEMPTS = 5
+OTP_RESEND_COOLDOWN_SECONDS = 60
 PASSWORD_RESET_COOLDOWN_SECONDS = 60 * 60
 PASSWORD_HISTORY_LIMIT = 5
 
@@ -118,6 +173,34 @@ Base = declarative_base()
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.warning("Validation error on %s %s: %s", request.method, request.url.path, exc.errors())
     return JSONResponse(content={"detail": "Invalid request."}, status_code=422)
+
+
+def _is_public_submission_path(path: str) -> bool:
+    return path in {"/api/help-requests", "/api/complaints"}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if _is_public_submission_path(request.url.path):
+        logger.warning(
+            "Public request rejected on %s %s with %s: %s",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            exc.detail,
+        )
+        if exc.status_code == 429:
+            return JSONResponse(content={"detail": "Too many requests."}, status_code=429, headers=exc.headers)
+        if exc.status_code >= 500:
+            return JSONResponse(content={"detail": "Internal server error."}, status_code=500, headers=exc.headers)
+        return JSONResponse(content={"detail": "Invalid request."}, status_code=exc.status_code, headers=exc.headers)
+    return JSONResponse(content={"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(content={"detail": "Internal server error."}, status_code=500)
 
 raw_cors_origins = os.environ.get("CORS_ORIGINS", "")
 allowed_cors_origins = [o.strip().strip('"').strip("'") for o in raw_cors_origins.split(",") if o.strip()]
@@ -141,8 +224,34 @@ app.add_middleware(
 
 @app.middleware("http")
 async def validate_host_header(request: Request, call_next):
-    host = request.headers.get("host", "").split(":", 1)[0].lower()
-    if TRUSTED_HOSTS and host not in TRUSTED_HOSTS:
+    def _normalize_host_header(value: Optional[str], *, allow_proxy_list: bool = False) -> Optional[str]:
+        raw = str(value or "").strip().lower()
+        if not raw:
+            return None
+        values = [part.strip() for part in raw.split(",")] if allow_proxy_list else [raw]
+        normalized_hosts: List[str] = []
+        for item in values:
+            if not item or any(char in item for char in (" ", "\t", "\r", "\n", "/", "\\", "@")):
+                return None
+            if item.startswith("["):
+                return None
+            host = item
+            if ":" in item:
+                host_part, port_part = item.rsplit(":", 1)
+                if not port_part.isdigit() or not host_part:
+                    return None
+                host = host_part
+            host = host.rstrip(".")
+            if not host or not TRUSTED_HOST_PATTERN.fullmatch(host):
+                return None
+            normalized_hosts.append(host)
+        if allow_proxy_list:
+            return normalized_hosts[0] if normalized_hosts else None
+        return normalized_hosts[0]
+
+    host = _normalize_host_header(request.headers.get("host"))
+    forwarded_host = _normalize_host_header(request.headers.get("x-forwarded-host"), allow_proxy_list=True)
+    if TRUSTED_HOSTS and (host not in TRUSTED_HOSTS or (forwarded_host and forwarded_host not in TRUSTED_HOSTS)):
         return JSONResponse(content={"detail": "Invalid request host."}, status_code=400)
     return await call_next(request)
 
@@ -150,14 +259,7 @@ async def validate_host_header(request: Request, call_next):
 @app.middleware("http")
 async def protect_complaint_uploads(request: Request, call_next):
     if request.url.path.startswith("/complaint_uploads/"):
-        auth_header = request.headers.get("authorization", "")
-        scheme, _, token = auth_header.partition(" ")
-        if scheme.lower() != "bearer" or not token:
-            return JSONResponse(content={"detail": "Authentication required."}, status_code=401)
-        try:
-            jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
-        except Exception:
-            return JSONResponse(content={"detail": "Invalid authentication credentials."}, status_code=401)
+        return JSONResponse(content={"detail": "Use the authenticated document endpoint."}, status_code=404)
     return await call_next(request)
 
 
@@ -181,6 +283,31 @@ async def block_audit_read_only_mutations(request: Request, call_next):
 
 
 @app.middleware("http")
+async def enforce_mandatory_password_change(request: Request, call_next):
+    allowed_paths = {
+        "/api/auth/me",
+        "/api/auth/logout",
+        "/api/auth/change-password/otp",
+        "/api/auth/change-password",
+        "/api/anti-automation/challenge",
+    }
+    if request.url.path.startswith("/api/") and request.url.path not in allowed_paths:
+        auth_header = request.headers.get("authorization", "")
+        scheme, _, token = auth_header.partition(" ")
+        if scheme.lower() == "bearer" and token:
+            try:
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+            except Exception:
+                payload = {}
+            if payload.get("must_change_password"):
+                return JSONResponse(
+                    content={"detail": "Password change required before continuing."},
+                    status_code=403,
+                )
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     for header_name in ("server", "x-powered-by"):
@@ -192,13 +319,24 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
-    if request.url.scheme == "https":
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
+    if request.url.scheme == "https" or forwarded_proto == "https":
         response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
-    if not request.url.path.startswith(("/gallery_uploads", "/news_uploads", "/unidentified_uploads", "/complaint_uploads")):
-        response.headers.setdefault(
-            "Content-Security-Policy",
-            "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
-        )
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; "
+        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+    )
+    if request.url.path.startswith("/complaint_uploads/"):
+        file_name = Path(request.url.path).name
+        response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
+        response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'; frame-ancestors 'none'"
     return response
 
 # ==================== DATABASE ====================
@@ -223,7 +361,6 @@ if not _ub_json.exists():
 app.mount("/gallery_uploads", StaticFiles(directory=str(ROOT_DIR / "gallery_uploads")), name="gallery_uploads")
 app.mount("/news_uploads", StaticFiles(directory=str(ROOT_DIR / "news_uploads")), name="news_uploads")
 app.mount("/unidentified_uploads", StaticFiles(directory=str(ROOT_DIR / "unidentified_uploads")), name="unidentified_uploads")
-app.mount("/complaint_uploads", StaticFiles(directory=str(ROOT_DIR / "complaint_uploads")), name="complaint_uploads")
 
 # ==================== ROUTER ====================
 api_router = APIRouter(prefix="/api")
@@ -550,6 +687,7 @@ class AdminLoginVerify(BaseModel):
 
 class AdminPasswordUpdate(BaseModel):
     new_password: str
+    admin_password: str
 
 
 class PasswordChangeRequest(BaseModel):
@@ -606,7 +744,6 @@ class AdminCredentialEntry(BaseModel):
     name: str
     email: str
     phone: str = 'N/A'
-    password: str
     role: str
     must_change_password: bool = False
     is_active: bool = True
@@ -678,6 +815,11 @@ class ComplaintStatusUpdate(BaseModel):
     rejection_reason: Optional[str] = None
 
 
+class ComplaintReceipt(BaseModel):
+    tracking_number: str
+    message: str = "Complaint registered successfully"
+
+
 
 class UnidentifiedBodyRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -742,7 +884,13 @@ class HelpRequest(BaseModel):
     replied: bool = False
 
 
+class HelpRequestReceipt(BaseModel):
+    id: str
+    message: str = "Help request submitted successfully"
+
+
 class HelpRequestCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # type: ignore[call-overload]
     name: str
     phone: str
     email: str
@@ -753,7 +901,7 @@ class HelpRequestCreate(BaseModel):
 
 class CaptchaChallenge(BaseModel):
     captcha_id: str
-    question: str
+    image: str
 
 
 class ChatMessage(BaseModel):
@@ -786,23 +934,6 @@ def verify_password(plain_password: str, stored_password: str) -> bool:
         except Exception:
             return False
     return secrets.compare_digest(plain_password, stored_password)
-
-
-def build_managed_password(role: str, name: str) -> str:
-    role_key = str(role or "user").lower()
-    role_label = role_key.title()
-    tokens = re.findall(r"[a-z0-9]+", str(name or "").lower())
-    stopwords = set(PASSWORD_NAME_STOPWORDS)
-    if role_key == "dgp":
-        role_label = "DGP"
-        stopwords.add("dgp")
-    filtered_tokens = [t for t in tokens if t not in stopwords]
-    if not filtered_tokens:
-        filtered_tokens = tokens or [role_key]
-    name_label = "".join(t.title() for t in filtered_tokens)
-    plain = f"#{role_label}@{name_label}$"
-    # Return bcrypt hash of the plain password
-    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def is_audit_account(row: Any) -> bool:
@@ -882,28 +1013,52 @@ def _send_complaint_email_alert(tracking_number: str, complaint_type: str, stati
 
 def create_access_token(data: Dict[str, Any]) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    issued_at = datetime.now(timezone.utc)
+    expire = issued_at + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"iat": issued_at, "exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # type: ignore[arg-type]
+
+
+def _enforce_token_max_age(payload: Mapping[str, Any]) -> None:
+    issued_at = payload.get("iat")
+    if issued_at is None:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    try:
+        issued_at_dt = datetime.fromtimestamp(float(issued_at), tz=timezone.utc)
+    except (TypeError, ValueError, OSError):
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    now = datetime.now(timezone.utc)
+    if issued_at_dt > now + timedelta(seconds=60):
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    if now - issued_at_dt > timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES):
+        raise HTTPException(status_code=401, detail="Token has expired")
+
+
+def decode_access_token(token: str) -> Dict[str, Any]:
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    _enforce_token_max_age(payload)
+    return payload
 
 
 async def _activate_login_session(
     session: AsyncSession,
     table_name: str,
     user_id: Any,
-) -> tuple[str, Optional[datetime]]:
+) -> tuple[str, Optional[datetime], bool]:
     await ensure_auth_security_columns(session)
     previous_result = await session.execute(
-        text(f"SELECT last_login_at FROM {table_name} WHERE id = :id LIMIT 1"),
+        text(f"SELECT active_session_id, last_login_at FROM {table_name} WHERE id = :id LIMIT 1"),
         {"id": user_id},
     )
     previous = previous_result.mappings().first()
+    replaced_existing_session = bool(previous and previous["active_session_id"])
     session_id = uuid.uuid4().hex
     await session.execute(
         text(f"UPDATE {table_name} SET active_session_id = :session_id, last_login_at = :now WHERE id = :id"),
         {"session_id": session_id, "now": datetime.now(timezone.utc), "id": user_id},
     )
-    return session_id, previous["last_login_at"] if previous else None
+    return session_id, previous["last_login_at"] if previous else None, replaced_existing_session
 
 
 async def _require_active_session(
@@ -1217,9 +1372,17 @@ async def ensure_complaints_table_columns(session: AsyncSession) -> None:
     await session.execute(
         text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS complainant_phone VARCHAR")
     )
-    await session.execute(
-        text("ALTER TABLE complaints DROP COLUMN IF EXISTS aadhar_number")
-    )
+    for legacy_aadhaar_column in (
+        "aadhar_number",
+        "aadhaar_number",
+        "aadhar_no",
+        "aadhaar_no",
+        "aadhar",
+        "aadhaar",
+        "adhar_number",
+        "adhar_no",
+    ):
+        await session.execute(text(f"ALTER TABLE complaints DROP COLUMN IF EXISTS {legacy_aadhaar_column}"))
     await session.execute(
         text("ALTER TABLE complaints ADD COLUMN IF NOT EXISTS address VARCHAR")
     )
@@ -1274,13 +1437,10 @@ async def ensure_admin_password_patterns(session: AsyncSession) -> None:
     for admin in admins:
         if admin["password"]:
             continue
-        admin_name = str(admin["name"] or admin["id"] or "central admin")
-        if admin_name.strip().lower() in {"admin", "administrator"}:
-            admin_name = "Central admin"
-        plain_password = build_managed_password("admin", admin_name)
+        random_password = secrets.token_urlsafe(32)
         await session.execute(
-            text("UPDATE admin SET password = :password WHERE id = :id"),
-            {"password": plain_password, "id": admin["id"]},
+            text("UPDATE admin SET password = :password, must_change_password = 1, active_session_id = NULL WHERE id = :id"),
+            {"password": hash_password(random_password), "id": admin["id"]},
         )
     await session.commit()
 
@@ -1316,6 +1476,37 @@ def _cleanup_captcha_challenges() -> None:
         _captcha_challenges.pop(cid, None)
 
 
+def _build_captcha_image(answer: str) -> str:
+    x_positions = [18, 44, 70, 96, 122]
+    rotations = [-9, 7, -5, 8, -7]
+    noise_lines = []
+    for _ in range(9):
+        x1 = secrets.randbelow(150)
+        y1 = secrets.randbelow(46)
+        x2 = secrets.randbelow(150)
+        y2 = secrets.randbelow(46)
+        color = f"#{secrets.randbelow(0x777777):06x}"
+        noise_lines.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" stroke-width="1" opacity="0.35"/>')
+    chars = []
+    for index, char in enumerate(answer):
+        y = 30 + (secrets.randbelow(9) - 4)
+        chars.append(
+            f'<text x="{x_positions[index]}" y="{y}" transform="rotate({rotations[index]} {x_positions[index]} {y})">{char}</text>'
+        )
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="154" height="46" viewBox="0 0 154 46">'
+        '<rect width="154" height="46" fill="#F8FAFC"/>'
+        f'{"".join(noise_lines)}'
+        '<g font-family="monospace" font-size="24" font-weight="700" fill="#0F172A">'
+        f'{"".join(chars)}'
+        '</g>'
+        '<path d="M8 35 C45 20, 85 45, 146 17" fill="none" stroke="#2563EB" stroke-width="2" opacity="0.35"/>'
+        '</svg>'
+    )
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
+
+
 def verify_captcha(captcha_id: str, captcha_answer: str) -> None:
     _cleanup_captcha_challenges()
     challenge = _captcha_challenges.pop(str(captcha_id or ""), None)
@@ -1325,6 +1516,16 @@ def verify_captcha(captcha_id: str, captcha_answer: str) -> None:
     supplied = str(captcha_answer or "").strip()
     if not supplied or not secrets.compare_digest(expected, supplied):
         raise HTTPException(status_code=400, detail="Security challenge answer is incorrect.")
+
+
+async def _reject_unexpected_form_fields(request: Request, allowed_fields: set[str]) -> None:
+    form = await request.form()
+    submitted_fields = {str(key) for key in form.keys()}
+    if any(AADHAAR_FIELD_PATTERN.search(field) for field in submitted_fields):
+        raise HTTPException(status_code=400, detail="Aadhaar details are not accepted by this form")
+    unexpected = sorted(submitted_fields - allowed_fields)
+    if unexpected:
+        raise HTTPException(status_code=400, detail="Unexpected form field submitted")
 
 
 def _token_table_from_payload(payload: Dict[str, Any]) -> tuple[Optional[str], Optional[Any]]:
@@ -1401,6 +1602,16 @@ def enforce_password_reset_rate_limit(request: Request, identifier: str) -> None
     now = time.time()
     attempts = [ts for ts in _password_reset_attempts[key] if now - ts < PASSWORD_RESET_WINDOW_SECONDS + PASSWORD_RESET_COOLDOWN_SECONDS]
     recent_attempts = [ts for ts in attempts if now - ts < PASSWORD_RESET_WINDOW_SECONDS]
+    if attempts and now - attempts[-1] < OTP_RESEND_COOLDOWN_SECONDS:
+        retry_after = max(1, int(OTP_RESEND_COOLDOWN_SECONDS - (now - attempts[-1])))
+        _password_reset_attempts[key] = attempts
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": f"Please wait {_format_retry_after(retry_after)} before requesting another OTP.",
+                "retry_after_seconds": retry_after,
+            },
+        )
     if len(recent_attempts) >= PASSWORD_RESET_MAX_ATTEMPTS:
         retry_after = int(PASSWORD_RESET_COOLDOWN_SECONDS - (now - min(recent_attempts)))
         retry_after = max(1, retry_after)
@@ -1621,10 +1832,15 @@ def _safe_upload_extension(filename: Optional[str]) -> str:
 def _content_matches_mime(content: bytes, content_type: str) -> bool:
     head = content[:512]
     stripped = head.lstrip().lower()
+    lowered_sample = content[:4096].lower()
     if stripped.startswith((b"<html", b"<!doctype html", b"<?php", b"<script", b"<?xml")):
         return False
+    if any(marker in lowered_sample for marker in (b"<script", b"javascript:", b"vbscript:", b"onerror=", b"onload=")):
+        return False
     if content_type == "application/pdf":
-        return head.startswith(b"%PDF-")
+        if not head.startswith(b"%PDF-"):
+            return False
+        return not any(signature.lower() in content.lower() for signature in ACTIVE_CONTENT_SIGNATURES)
     if content_type == "image/jpeg":
         return head.startswith(b"\xff\xd8\xff")
     if content_type == "image/png":
@@ -1650,7 +1866,7 @@ async def _read_validated_upload(
     media_label: str,
 ) -> tuple[bytes, str]:
     ext = _safe_upload_extension(upload.filename)
-    content_type = (upload.content_type or "").lower()
+    content_type = (upload.content_type or "").split(";", 1)[0].strip().lower()
     allowed_extensions = allowed_mime_extensions.get(content_type)
     if not allowed_extensions or ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail=f"Only approved {media_label} file types are allowed")
@@ -1668,15 +1884,80 @@ def _validate_incident_date(value: str) -> str:
         parsed = datetime.strptime(raw, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(status_code=400, detail="Incident date must be in YYYY-MM-DD format")
+    if parsed < MIN_INCIDENT_DATE:
+        raise HTTPException(status_code=400, detail=f"Incident date cannot be before {MIN_INCIDENT_DATE.isoformat()}")
     if parsed > datetime.now(timezone.utc).date():
         raise HTTPException(status_code=400, detail="Incident date cannot be in the future")
     return raw
 
 
+def _normalize_public_text_field(value: Optional[str], field_name: str, min_length: int, max_length: int) -> str:
+    normalized = re.sub(r"\s+", " ", str(value or "").strip())
+    if len(normalized) < min_length:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be at least {min_length} characters")
+    if len(normalized) > max_length:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be {max_length} characters or less")
+    if any(ord(ch) < 32 for ch in normalized):
+        raise HTTPException(status_code=400, detail=f"{field_name} contains invalid characters")
+    if SPREADSHEET_FORMULA_PREFIX_PATTERN.search(normalized):
+        raise HTTPException(status_code=400, detail=f"{field_name} cannot start with spreadsheet formula characters")
+    lowered = normalized.lower()
+    if re.search(r"[<>]|javascript:|vbscript:|data:text/html|onerror\s*=|onload\s*=", lowered):
+        raise HTTPException(status_code=400, detail=f"{field_name} contains unsafe content")
+    return normalized
+
+
+def _validate_public_name(value: str) -> str:
+    normalized = _normalize_public_text_field(value, "Full name", *PUBLIC_TEXT_LIMITS["complainant_name"])
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9 .'-]*", normalized):
+        raise HTTPException(status_code=400, detail="Full name contains invalid characters")
+    return normalized
+
+
+def _validate_public_phone(value: str) -> str:
+    normalized = re.sub(r"\D+", "", str(value or ""))
+    if not re.fullmatch(r"[6-9]\d{9}", normalized):
+        raise HTTPException(status_code=400, detail="Phone number must be a valid 10 digit Indian mobile number")
+    return normalized
+
+
+def _validate_public_email(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if len(normalized) > 254 or not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+", normalized):
+        raise HTTPException(status_code=400, detail="Please enter a valid email address")
+    return normalized
+
+
+def _validate_public_complaint_type(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized not in ALLOWED_PUBLIC_COMPLAINT_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid complaint type")
+    return normalized
+
+
 def _ensure_status_can_change(current_status: str, next_status: str) -> None:
     current = str(current_status or "").strip().lower()
-    if current in TERMINAL_COMPLAINT_STATUSES and next_status != current:
+    next_value = str(next_status or "").strip().lower()
+    if current == next_value:
+        raise HTTPException(status_code=409, detail=f"Complaint status is already {current}")
+    if current in TERMINAL_COMPLAINT_STATUSES:
         raise HTTPException(status_code=409, detail="Complaint is already in a final state")
+
+
+def _can_view_complaint(current_user: User, complaint: ComplaintORM) -> bool:
+    if current_user.role == "admin" or _is_dgp_user(current_user):
+        return True
+    if current_user.role == "public":
+        return str(complaint.user_id) == str(current_user.id)
+    if current_user.role in ("police", "station"):
+        return str(complaint.station or "") == str(current_user.name or "")
+    if current_user.role == "irp":
+        return str(complaint.station or "") in _managed_station_names_for_irp(current_user)
+    if current_user.role == "dsrp":
+        return str(complaint.station or "") in _managed_station_names_for_dsrp(current_user)
+    if current_user.role == "srp":
+        return str(complaint.station or "") in _managed_station_names_for_srp(current_user)
+    return False
 
 
 async def write_audit_log(
@@ -1716,7 +1997,8 @@ async def get_current_user(
 ) -> User:
     try:
         token = credentials.credentials
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+        payload = decode_access_token(token)
+        _enforce_token_max_age(payload)
         audit_read_only = bool(payload.get("audit_read_only"))
         token_session_id = payload.get("sid")
 
@@ -1860,8 +2142,9 @@ async def get_latest_news() -> Any:
             pass
 
         return JSONResponse(content=[])
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to load latest news: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to load latest news: %s", exc)
+        return JSONResponse(content={"detail": "Failed to load latest news."}, status_code=500)
 
 
 @api_router.post("/latest-news")
@@ -1874,8 +2157,9 @@ async def update_latest_news(request: Request, current_user: User = Depends(get_
         with open(news_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return {"message": "Latest news updated successfully"}
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to update latest news: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to update latest news: %s", exc)
+        return JSONResponse(content={"detail": "Failed to update latest news."}, status_code=500)
 
 
 @api_router.get("/news-items")
@@ -1918,8 +2202,9 @@ async def get_news_items() -> Any:
         except Exception:
             pass
         return JSONResponse(content=[])
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to load news items: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to load news items: %s", exc)
+        return JSONResponse(content={"detail": "Failed to load news items."}, status_code=500)
 
 
 @api_router.post("/admin/news-items")
@@ -1945,8 +2230,9 @@ async def admin_add_news_item(request: Request, current_user: User = Depends(get
         with open(news_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return JSONResponse(content=data)
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to add news item: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to add news item: %s", exc)
+        return JSONResponse(content={"detail": "Failed to add news item."}, status_code=500)
 
 
 @api_router.put("/admin/news-items/{item_id}")
@@ -1986,8 +2272,9 @@ async def admin_update_news_item(item_id: str, request: Request, current_user: U
         return JSONResponse(content=updated)
     except HTTPException:
         raise
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to update news item: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to update news item: %s", exc)
+        return JSONResponse(content={"detail": "Failed to update news item."}, status_code=500)
 
 
 @api_router.delete("/admin/news-items/{item_id}")
@@ -2015,8 +2302,9 @@ async def admin_delete_news_item(item_id: str, current_user: User = Depends(get_
             with open(news_path, "w", encoding="utf-8") as f:
                 json.dump(items[0], f, ensure_ascii=False, indent=2)
         return {"message": "News item removed"}
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to delete news item: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to delete news item: %s", exc)
+        return JSONResponse(content={"detail": "Failed to delete news item."}, status_code=500)
 
 
 @api_router.get("/gallery-items")
@@ -2038,14 +2326,13 @@ async def get_gallery_items() -> Any:
 @api_router.get("/anti-automation/challenge", response_model=CaptchaChallenge)
 async def get_anti_automation_challenge(request: Request) -> CaptchaChallenge:
     _cleanup_captcha_challenges()
-    left = secrets.randbelow(8) + 2
-    right = secrets.randbelow(8) + 2
+    answer = "".join(str(secrets.randbelow(10)) for _ in range(5))
     captcha_id = uuid.uuid4().hex
     _captcha_challenges[captcha_id] = {
-        "answer": str(left + right),
+        "answer": answer,
         "expires_at": time.time() + 5 * 60,
     }
-    return CaptchaChallenge(captcha_id=captcha_id, question=f"{left} + {right}")
+    return CaptchaChallenge(captcha_id=captcha_id, image=_build_captcha_image(answer))
 
 
 async def _start_login_otp(
@@ -2111,36 +2398,53 @@ async def _build_login_success(
 ) -> Dict[str, Any]:
     if int(account["is_active"] if account["is_active"] is not None else 1) != 1:
         await record_login_attempt(session, identifier, client_ip, False)
-        raise HTTPException(status_code=403, detail="Account is disabled")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     audit_read_only = is_audit_account(account)
+    must_change_password = bool(account["must_change_password"])
     if account_table == "admin":
-        session_id, previous_login_at = await _activate_login_session(session, "admin", account["id"])
-        access_token = create_access_token({"admin_id": account["id"], "is_admin": True, "role": "admin", "audit_read_only": audit_read_only, "sid": session_id})
+        session_id, previous_login_at, replaced_existing_session = await _activate_login_session(session, "admin", account["id"])
+        access_token = create_access_token({"admin_id": account["id"], "is_admin": True, "role": "admin", "audit_read_only": audit_read_only, "sid": session_id, "must_change_password": must_change_password})
         portal_role = "admin"
         officer_role = None
     elif account_table == "dgp":
-        session_id, previous_login_at = await _activate_login_session(session, "dgp", account["id"])
-        access_token = create_access_token({"officer_id": account["id"], "officer_role": "dgp", "audit_read_only": audit_read_only, "sid": session_id})
+        session_id, previous_login_at, replaced_existing_session = await _activate_login_session(session, "dgp", account["id"])
+        access_token = create_access_token({"officer_id": account["id"], "officer_role": "dgp", "audit_read_only": audit_read_only, "sid": session_id, "must_change_password": must_change_password})
         portal_role = "officer"
         officer_role = "dgp"
     elif account_table == "stations":
-        session_id, previous_login_at = await _activate_login_session(session, "stations", account["id"])
-        access_token = create_access_token({"station_id": account["id"], "role": "station", "audit_read_only": audit_read_only, "sid": session_id})
+        session_id, previous_login_at, replaced_existing_session = await _activate_login_session(session, "stations", account["id"])
+        access_token = create_access_token({"station_id": account["id"], "role": "station", "audit_read_only": audit_read_only, "sid": session_id, "must_change_password": must_change_password})
         portal_role = "officer"
         officer_role = "station"
     else:
         cred_role = account_table
-        session_id, previous_login_at = await _activate_login_session(session, account_table, account["id"])
-        access_token = create_access_token({"cred_id": account["id"], "cred_role": cred_role, "audit_read_only": audit_read_only, "sid": session_id})
+        session_id, previous_login_at, replaced_existing_session = await _activate_login_session(session, account_table, account["id"])
+        access_token = create_access_token({"cred_id": account["id"], "cred_role": cred_role, "audit_read_only": audit_read_only, "sid": session_id, "must_change_password": must_change_password})
         portal_role = "officer"
         officer_role = cred_role
     await record_login_attempt(session, identifier, client_ip, True)
+    previous_login_text = previous_login_at.isoformat() if isinstance(previous_login_at, datetime) else "No previous login recorded"
+    notification_body = (
+        f"Your GRP portal account was accessed successfully.\n\n"
+        f"Login time: {datetime.now(timezone.utc).isoformat()}\n"
+        f"IP address: {client_ip}\n"
+        f"Previous login: {previous_login_text}\n"
+        f"Previous active session replaced: {'Yes' if replaced_existing_session else 'No'}\n\n"
+        "If this was not you, contact your administrator immediately."
+    )
+    _send_security_notification(
+        str(account["email"] or ""),
+        str(account["name"] or "User"),
+        "[GRP AP] New Login Detected",
+        notification_body,
+    )
     response: Dict[str, Any] = {
         "msg": "Login successful",
         "portal_role": portal_role,
         "access_token": access_token,
         "token_type": "bearer",
-        "user": build_auth_user_payload(account["id"], account["email"], account["name"], account["phone"] or "N/A", account["created_at"], audit_read_only, previous_login_at, bool(account["must_change_password"])),
+        "previous_session_terminated": replaced_existing_session,
+        "user": build_auth_user_payload(account["id"], account["email"], account["name"], account["phone"] or "N/A", account["created_at"], audit_read_only, previous_login_at, must_change_password),
     }
     if portal_role == "admin":
         response.update({"admin_id": account["id"], "email": account["email"], "name": account["name"]})
@@ -2164,7 +2468,7 @@ async def admin_login(credentials: AdminLogin, request: Request, session: AsyncS
     if admin and verify_password(credentials.password, str(admin["password"] or "")):
         if int(admin["is_active"] if admin["is_active"] is not None else 1) != 1:
             await record_login_attempt(session, identifier, client_ip, False)
-            raise HTTPException(status_code=403, detail="Account is disabled")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
         return await _start_login_otp(session, request, "admin", admin)
 
     await ensure_officer_credentials_table(session)
@@ -2179,7 +2483,7 @@ async def admin_login(credentials: AdminLogin, request: Request, session: AsyncS
             raise HTTPException(status_code=401, detail="Invalid credentials")
         if int(officer["is_active"] if officer["is_active"] is not None else 1) != 1:
             await record_login_attempt(session, identifier, client_ip, False)
-            raise HTTPException(status_code=403, detail="Account is disabled")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
         return await _start_login_otp(session, request, "dgp", officer)
 
     for cred_role in ("station", "srp", "dsrp", "irp"):
@@ -2195,7 +2499,7 @@ async def admin_login(credentials: AdminLogin, request: Request, session: AsyncS
                 raise HTTPException(status_code=401, detail=f"Invalid credentials")
             if int(cred["is_active"] if cred["is_active"] is not None else 1) != 1:
                 await record_login_attempt(session, identifier, client_ip, False)
-                raise HTTPException(status_code=403, detail="Account is disabled")
+                raise HTTPException(status_code=401, detail="Invalid credentials")
             return await _start_login_otp(session, request, cred_table, cred)
 
     await record_login_attempt(session, identifier, client_ip, False)
@@ -2269,11 +2573,12 @@ async def request_change_password_otp(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_async_session),
 ) -> Dict[str, str]:
-    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    payload = decode_access_token(credentials.credentials)
     table, user_id = _token_table_from_payload(payload)
     if not table or not user_id:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     await ensure_auth_security_columns(session)
+    enforce_password_reset_rate_limit(request, f"password_change:{table}:{user_id}")
     result = await session.execute(
         text(f"SELECT email, name FROM {table} WHERE id = :id LIMIT 1"),
         {"id": user_id},
@@ -2285,6 +2590,19 @@ async def request_change_password_otp(
     otp = f"{secrets.randbelow(1_000_000):06d}"
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(minutes=PASSWORD_RESET_OTP_EXPIRY_MINUTES)
+    await session.execute(
+        text(
+            """
+            UPDATE password_reset_tokens
+            SET used_at = :used_at
+            WHERE account_table = :account_table
+              AND account_id = :account_id
+              AND purpose = 'password_change'
+              AND used_at IS NULL
+            """
+        ),
+        {"used_at": now, "account_table": table, "account_id": str(user_id)},
+    )
     await session.execute(
         text(
             """
@@ -2322,7 +2640,7 @@ async def change_current_password(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
-    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    payload = decode_access_token(credentials.credentials)
     table, user_id = _token_table_from_payload(payload)
     if not table or not user_id:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
@@ -2331,8 +2649,6 @@ async def change_current_password(
     row = result.mappings().first()
     if not row or not verify_password(body.current_password, str(row["password"] or "")):
         raise HTTPException(status_code=401, detail="Invalid current password")
-    validate_strong_password(body.new_password)
-    await _ensure_password_not_recently_used(session, table, user_id, body.new_password, str(row["password"] or ""))
     otp = re.sub(r"\D+", "", str(body.otp or ""))
     if not re.fullmatch(r"\d{6}", otp):
         raise HTTPException(status_code=400, detail="Enter the 6-digit OTP.")
@@ -2365,22 +2681,19 @@ async def change_current_password(
         )
         await session.commit()
         raise HTTPException(status_code=400, detail="OTP is incorrect.")
+    await session.execute(
+        text("UPDATE password_reset_tokens SET used_at = :used_at WHERE id = :id AND used_at IS NULL"),
+        {"used_at": now, "id": token["id"]},
+    )
+    await session.commit()
+    validate_strong_password(body.new_password)
+    await _ensure_password_not_recently_used(session, table, user_id, body.new_password, str(row["password"] or ""))
     hashed_password = hash_password(body.new_password)
     await session.execute(
         text(f"UPDATE {table} SET password = :password, must_change_password = 0, active_session_id = NULL WHERE id = :id"),
         {"password": hashed_password, "id": user_id},
     )
     await _remember_password_hash(session, table, user_id, hashed_password)
-    await session.execute(
-        text(
-            """
-            UPDATE password_reset_tokens
-            SET used_at = :used_at
-            WHERE account_table = :account_table AND account_id = :account_id AND purpose = 'password_change' AND used_at IS NULL
-            """
-        ),
-        {"used_at": now, "account_table": table, "account_id": str(user_id)},
-    )
     await write_audit_log(
         session,
         current_user,
@@ -2412,7 +2725,7 @@ async def update_current_profile_name(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> User:
-    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    payload = decode_access_token(credentials.credentials)
     table, user_id = _token_table_from_payload(payload)
     if not table or not user_id:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
@@ -2451,7 +2764,7 @@ async def request_change_username_otp(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_async_session),
 ) -> Dict[str, str]:
-    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    payload = decode_access_token(credentials.credentials)
     table, user_id = _token_table_from_payload(payload)
     if not table or not user_id:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
@@ -2505,7 +2818,7 @@ async def change_current_username(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
-    payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore[arg-type]
+    payload = decode_access_token(credentials.credentials)
     table, user_id = _token_table_from_payload(payload)
     if not table or not user_id:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
@@ -2810,6 +3123,8 @@ async def create_srp_credential(
         raise HTTPException(status_code=403, detail="Admins only")
     if data.name not in SRP_ALLOWED_NAMES:
         raise HTTPException(status_code=400, detail="Invalid SRP name")
+    validate_strong_password(data.password)
+    await ensure_auth_security_columns(session)
     hashed_password = hash_password(data.password)
     existing_result = await session.execute(
         text("SELECT id, email, name, phone, password FROM srp WHERE name = :name LIMIT 1"),
@@ -2817,24 +3132,27 @@ async def create_srp_credential(
     )
     existing = existing_result.mappings().first()
     if existing:
+        await _ensure_password_not_recently_used(session, "srp", existing["id"], data.password, str(existing["password"] or ""))
         await session.execute(
-            text("UPDATE srp SET email = :email, phone = :phone, password = :password WHERE id = :id"),
+            text("UPDATE srp SET email = :email, phone = :phone, password = :password, must_change_password = 1, active_session_id = NULL WHERE id = :id"),
             {"email": data.email, "phone": data.phone or existing["phone"], "password": hashed_password, "id": existing["id"]},
         )
+        await _remember_password_hash(session, "srp", existing["id"], hashed_password)
         await session.commit()
         return AdminCredentialEntry(
             scope="srp", id=str(existing["id"]), name=str(existing["name"]),
-            email=data.email, password="••••••••", role="srp",
+            email=data.email, role="srp",
         )
     new_id = str(uuid.uuid4())
     await session.execute(
-        text("INSERT INTO srp (id, email, name, phone, password, role, created_at) VALUES (:id, :email, :name, :phone, :password, 'srp', :created_at)"),
+        text("INSERT INTO srp (id, email, name, phone, password, role, created_at, must_change_password, active_session_id) VALUES (:id, :email, :name, :phone, :password, 'srp', :created_at, 1, NULL)"),
         {"id": new_id, "email": data.email, "name": data.name, "phone": data.phone or "", "password": hashed_password, "created_at": datetime.utcnow()},
     )
+    await _remember_password_hash(session, "srp", new_id, hashed_password)
     await session.commit()
     return AdminCredentialEntry(
         scope="srp", id=new_id, name=data.name,
-        email=data.email, password="••••••••", role="srp",
+        email=data.email, role="srp",
     )
 
 
@@ -2847,7 +3165,7 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
         address=c.address,
         state=c.state,
         complainant_email=c.complainant_email,
-        supporting_docs=[_normalize_media_url(item) for item in _decode_media_field(c.supporting_docs)],
+        supporting_docs=[_secure_complaint_document_url(item) for item in _decode_media_field(c.supporting_docs)],
         complaint_type=str(c.complaint_type), description=str(c.description),
         location=str(c.location), station=str(c.station),
         incident_date=str(c.incident_date),
@@ -2858,8 +3176,58 @@ def _complaint_to_schema(c: ComplaintORM) -> Complaint:
     )
 
 
+def _secure_complaint_document_url(item: str) -> str:
+    file_name = Path(str(item or "")).name
+    if not file_name:
+        return ""
+    return f"/api/complaint-documents/{file_name}"
 
-@api_router.post("/complaints", response_model=Complaint)
+
+def _stored_complaint_document_path(file_name: str) -> Path:
+    clean_name = Path(str(file_name or "")).name
+    if not clean_name or clean_name != file_name:
+        raise HTTPException(status_code=400, detail="Invalid document name")
+    path = (ROOT_DIR / "complaint_uploads" / clean_name).resolve()
+    uploads_root = (ROOT_DIR / "complaint_uploads").resolve()
+    if uploads_root not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="Document not found")
+    return path
+
+
+@api_router.get("/complaint-documents/{file_name}")
+async def get_complaint_document(
+    file_name: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> FileResponse:
+    path = _stored_complaint_document_path(file_name)
+    expected_legacy_path = f"/complaint_uploads/{path.name}"
+    expected_secure_path = f"/api/complaint-documents/{path.name}"
+    await ensure_complaints_table_columns(session)
+    result = await session.execute(select(ComplaintORM))
+    allowed = False
+    for complaint in result.scalars().all():
+        stored_docs = _decode_media_field(complaint.supporting_docs)
+        if any(Path(str(doc or "")).name == path.name or str(doc or "") in {expected_legacy_path, expected_secure_path} for doc in stored_docs):
+            if _can_view_complaint(current_user, complaint):
+                allowed = True
+                break
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return FileResponse(
+        path,
+        media_type="application/octet-stream",
+        filename=path.name,
+        headers={
+            "Content-Disposition": f'attachment; filename="{path.name}"',
+            "Cache-Control": "no-store, no-cache, must-revalidate, private",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+
+@api_router.post("/complaints", response_model=ComplaintReceipt)
 async def create_complaint(
     request: Request,
     complainant_name: str = Form(...),
@@ -2875,38 +3243,42 @@ async def create_complaint(
     captcha_answer: str = Form(...),
     supporting_docs: List[UploadFile] = File(default=[]),
     session: AsyncSession = Depends(get_async_session),
-) -> Complaint:
+) -> ComplaintReceipt:
+    await _reject_unexpected_form_fields(request, PUBLIC_COMPLAINT_FORM_FIELDS)
     enforce_public_submission_rate_limit(request, "complaints")
     verify_captcha(captcha_id, captcha_answer)
     station = "Unassigned"
     incident_date = _validate_incident_date(incident_date)
-    normalized_phone = re.sub(r"\D+", "", str(complainant_phone or ""))
-    if not re.fullmatch(r"\d{10}", normalized_phone):
-        raise HTTPException(status_code=400, detail="Phone number must be exactly 10 digits")
-    normalized_email = str(complainant_email or "").strip()
-    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", normalized_email):
-        raise HTTPException(status_code=400, detail="Please enter a valid email address")
+    complaint_type = _validate_public_complaint_type(complaint_type)
+    clean_name = _validate_public_name(complainant_name)
+    normalized_phone = _validate_public_phone(complainant_phone)
+    normalized_email = _validate_public_email(complainant_email)
+    clean_address = _normalize_public_text_field(address, "Address", *PUBLIC_TEXT_LIMITS["address"])
+    clean_state = _normalize_public_text_field(state, "State", *PUBLIC_TEXT_LIMITS["state"]) if state else None
+    clean_description = _normalize_public_text_field(description, "Description", *PUBLIC_TEXT_LIMITS["description"])
+    clean_location = _normalize_public_text_field(location, "Location", *PUBLIC_TEXT_LIMITS["location"])
     await ensure_complaints_table_columns(session)
     complaint_uploads_dir = ROOT_DIR / "complaint_uploads"
     complaint_uploads_dir.mkdir(parents=True, exist_ok=True)
     supporting_doc_paths: List[str] = []
-    for supporting_doc in list(supporting_docs or []):
-        if not supporting_doc or not supporting_doc.filename:
-            continue
+    upload_items = [item for item in list(supporting_docs or []) if item and item.filename]
+    if len(upload_items) > MAX_UPLOAD_FILES_PER_REQUEST:
+        raise HTTPException(status_code=400, detail=f"Upload up to {MAX_UPLOAD_FILES_PER_REQUEST} files only")
+    for supporting_doc in upload_items:
         content, ext = await _read_validated_upload(supporting_doc, DOC_MIME_EXTENSIONS, "document")
         supporting_docs_name = f"{uuid.uuid4().hex}{ext}"
         dest = complaint_uploads_dir / supporting_docs_name
         dest.write_bytes(content)
-        supporting_doc_paths.append(f"/complaint_uploads/{supporting_docs_name}")
+        supporting_doc_paths.append(f"/api/complaint-documents/{supporting_docs_name}")
     complaint_orm = ComplaintORM(
         id=str(uuid.uuid4()), user_id="anonymous",
-        complainant_name=complainant_name,
+        complainant_name=clean_name,
         complainant_phone=normalized_phone,
         complainant_email=normalized_email,
-        address=address,
-        state=state,
-        complaint_type=complaint_type, description=description,
-        location=(location or "Not Provided"), station=station,
+        address=clean_address,
+        state=clean_state,
+        complaint_type=complaint_type, description=clean_description,
+        location=clean_location, station=station,
         incident_date=incident_date, evidence_urls="",
         supporting_docs=_encode_media_field(supporting_doc_paths),
         status="pending", rejection_reason=None,
@@ -2939,15 +3311,15 @@ async def create_complaint(
         complaint_type=complaint_type,
         station=station,
         incident_date=incident_date,
-        complainant_name=complainant_name,
+        complainant_name=clean_name,
         complainant_phone=normalized_phone,
-        address=address,
+        address=clean_address,
         complainant_email=normalized_email,
-        location=location,
-        description=description,
+        location=clean_location,
+        description=clean_description,
     )
 
-    return _complaint_to_schema(complaint_orm)
+    return ComplaintReceipt(tracking_number=str(complaint_orm.tracking_number))
 
 
 @api_router.get("/complaints", response_model=List[Complaint])
@@ -2956,7 +3328,29 @@ async def get_complaints(
     session: AsyncSession = Depends(get_async_session),
 ) -> List[Complaint]:
     await ensure_complaints_table_columns(session)
-    stmt = select(ComplaintORM) if current_user.role != "public" else select(ComplaintORM).where(ComplaintORM.user_id == current_user.id)
+    if current_user.role == "admin" or _is_dgp_user(current_user):
+        stmt = select(ComplaintORM)
+    elif current_user.role == "public":
+        stmt = select(ComplaintORM).where(ComplaintORM.user_id == current_user.id)
+    elif current_user.role in ("police", "station"):
+        stmt = select(ComplaintORM).where(ComplaintORM.station == current_user.name)
+    elif current_user.role == "irp":
+        managed = _managed_station_names_for_irp(current_user)
+        if not managed:
+            raise HTTPException(status_code=403, detail="No IRP circle mapping found for this account")
+        stmt = select(ComplaintORM).where(ComplaintORM.station.in_(managed))
+    elif current_user.role == "dsrp":
+        managed = _managed_station_names_for_dsrp(current_user)
+        if not managed:
+            raise HTTPException(status_code=403, detail="No DSRP subdivision mapping found for this account")
+        stmt = select(ComplaintORM).where(ComplaintORM.station.in_(managed))
+    elif current_user.role == "srp":
+        managed = _managed_station_names_for_srp(current_user)
+        if not managed:
+            raise HTTPException(status_code=403, detail="No SRP division mapping found for this account")
+        stmt = select(ComplaintORM).where(ComplaintORM.station.in_(managed))
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
     result = await session.execute(stmt)
     return [_complaint_to_schema(c) for c in result.scalars().all()]
 
@@ -2973,7 +3367,7 @@ async def get_complaint(
     complaint = result.scalar_one_or_none()
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
-    if current_user.role == "public" and complaint.user_id != current_user.id:
+    if not _can_view_complaint(current_user, complaint):
         raise HTTPException(status_code=403, detail="Access denied")
     return _complaint_to_schema(complaint)
 
@@ -3034,6 +3428,13 @@ async def assign_complaint_to_station(
     station_name = assign_data.station.strip()
     if not station_name:
         raise HTTPException(status_code=400, detail="Station name is required")
+    station_result = await session.execute(
+        select(StationORM).where(func.lower(StationORM.name) == station_name.lower())
+    )
+    station_obj = station_result.scalar_one_or_none()
+    if station_obj is None:
+        raise HTTPException(status_code=400, detail="Select a valid station")
+    station_name = str(station_obj.name)
     result = await session.execute(select(ComplaintORM).where(ComplaintORM.id == complaint_id))
     complaint = result.scalar_one_or_none()
     if not complaint:
@@ -3056,10 +3457,6 @@ async def assign_complaint_to_station(
 
     # Send email alert to the assigned station
     try:
-        station_result = await session.execute(
-            select(StationORM).where(StationORM.name == station_name)
-        )
-        station_obj = station_result.scalar_one_or_none()
         if station_obj and station_obj.email and all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
             def _send_station_assignment_email(to_email: str, station: str, tracking: str, complaint_type: str, description: str, location: str, incident_date: str) -> None:
                 try:
@@ -3173,8 +3570,8 @@ async def assign_complaint_to_station(
                 args=(
                     user_email,
                     str(complaint.complainant_name or ""),
-                    str(complainant_phone or ""),
-                    str(complainant_address or ""),
+                    str(complaint.complainant_phone or ""),
+                    str(complaint.address or ""),
                     str(complaint.tracking_number or ""),
                     station_name,
                     station_phone,
@@ -3572,20 +3969,6 @@ async def get_dgp_complaints(
 STATION_STOPWORDS = {"rps", "rpop", "rs", "sirp", "hc", "grp", "sub", "division", "circle", "port"}
 
 
-def build_station_password(name: str) -> str:
-    """Return bcrypt-hashed station password derived from name."""
-    cleaned = re.sub(r"[^A-Za-z0-9]", "", (name or "station").lower())
-    if not cleaned:
-        cleaned = "station"
-    plain = f"#{cleaned[:1].upper()}{cleaned[1:]}@2026"
-    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
-def _plain_password(stored: str, scope: str, name: str) -> str:
-    """Never return a real password. Return a masked placeholder for the UI."""
-    return "••••••••"
-
-
 def _credential_table_for_scope(scope: str) -> Optional[str]:
     return {
         "admin": "admin",
@@ -3619,17 +4002,22 @@ async def get_admin_credentials(
     irp_data = irp_result2.mappings().all()
     station_result2 = await session.execute(text("SELECT id, email, name, phone, password, is_active FROM stations"))
     station_data = station_result2.mappings().all()
-    admin_rows = [AdminCredentialEntry(scope="admin", id=str(a["id"]), name=str(a["name"]), email=str(a["email"]), phone=str(a["phone"] or "N/A"), password=_plain_password(str(a["password"]), "admin", str(a["name"])), role="admin", is_active=int(a["is_active"] if a["is_active"] is not None else 1) == 1) for a in admins]
-    officer_rows = [AdminCredentialEntry(scope="officer", id=str(o["id"]), name=str(o["name"]), email=str(o["email"]), phone=str(o["phone"] or "N/A"), password=_plain_password(str(o["password"]), "dgp", str(o["name"])), role="dgp", is_active=int(o["is_active"] if o["is_active"] is not None else 1) == 1) for o in officers]
-    srp_rows = [AdminCredentialEntry(scope="srp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password=_plain_password(str(r["password"]), "srp", str(r["name"])), role="srp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in srp_data]
-    dsrp_rows = [AdminCredentialEntry(scope="dsrp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password=_plain_password(str(r["password"]), "dsrp", str(r["name"])), role="dsrp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in dsrp_data]
-    irp_rows = [AdminCredentialEntry(scope="irp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password=_plain_password(str(r["password"]), "irp", str(r["name"])), role="irp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in irp_data]
-    station_rows = [AdminCredentialEntry(scope="station", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), password="••••••••", role="station", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in station_data]
+    admin_rows = [AdminCredentialEntry(scope="admin", id=str(a["id"]), name=str(a["name"]), email=str(a["email"]), phone=str(a["phone"] or "N/A"), role="admin", is_active=int(a["is_active"] if a["is_active"] is not None else 1) == 1) for a in admins]
+    officer_rows = [AdminCredentialEntry(scope="officer", id=str(o["id"]), name=str(o["name"]), email=str(o["email"]), phone=str(o["phone"] or "N/A"), role="dgp", is_active=int(o["is_active"] if o["is_active"] is not None else 1) == 1) for o in officers]
+    srp_rows = [AdminCredentialEntry(scope="srp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), role="srp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in srp_data]
+    dsrp_rows = [AdminCredentialEntry(scope="dsrp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), role="dsrp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in dsrp_data]
+    irp_rows = [AdminCredentialEntry(scope="irp", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), role="irp", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in irp_data]
+    station_rows = [AdminCredentialEntry(scope="station", id=str(r["id"]), name=str(r["name"]), email=str(r["email"]), phone=str(r["phone"] or "N/A"), role="station", is_active=int(r["is_active"] if r["is_active"] is not None else 1) == 1) for r in station_data]
     return admin_rows + officer_rows + srp_rows + dsrp_rows + irp_rows + station_rows
 
 
 @api_router.get("/organization-credentials")
-async def get_public_organization_credentials(session: AsyncSession = Depends(get_async_session)) -> Any:
+async def get_public_organization_credentials(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admins only")
     await ensure_auth_security_columns(session)
     credential_sources = (
         ("srp", "srp"),
@@ -3770,7 +4158,6 @@ async def create_admin_credential(
         id=entry_id,
         name=new_name,
         email=new_email,
-        password="••••••••",
         role=role,
         must_change_password=True,
         is_active=True,
@@ -3820,6 +4207,13 @@ async def update_credential_password(
         raise HTTPException(status_code=403, detail="Admins only")
     plain_password = body.new_password
     validate_strong_password(plain_password)
+    admin_result = await session.execute(
+        text("SELECT password FROM admin WHERE id = :id LIMIT 1"),
+        {"id": current_user.id},
+    )
+    admin_account = admin_result.mappings().first()
+    if not admin_account or not verify_password(body.admin_password, str(admin_account["password"] or "")):
+        raise HTTPException(status_code=401, detail="Admin re-authentication failed")
     table = _credential_table_for_scope(scope)
     if table is None:
         raise HTTPException(status_code=400, detail="Invalid scope")
@@ -4167,28 +4561,20 @@ async def reply_to_help_request(
         )
 
 
-@api_router.post("/help-requests", response_model=HelpRequest)
+@api_router.post("/help-requests", response_model=HelpRequestReceipt)
 async def create_help_request(
     request_data: HelpRequestCreate,
     request: Request,
     session: AsyncSession = Depends(get_async_session),
-) -> HelpRequest:
+) -> HelpRequestReceipt:
     enforce_public_submission_rate_limit(request, "help-requests")
     verify_captcha(request_data.captcha_id, request_data.captcha_answer)
-    name = str(request_data.name or "").strip()
-    phone = re.sub(r"\D+", "", str(request_data.phone or ""))
-    email = str(request_data.email or "").strip()
-    message = str(request_data.message or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Name is required")
-    if not re.fullmatch(r"[6-9]\d{9}", phone):
-        raise HTTPException(status_code=400, detail="Enter a valid 10-digit Indian mobile number")
-    if email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
-        raise HTTPException(status_code=400, detail="Enter a valid email address")
-    if not message:
-        raise HTTPException(status_code=400, detail="Message is required")
-    if len(message) > 5000:
-        raise HTTPException(status_code=400, detail="Message is too long")
+    name = _normalize_public_text_field(request_data.name, "Name", *HELP_REQUEST_TEXT_LIMITS["name"])
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9 .'-]*", name):
+        raise HTTPException(status_code=400, detail="Name contains invalid characters")
+    phone = _validate_public_phone(request_data.phone)
+    email = _validate_public_email(request_data.email)
+    message = _normalize_public_text_field(request_data.message, "Message", *HELP_REQUEST_TEXT_LIMITS["message"])
     orm = HelpRequestORM(
         id=str(uuid.uuid4()), name=name, phone=phone,
         email=email, message=message, status="pending",
@@ -4197,7 +4583,7 @@ async def create_help_request(
     session.add(orm)
     await session.commit()
     await session.refresh(orm)
-    return HelpRequest(**orm.__dict__)
+    return HelpRequestReceipt(id=str(orm.id))
 
 
 # ==================== GALLERY / STATIC CONTENT ROUTES ====================
@@ -4230,8 +4616,9 @@ async def update_page_content(page_key: str, request: Request, current_user: Use
         with open(content_path, "w", encoding="utf-8") as f:
             json.dump(all_content, f, ensure_ascii=False, indent=2)
         return JSONResponse(content={"content": all_content[page_key]})
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to update page content: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to update page content: %s", exc)
+        return JSONResponse(content={"detail": "Failed to update page content."}, status_code=500)
 
 @api_router.post("/admin/news/upload")
 async def admin_upload_news_media(file: UploadFile = File(...), current_user: User = Depends(get_current_user)) -> Any:
@@ -4279,8 +4666,9 @@ async def admin_update_gallery_item(item_id: str, request: Request, current_user
         return JSONResponse(content=items[target_idx])
     except HTTPException:
         raise
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to update gallery item: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to update gallery item: %s", exc)
+        return JSONResponse(content={"detail": "Failed to update gallery item."}, status_code=500)
 
 
 @api_router.delete("/admin/gallery-items/{item_id}")
@@ -4306,8 +4694,9 @@ async def admin_delete_gallery_item(item_id: str, current_user: User = Depends(g
         with open(items_path, "w", encoding="utf-8") as f:
             json.dump(items, f, ensure_ascii=False, indent=2)
         return {"message": "Gallery item removed"}
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to remove gallery item: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to remove gallery item: %s", exc)
+        return JSONResponse(content={"detail": "Failed to remove gallery item."}, status_code=500)
 
 
 @api_router.delete("/admin/gallery/upload/{file_name}")
@@ -4352,8 +4741,9 @@ async def admin_add_gallery_item(request: Request, current_user: User = Depends(
         with open(items_path, "w", encoding="utf-8") as f:
             json.dump(items, f, ensure_ascii=False, indent=2)
         return JSONResponse(content=data)
-    except Exception as e:
-        return JSONResponse(content={"detail": f"Failed to add gallery item: {e}"}, status_code=500)
+    except Exception as exc:
+        logger.exception("Failed to add gallery item: %s", exc)
+        return JSONResponse(content={"detail": "Failed to add gallery item."}, status_code=500)
 
 
 # ==================== CHAT ENDPOINT ====================

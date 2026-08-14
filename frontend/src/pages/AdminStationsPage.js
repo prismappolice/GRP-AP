@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import api from '@/lib/api';
+import api, { getAuthToken } from '@/lib/api';
 import { toast } from 'sonner';
 import { Users, Shield, Award, Network, Building2, Search, Plus, X } from 'lucide-react';
 import { stations } from '@/data/stations';
@@ -47,6 +47,19 @@ const emptyNewUser = {
   subdivision: '',
   circle: '',
   stationName: '',
+};
+
+const getPasswordPolicyError = (value = '') => {
+  if (value.length < 12) return 'Password must be at least 12 characters';
+  if (/\s/.test(value)) return 'Password cannot contain spaces';
+  const checks = [
+    [/[A-Z]/, 'uppercase letter'],
+    [/[a-z]/, 'lowercase letter'],
+    [/[0-9]/, 'number'],
+    [/[^A-Za-z0-9]/, 'special character'],
+  ];
+  const missing = checks.filter(([pattern]) => !pattern.test(value)).map(([, label]) => label);
+  return missing.length ? `Password must include ${missing.join(', ')}` : '';
 };
 
 const hierarchyRoleLabels = {
@@ -347,7 +360,7 @@ const flattenHierarchyRows = (division, credentialIndex) => {
 
 export const AdminStationsPage = () => {
   const navigate = useNavigate();
-  const isAdmin = typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true';
+  const isAdmin = Boolean(getAuthToken() && typeof window !== 'undefined' && sessionStorage.getItem('isAdmin') === 'true');
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -577,6 +590,11 @@ export const AdminStationsPage = () => {
     const superiorRoles = new Set(['dgp']);
     const scope = superiorRoles.has(newUser.accountType) ? 'officer' : newUser.accountType;
     const role = superiorRoles.has(newUser.accountType) ? 'dgp' : undefined;
+    const passwordError = getPasswordPolicyError(newUser.password);
+    if (passwordError) {
+      toast.error(passwordError);
+      return;
+    }
     setCreateLoading(true);
     try {
       await api.post('/admin/credentials', {

@@ -11,6 +11,41 @@ import api, { latestNewsAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 const isVideoUrl = (url) => /\.(mp4|webm|ogg|mov|avi|mkv)(\?.*)?$/i.test(url || '');
+const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_MEDIA_TYPES = {
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/gif': ['.gif'],
+  'image/webp': ['.webp'],
+  'video/mp4': ['.mp4'],
+  'video/webm': ['.webm'],
+  'video/ogg': ['.ogv', '.ogg'],
+  'video/quicktime': ['.mov'],
+  'video/x-msvideo': ['.avi'],
+};
+const BLOCKED_UPLOAD_EXTENSIONS = ['.html', '.htm', '.php', '.phtml', '.phar', '.jsp', '.asp', '.aspx', '.js', '.svg', '.exe', '.sh', '.bat', '.cmd'];
+const MEDIA_ACCEPT = '.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.ogv,.ogg,.mov,.avi';
+const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.gif,.webp';
+
+const validateMediaFile = (file, imageOnly = false) => {
+  const lowerName = String(file?.name || '').toLowerCase();
+  const suffixes = lowerName.match(/\.[a-z0-9]+/g) || [];
+  const ext = suffixes[suffixes.length - 1] || '';
+  if (!ext || suffixes.some((suffix) => BLOCKED_UPLOAD_EXTENSIONS.includes(suffix))) {
+    return 'Executable or active-content files are not allowed';
+  }
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    return 'Each file must be 5 MB or less';
+  }
+  if (imageOnly && !String(file.type || '').startsWith('image/')) {
+    return 'Only approved image files are allowed';
+  }
+  const allowedExts = ALLOWED_MEDIA_TYPES[file.type] || [];
+  if (!allowedExts.includes(ext)) {
+    return imageOnly ? 'Only JPG, PNG, GIF, or WEBP images are allowed' : 'Only approved image or video files are allowed';
+  }
+  return '';
+};
 
 const formatGalleryDateTime = (item) => {
   if (item?.created_at) {
@@ -70,6 +105,12 @@ const AdminGalleryPage = () => {
   const handleEditMediaUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const invalidReason = validateMediaFile(file);
+    if (invalidReason) {
+      toast.error(invalidReason);
+      e.target.value = '';
+      return;
+    }
     const isVideo = file.type.startsWith('video/');
     setEditMediaType(isVideo ? 'video' : 'image');
     setEditMediaPreview(URL.createObjectURL(file));
@@ -123,6 +164,12 @@ const AdminGalleryPage = () => {
   const handleNewsMediaUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const invalidReason = validateMediaFile(file);
+    if (invalidReason) {
+      toast.error(invalidReason);
+      e.target.value = '';
+      return;
+    }
     const isVideo = file.type.startsWith('video/');
     setNewsMediaType(isVideo ? 'video' : 'image');
     setNewsMediaPreview(URL.createObjectURL(file));
@@ -196,6 +243,12 @@ const AdminGalleryPage = () => {
   const handleImageChange = (e) => {
     const newFiles = Array.from(e.target.files || []);
     if (!newFiles.length) return;
+    const invalidReason = newFiles.map((file) => validateMediaFile(file, true)).find(Boolean);
+    if (invalidReason) {
+      toast.error(invalidReason);
+      e.target.value = '';
+      return;
+    }
     setSelectedFiles((prev) => [...prev, ...newFiles]);
     setPreviews((prev) => [...prev, ...newFiles.map((file) => URL.createObjectURL(file))]);
     // reset input so same file can be re-added if needed
@@ -374,7 +427,7 @@ const AdminGalleryPage = () => {
                   <input
                     id="gallery-media-upload"
                     type="file"
-                    accept="image/*"
+                    accept={IMAGE_ACCEPT}
                     multiple
                     onChange={handleImageChange}
                     className="hidden"
@@ -485,7 +538,7 @@ const AdminGalleryPage = () => {
                   <input
                     id="news-media-upload"
                     type="file"
-                    accept="image/*,video/*"
+                    accept={MEDIA_ACCEPT}
                     onChange={handleNewsMediaUpload}
                     className="hidden"
                   />
@@ -644,7 +697,7 @@ const AdminGalleryPage = () => {
                 <div className="md:col-span-2">
                   <label className="block font-semibold mb-1 text-sm">Media (Image / Video)</label>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <input id="edit-media-upload" type="file" accept="image/*,video/*" onChange={handleEditMediaUpload} className="hidden" />
+                    <input id="edit-media-upload" type="file" accept={MEDIA_ACCEPT} onChange={handleEditMediaUpload} className="hidden" />
                     <label htmlFor="edit-media-upload" className="inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded font-semibold text-sm text-white bg-[#D97706] hover:bg-[#B45309]">
                       {editMediaUploading ? 'Uploading...' : 'Change Media'}
                     </label>

@@ -75,19 +75,16 @@ const downloadAllAsPdf = async (mediaUrls, trackingNumber) => {
         const { width, height } = img.scale(1);
         const page = mergedPdf.addPage([width, height]);
         page.drawImage(img, { x: 0, y: 0, width, height });
-      } else if (isPdf(url)) {
-        const blob = await fetchFileWithAuth(normalized);
-        const bytes = await blob.arrayBuffer();
-        const srcDoc = await PDFDocument.load(bytes);
-        const copied = await mergedPdf.copyPages(srcDoc, srcDoc.getPageIndices());
-        copied.forEach((p) => mergedPdf.addPage(p));
       }
-      // videos and other types are skipped
+      // PDFs, videos, and other files are intentionally skipped.
     } catch {
       // skip problematic files silently
     }
   }
 
+  if (mergedPdf.getPageCount() === 0) {
+    return;
+  }
   const pdfBytes = await mergedPdf.save();
   const blob = new Blob([pdfBytes], { type: 'application/pdf' });
   const blobUrl = URL.createObjectURL(blob);
@@ -195,14 +192,15 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
             ) : isImage(activeUrl) ? (
               <img key={activeUrl} src={normalizedActiveUrl} alt={`document-${mediaIndex + 1}`} className="w-full max-h-[62vh] object-contain" />
             ) : isPdf(activeUrl) ? (
-              <iframe key={activeUrl} src={normalizedActiveUrl} title={`document-${mediaIndex + 1}`} className="w-full h-[62vh] border-0" />
+              <div className="flex flex-col items-center justify-center gap-3 py-10 text-[#475569] px-4 text-center">
+                <FileText className="w-12 h-12 text-[#2563EB]" />
+                <p className="text-sm font-semibold text-[#0F172A]">PDF preview is disabled for security.</p>
+                <p className="text-xs break-all">{activeUrl.split('/').pop()}</p>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 py-8 text-[#475569] px-4 text-center">
                 <FileText className="w-12 h-12 text-[#2563EB]" />
                 <p className="text-sm break-all">{activeUrl.split('/').pop()}</p>
-                <a href={normalizedActiveUrl} target="_blank" rel="noopener noreferrer" className="text-[#2563EB] underline text-sm">
-                  Open file in new tab
-                </a>
               </div>
             )}
 
@@ -264,7 +262,7 @@ export const SupportingDocsModal = ({ title = 'Supporting Documents', docs, trac
                 }}
               >
                 <Download className="w-4 h-4 mr-2" />
-                {pdfLoading ? 'Preparing PDF...' : 'Download All as PDF'}
+                {pdfLoading ? 'Preparing PDF...' : 'Download Images as PDF'}
               </Button>
             )}
             <Button

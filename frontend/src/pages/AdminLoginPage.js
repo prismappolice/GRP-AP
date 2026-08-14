@@ -108,7 +108,8 @@ export default function AdminLoginPage() {
   const [loginFieldError, setLoginFieldError] = useState('');
   const [rememberMe, setRememberMe] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('admin_remember') === 'true';
+      localStorage.removeItem('admin_remember');
+      localStorage.removeItem('user_remember');
     }
     return false;
   });
@@ -184,14 +185,13 @@ export default function AdminLoginPage() {
       }
 
       if (data?.portal_role === 'admin') {
-        localStorage.setItem('isAdmin', 'true');
         loginAdmin(data.access_token, {
           name: data.name,
           email: data.email,
           last_login_at: data.user?.last_login_at,
           must_change_password: data.user?.must_change_password,
         });
-        if (rememberMe) localStorage.setItem('admin_remember', 'true');
+        localStorage.removeItem('admin_remember');
         toast.success('Admin login successful!');
         setFailedAttempts(0);
         navigate('/admin-dashboard', { replace: true });
@@ -201,7 +201,7 @@ export default function AdminLoginPage() {
         const roleMap = { station: 'station', srp: 'srp', dsrp: 'dsrp', irp: 'irp', dgp: 'dgp', sirp: 'station' };
         const normalisedRole = roleMap[officerRole] || 'police';
         loginOfficerViaAdmin(data.access_token, { ...data.user, role: normalisedRole });
-        if (rememberMe) localStorage.setItem('user_remember', 'true');
+        localStorage.removeItem('user_remember');
         toast.success('Officer login successful!');
         setFailedAttempts(0);
         const roleToDashboard = {
@@ -420,15 +420,18 @@ export default function AdminLoginPage() {
             {!resetId && (
               <div>
                 <Label htmlFor="reset-captcha" className="text-sm font-semibold text-[#0F172A]">
-                  Security Check {resetCaptcha?.question ? `(${resetCaptcha.question})` : ''}
+                  Security Check
                 </Label>
+                {resetCaptcha?.image && (
+                  <img src={resetCaptcha.image} alt="Security check" className="mt-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+                )}
                 <Input
                   id="reset-captcha"
                   inputMode="numeric"
                   placeholder="Answer"
                   className="mt-2 h-12"
                   value={resetCaptchaAnswer}
-                  onChange={(e) => setResetCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  onChange={(e) => setResetCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 5))}
                   required
                 />
               </div>
@@ -542,15 +545,18 @@ export default function AdminLoginPage() {
             </div>
             <div>
               <Label htmlFor="login-captcha" className="text-sm font-semibold text-[#0F172A]">
-                Security Check {loginCaptcha?.question ? `(${loginCaptcha.question})` : ''}
+                Security Check
               </Label>
+              {loginCaptcha?.image && (
+                <img src={loginCaptcha.image} alt="Security check" className="mt-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+              )}
               <Input
                 id="login-captcha"
                 inputMode="numeric"
                 placeholder="Answer"
                 className="mt-2 h-12"
                 value={loginCaptchaAnswer}
-                onChange={(e) => setLoginCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onChange={(e) => setLoginCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 5))}
                 required
               />
             </div>

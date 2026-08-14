@@ -8,6 +8,18 @@ import { HelpCircle } from 'lucide-react';
 import { helpAPI, securityAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
+const UNSAFE_TEXT_REGEX = /[<>]|javascript:|vbscript:|data:text\/html|onerror\s*=|onload\s*=/i;
+
+const normalizeText = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+
+const validateTextField = (value, label, minLength, maxLength) => {
+  const normalized = normalizeText(value);
+  if (normalized.length < minLength) return `${label} must be at least ${minLength} characters.`;
+  if (normalized.length > maxLength) return `${label} must be ${maxLength} characters or less.`;
+  if (UNSAFE_TEXT_REGEX.test(normalized)) return `${label} contains unsafe content.`;
+  return '';
+};
+
 export const HelpDeskPage = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', message: '' });
@@ -34,15 +46,27 @@ export const HelpDeskPage = () => {
     const newErrors = {};
     const phoneRegex = /^[6-9]\d{9}$/;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const nameError = validateTextField(formData.name, 'Name', 2, 100);
+    const messageError = validateTextField(formData.message, 'Message', 10, 2000);
+    if (nameError) {
+      newErrors.name = nameError;
+    } else if (!/^[A-Za-z][A-Za-z0-9 .'-]*$/.test(normalizeText(formData.name))) {
+      newErrors.name = 'Name contains invalid characters.';
+    }
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required.';
     } else if (!phoneRegex.test(formData.phone.trim())) {
       newErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
     }
-    if (formData.email.trim() && !emailRegex.test(formData.email.trim())) {
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required.';
+    } else if (!emailRegex.test(formData.email.trim())) {
       newErrors.email = 'Enter a valid email address.';
     }
-    if (!captchaAnswer.trim()) {
+    if (messageError) newErrors.message = messageError;
+    if (!captcha?.captcha_id) {
+      newErrors.captcha = 'Security check could not be loaded. Please refresh and try again.';
+    } else if (!captchaAnswer.trim()) {
       newErrors.captcha = 'Security check is required.';
     }
     return newErrors;
@@ -59,7 +83,10 @@ export const HelpDeskPage = () => {
     setLoading(true);
     try {
       await helpAPI.create({
-        ...formData,
+        name: normalizeText(formData.name),
+        phone: formData.phone.replace(/\D/g, ''),
+        email: formData.email.trim().toLowerCase(),
+        message: normalizeText(formData.message),
         captcha_id: captcha?.captcha_id || '',
         captcha_answer: captchaAnswer,
       });
@@ -88,7 +115,18 @@ export const HelpDeskPage = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <Label>Name *</Label>
-              <Input className="mt-2" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required data-testid="name-input" />
+              <Input
+                className={`mt-2 ${errors.name ? 'border-red-500 focus:border-red-500' : ''}`}
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({...formData, name: e.target.value});
+                  if (errors.name) setErrors(prev => ({ ...prev, name: undefined }));
+                }}
+                maxLength={100}
+                required
+                data-testid="name-input"
+              />
+              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
             </div>
             <div>
               <Label>Phone *</Label>
@@ -97,16 +135,18 @@ export const HelpDeskPage = () => {
                 className={`mt-2 ${errors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
                 value={formData.phone}
                 onChange={(e) => {
-                  setFormData({...formData, phone: e.target.value});
+                  setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)});
                   if (errors.phone) setErrors(prev => ({ ...prev, phone: undefined }));
                 }}
+                inputMode="numeric"
                 maxLength={10}
+                required
                 data-testid="phone-input"
               />
               {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
             </div>
             <div>
-              <Label>Email</Label>
+              <Label>Email *</Label>
               <Input
                 type="email"
                 className={`mt-2 ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`}
@@ -115,31 +155,48 @@ export const HelpDeskPage = () => {
                   setFormData({...formData, email: e.target.value});
                   if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
                 }}
+                maxLength={254}
+                required
                 data-testid="email-input"
               />
               {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
             <div>
               <Label>Message *</Label>
-              <Textarea className="mt-2 min-h-[150px]" value={formData.message} onChange={(e) => setFormData({...formData, message: e.target.value})} required data-testid="message-textarea" />
+              <Textarea
+                className={`mt-2 min-h-[150px] ${errors.message ? 'border-red-500 focus:border-red-500' : ''}`}
+                value={formData.message}
+                onChange={(e) => {
+                  setFormData({...formData, message: e.target.value});
+                  if (errors.message) setErrors(prev => ({ ...prev, message: undefined }));
+                }}
+                maxLength={2000}
+                required
+                data-testid="message-textarea"
+              />
+              {errors.message && <p className="text-xs text-red-500 mt-1">{errors.message}</p>}
             </div>
             <div>
-              <Label htmlFor="help-captcha">Security Check {captcha?.question ? `(${captcha.question})` : ''} *</Label>
+              <Label htmlFor="help-captcha">Security Check *</Label>
+              {captcha?.image && (
+                <img src={captcha.image} alt="Security check" className="mt-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+              )}
               <Input
                 id="help-captcha"
                 inputMode="numeric"
                 className={`mt-2 ${errors.captcha ? 'border-red-500 focus:border-red-500' : ''}`}
                 value={captchaAnswer}
                 onChange={(e) => {
-                  setCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4));
+                  setCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 5));
                   if (errors.captcha) setErrors(prev => ({ ...prev, captcha: undefined }));
                 }}
                 placeholder={captcha ? 'Enter answer' : 'Loading security check...'}
                 data-testid="captcha-input"
+                required
               />
               {errors.captcha && <p className="text-xs text-red-500 mt-1">{errors.captcha}</p>}
             </div>
-            <Button type="submit" className="w-full bg-[#D97706] hover:bg-[#B45309]" disabled={loading} data-testid="submit-help-button">
+            <Button type="submit" className="w-full bg-[#D97706] hover:bg-[#B45309]" disabled={loading || !captcha} data-testid="submit-help-button">
               {loading ? 'Submitting...' : 'Submit Request'}
             </Button>
           </form>
