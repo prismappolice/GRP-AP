@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, ArrowUpDown, Download, Eye, RefreshCw, Search, ShieldCheck, X, FileText, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { irpAPI, dsrpAPI, srpAPI, dgpAPI } from '@/lib/api';
+import { sanitizeSpreadsheetRows, sanitizeWorksheetCells } from '@/lib/csv';
 import { getOfficerScope, getSRPScopeDetails, getDSRPScopeDetails, getStationHierarchy } from '@/lib/policeScope';
 import { stations } from '@/data/stations';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
@@ -38,7 +39,7 @@ function exportToExcel(filename, rows) {
       return obj;
     }, {})
   );
-  const ws = XLSX.utils.json_to_sheet(data, { header: COMPLAINT_COLS.map(h => h.label) });
+  const ws = sanitizeWorksheetCells(XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: COMPLAINT_COLS.map(h => h.label) }));
   ws['!cols'] = COMPLAINT_COLS.map(h => ({
     wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2
   }));

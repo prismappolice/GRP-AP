@@ -1,0 +1,16 @@
+[Unit]
+Description=GRP AP FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/grp/backend
+EnvironmentFile=/var/www/grp/backend/.env
+ExecStart=/var/www/grp/backend/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8000 --no-server-header --no-date-header
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

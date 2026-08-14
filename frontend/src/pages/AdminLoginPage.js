@@ -9,6 +9,46 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, LoaderCircle } from 'lucide-react';
 
 const LOCKOUT_SECONDS = 120;
+const OTP_EXPIRY_SECONDS = 180;
+const formatOtpCountdown = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return mins + ':' + String(secs).padStart(2, '0');
+};
+
+function OtpResendControl({ resendKey, loading, onResend }) {
+  const [remaining, setRemaining] = useState(OTP_EXPIRY_SECONDS);
+
+  useEffect(() => {
+    setRemaining(OTP_EXPIRY_SECONDS);
+  }, [resendKey]);
+
+  useEffect(() => {
+    if (remaining <= 0) return undefined;
+    const timer = setInterval(() => {
+      setRemaining((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [remaining]);
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-[#B91C1C]">
+        {remaining > 0 ? <>OTP will expire in {formatOtpCountdown(remaining)}</> : 'OTP expired. Please request a new OTP.'}
+      </p>
+      <button
+        type="button"
+        className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] disabled:cursor-not-allowed disabled:text-[#94A3B8]"
+        disabled={loading || remaining > 0}
+        onClick={onResend}
+      >
+        Resend OTP?
+      </button>
+    </div>
+  );
+}
+
 const getPasswordChecks = (value = '') => ([
   { label: 'Minimum 12 characters', ok: value.length >= 12 },
   { label: 'No spaces', ok: value.length > 0 && !/\s/.test(value) },
@@ -24,6 +64,19 @@ const getPasswordStrength = (value = '') => {
   if (passed <= 3) return { label: 'Weak', className: 'text-[#DC2626]', passed };
   if (passed <= 5) return { label: 'Medium', className: 'text-[#D97706]', passed };
   return { label: 'Strong', className: 'text-[#16A34A]', passed };
+};
+
+
+
+const getOtpCooldownMessage = (error) => {
+  const detail = error?.response?.data?.detail;
+  if (detail && typeof detail === 'object') {
+    return detail.message || '';
+  }
+  if (typeof detail === 'string' && error?.response?.status === 429) {
+    return detail;
+  }
+  return '';
 };
 
 function PasswordStrengthHint({ password }) {
@@ -52,9 +105,11 @@ export default function AdminLoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loginFieldError, setLoginFieldError] = useState('');
   const [rememberMe, setRememberMe] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('admin_remember') === 'true';
+      localStorage.removeItem('admin_remember');
+      localStorage.removeItem('user_remember');
     }
     return false;
   });
@@ -65,6 +120,8 @@ export default function AdminLoginPage() {
   const [resetMaskedEmail, setResetMaskedEmail] = useState('');
   const [resetCaptcha, setResetCaptcha] = useState(null);
   const [resetCaptchaAnswer, setResetCaptchaAnswer] = useState('');
+  const [resetFieldError, setResetFieldError] = useState('');
+  const [resetOtpCooldownError, setResetOtpCooldownError] = useState('');
   const [resetForm, setResetForm] = useState({
     identifier: '',
     otp: '',
@@ -80,6 +137,7 @@ export default function AdminLoginPage() {
   const [loginOtp, setLoginOtp] = useState('');
   const [loginCaptcha, setLoginCaptcha] = useState(null);
   const [loginCaptchaAnswer, setLoginCaptchaAnswer] = useState('');
+  const [loginOtpCooldownError, setLoginOtpCooldownError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -127,14 +185,13 @@ export default function AdminLoginPage() {
       }
 
       if (data?.portal_role === 'admin') {
-        localStorage.setItem('isAdmin', 'true');
         loginAdmin(data.access_token, {
           name: data.name,
           email: data.email,
           last_login_at: data.user?.last_login_at,
           must_change_password: data.user?.must_change_password,
         });
-        if (rememberMe) localStorage.setItem('admin_remember', 'true');
+        localStorage.removeItem('admin_remember');
         toast.success('Admin login successful!');
         setFailedAttempts(0);
         navigate('/admin-dashboard', { replace: true });
@@ -144,7 +201,7 @@ export default function AdminLoginPage() {
         const roleMap = { station: 'station', srp: 'srp', dsrp: 'dsrp', irp: 'irp', dgp: 'dgp', sirp: 'station' };
         const normalisedRole = roleMap[officerRole] || 'police';
         loginOfficerViaAdmin(data.access_token, { ...data.user, role: normalisedRole });
-        if (rememberMe) localStorage.setItem('user_remember', 'true');
+        localStorage.removeItem('user_remember');
         toast.success('Officer login successful!');
         setFailedAttempts(0);
         const roleToDashboard = {
@@ -164,6 +221,8 @@ export default function AdminLoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (lockout) return;
+    setLoginFieldError('');
+    setLoginOtpCooldownError('');
     const trimmedIdentifier = identifier.trim();
     if (!trimmedIdentifier) {
       toast.error('Please enter username');
@@ -178,12 +237,23 @@ export default function AdminLoginPage() {
         setLoginOtpStep(true);
         setLoginOtp('');
         await loadLoginCaptcha();
+        setLoginOtpCooldownError('');
         toast.success(response.data.message || 'OTP sent to registered email');
       } else {
         completeLogin(response.data);
       }
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Admin login failed');
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setLoginOtpCooldownError(cooldownMessage);
+      const detail = error?.response?.data?.detail || '';
+      const invalidCredentials = error?.response?.status === 401 || /invalid|credential|username|email|password/i.test(detail);
+      if (invalidCredentials) {
+        setLoginFieldError('Invalid username or password');
+      } else if (cooldownMessage) {
+        toast.error(cooldownMessage);
+      } else {
+        toast.error(detail || 'Admin login failed');
+      }
       setFailedAttempts(f => {
         if (f + 1 >= 3) {
           setLockout(true);
@@ -230,6 +300,8 @@ export default function AdminLoginPage() {
 
   const openResetMode = () => {
     setResetMode(true);
+    setLoginFieldError('');
+    setResetFieldError('');
     setResetId('');
     setResetMaskedEmail('');
     setResetCaptcha(null);
@@ -245,6 +317,8 @@ export default function AdminLoginPage() {
 
   const requestResetOtp = async (e) => {
     e.preventDefault();
+    setResetFieldError('');
+    setResetOtpCooldownError('');
     const trimmedIdentifier = resetForm.identifier.trim();
     if (!trimmedIdentifier) {
       toast.error('Please enter username or email');
@@ -259,9 +333,20 @@ export default function AdminLoginPage() {
       });
       setResetId(response.data.reset_id);
       setResetMaskedEmail(response.data.masked_email || '');
+      setResetOtpCooldownError('');
       toast.success(response.data.message || 'OTP sent to registered email');
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to send reset OTP');
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setResetOtpCooldownError(cooldownMessage);
+      const detail = error?.response?.data?.detail || '';
+      const invalidIdentifier = error?.response?.status === 401 || error?.response?.status === 404 || /invalid|not found|username|email|credential/i.test(detail);
+      if (invalidIdentifier) {
+        setResetFieldError('Invalid username or password');
+      } else if (cooldownMessage) {
+        toast.error(cooldownMessage);
+      } else {
+        toast.error(detail || 'Failed to send reset OTP');
+      }
       await loadResetCaptcha();
     } finally {
       setResetLoading(false);
@@ -315,28 +400,38 @@ export default function AdminLoginPage() {
                 id="reset-identifier"
                 type="text"
                 placeholder="Enter username or email"
-                className="mt-2 h-12"
+                className={`mt-2 h-12 ${resetFieldError ? 'border-[#DC2626] focus-visible:ring-[#FCA5A5]' : ''}`}
                 value={resetForm.identifier}
-                onChange={(e) => setResetForm(prev => ({ ...prev, identifier: e.target.value }))}
+                onChange={(e) => {
+                  setResetForm(prev => ({ ...prev, identifier: e.target.value }));
+                  if (resetFieldError) setResetFieldError('');
+                }}
                 disabled={Boolean(resetId)}
                 required
                 autoComplete="username"
                 autoCapitalize="none"
                 spellCheck={false}
+                aria-invalid={Boolean(resetFieldError)}
               />
+              {resetFieldError && (
+                <p className="mt-1 text-sm font-medium text-[#DC2626]">Invalid username or password</p>
+              )}
             </div>
             {!resetId && (
               <div>
                 <Label htmlFor="reset-captcha" className="text-sm font-semibold text-[#0F172A]">
-                  Security Check {resetCaptcha?.question ? `(${resetCaptcha.question})` : ''}
+                  Security Check
                 </Label>
+                {resetCaptcha?.image && (
+                  <img src={resetCaptcha.image} alt="Security check" className="mt-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+                )}
                 <Input
                   id="reset-captcha"
                   inputMode="numeric"
                   placeholder="Answer"
                   className="mt-2 h-12"
                   value={resetCaptchaAnswer}
-                  onChange={(e) => setResetCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  onChange={(e) => setResetCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 5))}
                   required
                 />
               </div>
@@ -344,7 +439,7 @@ export default function AdminLoginPage() {
             {resetId && (
               <>
                 <p className="text-xs text-[#64748B]">
-                  OTP sent to {resetMaskedEmail || 'the registered email'}. It expires in 10 minutes.
+                  OTP sent to {resetMaskedEmail || 'the registered email'}.
                 </p>
                 <div>
                   <Label htmlFor="reset-otp" className="text-sm font-semibold text-[#0F172A]">Email OTP</Label>
@@ -357,6 +452,16 @@ export default function AdminLoginPage() {
                     value={resetForm.otp}
                     onChange={(e) => setResetForm(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                     required
+                  />
+                  <OtpResendControl
+                    resendKey={resetId}
+                    loading={resetLoading}
+                    onResend={() => {
+                      setResetId('');
+                      setResetMaskedEmail('');
+                      setResetForm(prev => ({ ...prev, otp: '' }));
+                      loadResetCaptcha();
+                    }}
                   />
                   <PasswordStrengthHint password={resetForm.new_password} />
                 </div>
@@ -394,20 +499,6 @@ export default function AdminLoginPage() {
             <Button type="submit" className="w-full h-12 bg-[#0F172A] hover:bg-[#1E293B] text-base font-semibold" disabled={resetLoading}>
               {resetLoading ? 'Please wait...' : resetId ? 'Reset Password' : 'Send OTP'}
             </Button>
-            {resetId && (
-              <button
-                type="button"
-                className="w-full text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
-                onClick={() => {
-                  setResetId('');
-                  setResetMaskedEmail('');
-                  loadResetCaptcha();
-                }}
-                disabled={resetLoading}
-              >
-                Request new OTP
-              </button>
-            )}
             <button
               type="button"
               className="w-full text-sm text-[#64748B] hover:text-[#0F172A]"
@@ -438,46 +529,40 @@ export default function AdminLoginPage() {
                 onChange={(e) => setLoginOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
               />
+              <OtpResendControl
+                resendKey={loginResetId}
+                loading={loading}
+                onResend={async () => {
+                  setLoginOtp('');
+                  setLoginOtpStep(false);
+                  setLoginResetId('');
+                  setLoginMaskedEmail('');
+                  setLoginCaptcha(null);
+                  setLoginCaptchaAnswer('');
+                  await handleSubmit({ preventDefault: () => {} });
+                }}
+              />
             </div>
             <div>
               <Label htmlFor="login-captcha" className="text-sm font-semibold text-[#0F172A]">
-                Security Check {loginCaptcha?.question ? `(${loginCaptcha.question})` : ''}
+                Security Check
               </Label>
+              {loginCaptcha?.image && (
+                <img src={loginCaptcha.image} alt="Security check" className="mt-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+              )}
               <Input
                 id="login-captcha"
                 inputMode="numeric"
                 placeholder="Answer"
                 className="mt-2 h-12"
                 value={loginCaptchaAnswer}
-                onChange={(e) => setLoginCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onChange={(e) => setLoginCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 5))}
                 required
               />
             </div>
             <Button type="submit" className="w-full h-12 bg-[#0F172A] hover:bg-[#1E293B] text-base font-semibold" disabled={loading}>
               {loading ? 'Verifying...' : 'Verify & Login'}
             </Button>
-            <button
-              type="button"
-              className="w-full text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  const response = await api.post('/admin/login', { identifier: identifier.trim(), password });
-                  setLoginResetId(response.data.reset_id || '');
-                  setLoginMaskedEmail(response.data.masked_email || '');
-                  setLoginOtp('');
-                  await loadLoginCaptcha();
-                  toast.success(response.data.message || 'OTP resent');
-                } catch (error) {
-                  toast.error(error?.response?.data?.detail || 'Failed to resend OTP');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={loading}
-            >
-              Resend OTP
-            </button>
             <button
               type="button"
               className="w-full text-sm text-[#64748B] hover:text-[#0F172A]"
@@ -498,7 +583,10 @@ export default function AdminLoginPage() {
                 placeholder="Enter username or email"
                 className="mt-2 h-12"
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                onChange={(e) => {
+                  setIdentifier(e.target.value);
+                  if (loginFieldError) setLoginFieldError('');
+                }}
                 required
                 autoComplete="username"
                 autoCapitalize="none"
@@ -513,11 +601,15 @@ export default function AdminLoginPage() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter admin password"
-                  className="mt-2 h-12 pr-11"
+                  className={`mt-2 h-12 pr-11 ${loginFieldError ? 'border-[#DC2626] focus-visible:ring-[#FCA5A5]' : ''}`}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (loginFieldError) setLoginFieldError('');
+                  }}
                   required
                   autoComplete="current-password"
+                  aria-invalid={Boolean(loginFieldError)}
                 />
                 <button
                   type="button"
@@ -529,6 +621,9 @@ export default function AdminLoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {loginFieldError && (
+                <p className="mt-1 text-sm font-medium text-[#DC2626]">Invalid username or password</p>
+              )}
             </div>
             <div className="flex items-center justify-between gap-3 pt-1">
               <label htmlFor="admin-remember" className="inline-flex items-center gap-2 text-sm font-medium text-[#0F172A] cursor-pointer">
@@ -568,3 +663,4 @@ export default function AdminLoginPage() {
     </div>
   );
 }
+

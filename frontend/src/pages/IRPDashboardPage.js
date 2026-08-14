@@ -9,6 +9,7 @@ import { irpAPI } from '@/lib/api';
 import { downloadCSV } from '@/lib/csv';
 import { stations } from '@/data/stations';
 import { getOfficerScope } from '@/lib/policeScope';
+import { LastLoginNotice } from '@/components/LastLoginNotice';
 
 const PIE_COLORS = { pending: '#F59E0B', investigating: '#3B82F6', resolved: '#10B981', approved: '#059669', rejected: '#EF4444' };
 const BAR_COLORS = ['#2563EB', '#7C3AED', '#059669', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#78716C'];
@@ -43,6 +44,7 @@ export const IRPDashboardPage = () => {
   const [stationFilter, setStationFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [viewRecord, setViewRecord] = useState(null);
+  const previousLoginAt = user?.last_login_at || (typeof window !== 'undefined' ? sessionStorage.getItem('grp_last_login_at') : '');
 
   const scopedStations = useMemo(() => getOfficerScope(user).stations, [user]);
 
@@ -169,7 +171,7 @@ export const IRPDashboardPage = () => {
             </p>
             {(() => {
               const stored = localStorage.getItem('grp_login_time');
-              const ts = stored ? Number(stored) : (() => { try { const tok = localStorage.getItem('grp_auth_token'); if (!tok) return null; const p = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); return p?.iat ? p.iat * 1000 : null; } catch { return null; } })();
+              const ts = stored ? Number(stored) : (() => { try { const tok = sessionStorage.getItem('grp_auth_token'); if (!tok) return null; const p = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); return p?.iat ? p.iat * 1000 : null; } catch { return null; } })();
               if (!ts) return null;
               if (!stored) localStorage.setItem('grp_login_time', ts.toString());
               return (
@@ -179,6 +181,7 @@ export const IRPDashboardPage = () => {
                 </p>
               );
             })()}
+            <LastLoginNotice value={previousLoginAt} className="justify-end" />
           </div>
         </div>
 

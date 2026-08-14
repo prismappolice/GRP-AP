@@ -4,7 +4,7 @@ import { Eye, EyeOff, LoaderCircle, X } from 'lucide-react';
 
 const AuthContext = createContext();
 
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 minutes idle → show warning
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;   // 15 minutes idle -> show warning
 const WARNING_DURATION_S = 120;            // 2 minute countdown before auto-logout
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
 const getPasswordChecks = (value = '') => ([
@@ -57,18 +57,12 @@ export const AuthProvider = ({ children }) => {
   const detectAdminFromStorage = () => {
     if (typeof window === 'undefined') return false;
 
-    // If admin_remember is set and token exists, persist admin session
-    if (localStorage.getItem('admin_remember') === 'true' && localStorage.getItem('grp_auth_token')) {
-      localStorage.setItem('isAdmin', 'true');
-      return true;
-    }
-
-    if (localStorage.getItem('isAdmin') === 'true') {
-      return true;
-    }
-
-    const rawToken = localStorage.getItem('grp_auth_token');
+    const rawToken = getAuthToken();
     if (!rawToken) return false;
+
+    if (sessionStorage.getItem('isAdmin') === 'true') {
+      return true;
+    }
 
     try {
       const payloadBase64 = rawToken.split('.')[1];
@@ -199,12 +193,14 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('isAdmin');
+      sessionStorage.removeItem('isAdmin');
       localStorage.removeItem('admin_display_name');
       localStorage.removeItem('admin_email');
       localStorage.removeItem('admin_remember');
       localStorage.removeItem('admin_last_login_at');
       localStorage.removeItem('admin_must_change_password');
       localStorage.removeItem('grp_login_time');
+      sessionStorage.clear();
       setIsAdmin(false);
       emitAuthChange();
       if (redirectTo) {
@@ -278,14 +274,32 @@ export const AuthProvider = ({ children }) => {
   }, [isLoggedIn]);
   // ── End session expiry ──────────────────────────────────────────────────────
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handlePageShow = () => {
+      if (!getAuthToken()) {
+        setUser(null);
+        setIsAdmin(false);
+        localStorage.removeItem('isAdmin');
+        sessionStorage.removeItem('isAdmin');
+        emitAuthChange();
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, []);
+
   const loginAdmin = (accessToken, adminInfo = null) => {
     updateAuthToken(accessToken);
     setUser(null);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('isAdmin', 'true');
+      sessionStorage.setItem('isAdmin', 'true');
+      localStorage.removeItem('isAdmin');
       localStorage.setItem('admin_display_name', adminInfo?.name || 'Admin');
       if (adminInfo?.email) localStorage.setItem('admin_email', adminInfo.email);
       if (adminInfo?.last_login_at) localStorage.setItem('admin_last_login_at', adminInfo.last_login_at);
+      else localStorage.removeItem('admin_last_login_at');
+      sessionStorage.removeItem('grp_last_login_at');
       if (adminInfo?.must_change_password) localStorage.setItem('admin_must_change_password', 'true');
       else localStorage.removeItem('admin_must_change_password');
       setIsAdmin(true);
@@ -298,9 +312,12 @@ export const AuthProvider = ({ children }) => {
     setUser(officerUser);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('isAdmin');
+      sessionStorage.removeItem('isAdmin');
       localStorage.removeItem('admin_remember');
       localStorage.removeItem('admin_display_name');
       localStorage.removeItem('admin_email');
+      if (officerUser?.last_login_at) sessionStorage.setItem('grp_last_login_at', officerUser.last_login_at);
+      else sessionStorage.removeItem('grp_last_login_at');
       setIsAdmin(false);
       emitAuthChange();
     }
@@ -508,14 +525,17 @@ export const AuthProvider = ({ children }) => {
               <label htmlFor="change-password-captcha" className="mb-1.5 block text-sm font-semibold text-[#0F172A]">
                 Security Check
               </label>
+              {passwordChangeCaptcha?.image && (
+                <img src={passwordChangeCaptcha.image} alt="Security check" className="mb-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+              )}
               <input
                 id="change-password-captcha"
                 inputMode="numeric"
                 className="w-full rounded-md border border-[#CBD5E1] px-3 py-3 text-sm outline-none focus:border-[#2563EB]"
-                placeholder={passwordChangeCaptcha ? `${passwordChangeCaptcha.question} = ?` : 'Loading security check...'}
+                placeholder={passwordChangeCaptcha ? 'Enter the code shown' : 'Loading security check...'}
                 value={passwordChangeCaptchaAnswer}
                 onChange={(e) => {
-                  setPasswordChangeCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 3));
+                  setPasswordChangeCaptchaAnswer(e.target.value.replace(/\D/g, '').slice(0, 5));
                   if (passwordChangeError) setPasswordChangeError('');
                 }}
                 required

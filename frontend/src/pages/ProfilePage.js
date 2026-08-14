@@ -4,6 +4,14 @@ import { Eye, EyeOff, KeyRound, LoaderCircle, Mail, ShieldCheck, UserCircle } fr
 import { authAPI, securityAPI } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
+const OTP_EXPIRY_SECONDS = 180;
+const formatOtpCountdown = (seconds) => {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return mins + ':' + String(secs).padStart(2, '0');
+};
+
 const getPasswordChecks = (value = '') => ([
   { label: 'Minimum 12 characters', ok: value.length >= 12 },
   { label: 'No spaces', ok: value.length > 0 && !/\s/.test(value) },
@@ -42,6 +50,18 @@ function PasswordStrengthHint({ password }) {
   );
 }
 
+
+const getOtpCooldownMessage = (error) => {
+  const detail = error?.response?.data?.detail;
+  if (detail && typeof detail === 'object') {
+    return detail.message || '';
+  }
+  if (typeof detail === 'string' && error?.response?.status === 429) {
+    return detail;
+  }
+  return '';
+};
+
 const emptyPasswordForm = {
   current_password: '',
   new_password: '',
@@ -68,6 +88,8 @@ export default function ProfilePage() {
   const [usernameForm, setUsernameForm] = React.useState(emptyUsernameForm);
   const [passwordOtpSentTo, setPasswordOtpSentTo] = React.useState('');
   const [usernameOtpSentTo, setUsernameOtpSentTo] = React.useState('');
+  const [passwordOtpCooldownError, setPasswordOtpCooldownError] = React.useState('');
+  const [usernameOtpCooldownError, setUsernameOtpCooldownError] = React.useState('');
   const [passwordCaptcha, setPasswordCaptcha] = React.useState(null);
   const [usernameCaptcha, setUsernameCaptcha] = React.useState(null);
   const [passwordLoading, setPasswordLoading] = React.useState(false);
@@ -186,14 +208,18 @@ export default function ProfilePage() {
       toast.error('Passwords do not match');
       return;
     }
+    setPasswordOtpCooldownError('');
     setPasswordOtpLoading(true);
     try {
       const response = await authAPI.requestChangePasswordOtp();
       setPasswordOtpSentTo(response.data.masked_email || 'registered email');
+      setPasswordOtpCooldownError('');
       await loadCaptcha('password');
       toast.success('OTP sent to registered email');
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to send email OTP');
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setPasswordOtpCooldownError(cooldownMessage);
+      toast.error(cooldownMessage || error?.response?.data?.detail || 'Failed to send email OTP');
     } finally {
       setPasswordOtpLoading(false);
     }
@@ -229,14 +255,18 @@ export default function ProfilePage() {
       toast.error('Enter new login email first');
       return;
     }
+    setUsernameOtpCooldownError('');
     setUsernameOtpLoading(true);
     try {
       const response = await authAPI.requestChangeUsernameOtp();
       setUsernameOtpSentTo(response.data.masked_email || 'registered email');
+      setUsernameOtpCooldownError('');
       await loadCaptcha('username');
       toast.success('OTP sent to registered email');
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to send email OTP');
+      const cooldownMessage = getOtpCooldownMessage(error);
+      if (cooldownMessage) setUsernameOtpCooldownError(cooldownMessage);
+      toast.error(cooldownMessage || error?.response?.data?.detail || 'Failed to send email OTP');
     } finally {
       setUsernameOtpLoading(false);
     }
@@ -405,6 +435,7 @@ export default function ProfilePage() {
                     sentTo={usernameOtpSentTo}
                     loading={usernameOtpLoading}
                     onRequestOtp={requestUsernameOtp}
+                    cooldownMessage={usernameOtpCooldownError}
                   />
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button
@@ -467,6 +498,7 @@ export default function ProfilePage() {
                 sentTo={passwordOtpSentTo}
                 loading={passwordOtpLoading}
                 onRequestOtp={requestPasswordOtp}
+                cooldownMessage={passwordOtpCooldownError}
               />
               <SubmitButton loading={passwordLoading} label="Change Password" loadingLabel="Updating password..." />
             </form>
@@ -504,17 +536,32 @@ function SecurePasswordInput({ id, label, value, onChange, type, onToggle, visib
   );
 }
 
-function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerChange, sentTo, loading, onRequestOtp }) {
+function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerChange, sentTo, loading, onRequestOtp, cooldownMessage }) {
+  const [remaining, setRemaining] = React.useState(0);
+
+  React.useEffect(() => {
+    if (sentTo) setRemaining(OTP_EXPIRY_SECONDS);
+    else setRemaining(0);
+  }, [sentTo]);
+
+  React.useEffect(() => {
+    if (remaining <= 0) return undefined;
+    const timer = setInterval(() => {
+      setRemaining((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [remaining]);
+
   return (
     <div className="space-y-3">
       <button
         type="button"
         onClick={onRequestOtp}
-        disabled={loading}
+        disabled={loading || Boolean(sentTo)}
         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#2563EB] px-4 text-sm font-semibold text-[#2563EB] hover:bg-[#EFF6FF] disabled:opacity-60"
       >
         {loading && <LoaderCircle className="h-4 w-4 animate-spin" />}
-        {loading ? 'Sending...' : sentTo ? 'Resend OTP' : 'Send Email OTP'}
+        {loading ? 'Sending...' : 'Send Email OTP'}
       </button>
       {loading && (
         <p className="flex items-center gap-2 text-xs font-medium text-[#2563EB]">
@@ -523,6 +570,9 @@ function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerCha
         </p>
       )}
       {sentTo && <p className="text-xs text-[#64748B]">OTP sent to {sentTo}.</p>}
+      {cooldownMessage && (
+        <p className="rounded-md border border-[#FCA5A5] bg-[#FEF2F2] px-3 py-2 text-sm font-semibold text-[#B91C1C]">{cooldownMessage}</p>
+      )}
       {sentTo && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
@@ -537,16 +587,32 @@ function OtpBlock({ otp, onOtpChange, captcha, captchaAnswer, onCaptchaAnswerCha
               placeholder="6-digit OTP"
               required
             />
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-[#B91C1C]">
+                {remaining > 0 ? <>OTP will expire in {formatOtpCountdown(remaining)}</> : 'OTP expired. Please request a new OTP.'}
+              </p>
+              <button
+                type="button"
+                onClick={onRequestOtp}
+                disabled={loading || remaining > 0}
+                className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] disabled:cursor-not-allowed disabled:text-[#94A3B8]"
+              >
+                Resend OTP?
+              </button>
+            </div>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-[#0F172A]" htmlFor={`captcha-${sentTo}`}>Security Check</label>
+            {captcha?.image && (
+              <img src={captcha.image} alt="Security check" className="mb-2 h-12 rounded border border-[#CBD5E1] bg-white" />
+            )}
             <input
               id={`captcha-${sentTo}`}
               inputMode="numeric"
               value={captchaAnswer}
-              onChange={(event) => onCaptchaAnswerChange(event.target.value.replace(/\D/g, '').slice(0, 3))}
+              onChange={(event) => onCaptchaAnswerChange(event.target.value.replace(/\D/g, '').slice(0, 5))}
               className="w-full rounded-md border border-[#CBD5E1] px-3 py-3 text-sm outline-none focus:border-[#2563EB]"
-              placeholder={captcha ? `${captcha.question} = ?` : 'Loading...'}
+              placeholder={captcha ? 'Enter the code shown' : 'Loading...'}
               required
             />
           </div>
@@ -568,3 +634,4 @@ function SubmitButton({ loading, label, loadingLabel }) {
     </button>
   );
 }
+

@@ -8,6 +8,7 @@ import { getAuthToken, helpAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { Mail, Phone, HelpCircle, Clock, CheckCircle2, XCircle, Search, Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { sanitizeSpreadsheetRows, sanitizeWorksheetCells } from '@/lib/csv';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -64,8 +65,8 @@ const AdminHelpRequestsPage = () => {
       await helpAPI.updateStatus(id, newStatus);
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
       toast.success('Status updated');
-    } catch {
-      toast.error('Failed to update status');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Failed to update status');
     } finally {
       setUpdatingId(null);
     }
@@ -85,13 +86,25 @@ const AdminHelpRequestsPage = () => {
     if (!replyMessage.trim()) return;
     setSendingReply(true);
     try {
-      await helpAPI.reply(replyTarget.id, replyMessage.trim());
-      // Update local state for replied request
-      setRequests(prev => prev.map(r =>
-        r.id === replyTarget.id ? { ...r, replied: true, status: 'replied', reply_count: (Number(r.reply_count) || 0) + 1, latest_reply_message: replyMessage.trim(), latest_reply_at: new Date().toISOString() } : r
-      ));
+      const response = await helpAPI.reply(replyTarget.id, replyMessage.trim());
+      const updatedItem = response?.data?.item;
+      setRequests(prev => prev.map(r => {
+        if (r.id !== replyTarget.id) return r;
+        return updatedItem || {
+          ...r,
+          replied: true,
+          status: 'replied',
+          reply_count: (Number(r.reply_count) || 0) + 1,
+          latest_reply_message: replyMessage.trim(),
+          latest_reply_at: new Date().toISOString(),
+        };
+      }));
       setReplySentMap(prev => ({ ...prev, [replyTarget.id]: replyMessage.trim() }));
-      toast.success(`Reply sent to ${replyTarget.email}`);
+      if (response?.data?.email_sent === false) {
+        toast.warning(response?.data?.message || 'Reply saved, but email delivery failed');
+      } else {
+        toast.success(`Reply sent to ${replyTarget.email}`);
+      }
       closeReplyDialog();
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to send reply email');
@@ -143,7 +156,7 @@ const AdminHelpRequestsPage = () => {
       );
     }
     return list;
-  }, [requests, searchText, statusFilter]);
+  }, [requests, searchText, statusFilter, dateFrom, dateTo]);
 
   function exportToExcel() {
     if (!filteredRequests.length) { toast.error('No data to export'); return; }
@@ -165,7 +178,7 @@ const AdminHelpRequestsPage = () => {
         return obj;
       }, {})
     );
-    const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
+    const ws = sanitizeWorksheetCells(XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: headers.map(h => h.label) }));
     ws['!cols'] = headers.map(h => ({
       wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2
     }));
@@ -358,23 +371,26 @@ const AdminHelpRequestsPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-3">
-                        {req.replied ? (
-                          <Badge className="text-xs bg-indigo-500 text-white">Replied</Badge>
-                        ) : isReadOnlySession ? (
+                        {isReadOnlySession ? (
                           <span className="text-xs font-semibold text-[#64748B]">Read-only</span>
                         ) : req.email ? (
-                          <button
-                            className="px-3 py-1 bg-[#2563EB] text-white text-xs font-medium rounded hover:bg-[#1D4ED8] transition-colors"
-                            onClick={() => openReplyDialog(req)}
-                          >
-                            Reply
-                          </button>
+                          <div className="flex flex-col items-start gap-1.5">
+                            {req.replied && <Badge className="text-xs bg-indigo-500 text-white">Replied</Badge>}
+                            <button
+                              className="px-3 py-1 bg-[#2563EB] text-white text-xs font-medium rounded hover:bg-[#1D4ED8] transition-colors"
+                              onClick={() => openReplyDialog(req)}
+                            >
+                              {req.replied ? 'Reply Again' : 'Reply'}
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs text-[#94A3B8]">No email</span>
                         )}
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-3">
-                        {req.status !== 'closed' ? (
+                        {isReadOnlySession ? (
+                          <span className="text-xs font-semibold text-[#64748B]">Read-only</span>
+                        ) : req.status !== 'closed' ? (
                           <button
                             className="px-3 py-1 bg-[#6B7280] text-white text-xs font-medium rounded hover:bg-[#4B5563] transition-colors disabled:opacity-50"
                             disabled={updatingId === req.id}
@@ -422,13 +438,13 @@ const AdminHelpRequestsPage = () => {
                 {viewTarget.latest_reply_at && <p className="mt-1 text-xs text-[#64748B]">Sent: {formatDate(viewTarget.latest_reply_at)}</p>}
               </div>
             )}
-            {!viewTarget.replied && !replySentMap[viewTarget.id] && !isReadOnlySession && (
+            {!isReadOnlySession && viewTarget.email && (
             <div className="mt-5 flex justify-end">
               <button
                 onClick={() => { setViewTarget(null); openReplyDialog(viewTarget); }}
                 className="px-4 py-2 text-sm font-medium text-white bg-[#2563EB] rounded-lg hover:bg-[#1D4ED8] transition-colors"
               >
-                Reply
+                {viewTarget.replied || replySentMap[viewTarget.id] ? 'Reply Again' : 'Reply'}
               </button>
             </div>
             )}

@@ -5,9 +5,9 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import api from '@/lib/api';
+import api, { getAuthToken } from '@/lib/api';
 import { toast } from 'sonner';
-import { Users, Shield, Award, Network, Building2, Eye, EyeOff, Search, Plus, X } from 'lucide-react';
+import { Users, Shield, Award, Network, Building2, Search, Plus, X } from 'lucide-react';
 import { stations } from '@/data/stations';
 // import removed: adminStationHierarchy, getAdminHierarchyCounts
 
@@ -49,7 +49,21 @@ const emptyNewUser = {
   stationName: '',
 };
 
+const getPasswordPolicyError = (value = '') => {
+  if (value.length < 12) return 'Password must be at least 12 characters';
+  if (/\s/.test(value)) return 'Password cannot contain spaces';
+  const checks = [
+    [/[A-Z]/, 'uppercase letter'],
+    [/[a-z]/, 'lowercase letter'],
+    [/[0-9]/, 'number'],
+    [/[^A-Za-z0-9]/, 'special character'],
+  ];
+  const missing = checks.filter(([pattern]) => !pattern.test(value)).map(([, label]) => label);
+  return missing.length ? `Password must include ${missing.join(', ')}` : '';
+};
+
 const hierarchyRoleLabels = {
+  srp: [{ field: 'division', label: 'Under SRP / Division' }],
   dsrp: [{ field: 'division', label: 'Under SRP / Division' }],
   irp: [
     { field: 'subdivision', label: 'Under DSRP / Sub Division' },
@@ -346,12 +360,10 @@ const flattenHierarchyRows = (division, credentialIndex) => {
 
 export const AdminStationsPage = () => {
   const navigate = useNavigate();
-  const isAdmin = typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true';
+  const isAdmin = Boolean(getAuthToken() && typeof window !== 'undefined' && sessionStorage.getItem('isAdmin') === 'true');
   const [credentials, setCredentials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [pwdDrafts, setPwdDrafts] = useState({});
-  const [pwdVisible, setPwdVisible] = useState({});
   const [createLoading, setCreateLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newUser, setNewUser] = useState(emptyNewUser);
@@ -381,11 +393,6 @@ export const AdminStationsPage = () => {
       setLoading(false);
     }
   };
-
-  const onDraftChange = (key, value) => {
-    setPwdDrafts((prev) => ({ ...prev, [key]: value }));
-  };
-
   const centralAdmins = credentials.filter((c) => c.scope === 'admin');
   const superiorOfficerCredentials = credentials
     .filter((c) => c.scope === 'officer')
@@ -440,25 +447,6 @@ export const AdminStationsPage = () => {
     (c) => !(String(c.role || '').toLowerCase() === 'irp' && IRP_RPS_NAMES.includes(c.name))
   );
   hierarchyCredentials = [...irpRpsRows, ...otherRows];
-
-  const updatePassword = async (scope, id) => {
-    const key = `${scope}:${id}`;
-    const newPassword = (pwdDrafts[key] || '').trim();
-    if (!newPassword) {
-      toast.error('Enter a new password');
-      return;
-    }
-
-    try {
-      await api.patch(`/admin/credentials/${scope}/${id}/password`, { new_password: newPassword });
-      toast.success('Password updated successfully');
-      setPwdDrafts((prev) => ({ ...prev, [key]: '' }));
-      await loadData();
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Password update failed');
-    }
-  };
-
   const updateStatus = async (scope, id, nextActive) => {
     try {
       await api.patch(`/admin/credentials/${scope}/${id}/status`, { is_active: nextActive });
@@ -602,6 +590,11 @@ export const AdminStationsPage = () => {
     const superiorRoles = new Set(['dgp']);
     const scope = superiorRoles.has(newUser.accountType) ? 'officer' : newUser.accountType;
     const role = superiorRoles.has(newUser.accountType) ? 'dgp' : undefined;
+    const passwordError = getPasswordPolicyError(newUser.password);
+    if (passwordError) {
+      toast.error(passwordError);
+      return;
+    }
     setCreateLoading(true);
     try {
       await api.post('/admin/credentials', {
@@ -614,7 +607,7 @@ export const AdminStationsPage = () => {
         division: newUser.division || null,
         subdivision: newUser.subdivision || null,
         circle: newUser.circle || null,
-        station_name: newUser.stationName || null,
+        station_name: newUser.stationName || (newUser.accountType === 'station' ? newUser.name : null),
       });
       toast.success('User added successfully');
       setNewUser(emptyNewUser);
@@ -642,12 +635,6 @@ export const AdminStationsPage = () => {
   };
 
   const renderFlatAdminTable = (title, rows, roleLabel, emptyLabel, extraHeader, tableRef) => {
-    const updateButtonClass = (isActive) => (
-      isActive
-        ? 'bg-[#16A34A] text-white hover:bg-[#15803D] shadow-sm'
-        : 'bg-[#DCFCE7] text-[#166534] hover:bg-[#BBF7D0] shadow-none'
-    );
-
     return (
       <div className="mb-8" ref={tableRef}>
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -667,7 +654,7 @@ export const AdminStationsPage = () => {
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Role</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Name</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Username</TableHead>
-                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Change Password</TableHead>
+                <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Phone</TableHead>
                 <TableHead className="border border-[#60A5FA] px-4 py-3 text-center font-bold text-[#0F172A]">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -678,10 +665,7 @@ export const AdminStationsPage = () => {
                 </TableRow>
               ) : (
                 rows.map((row, idx) => {
-                  const credentialKey = `${row.scope}:${row.id}`;
-                  const canUpdatePassword = Boolean(row.scope && row.id);
                   const currentUsername = row.email || row.id || '';
-                  const hasPasswordDraft = Boolean((pwdDrafts[credentialKey] || '').trim());
                   const isActive = row.is_active !== false;
                   let displayRole = row.role;
                   if (typeof roleLabel === 'function') {
@@ -693,38 +677,7 @@ export const AdminStationsPage = () => {
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{displayRole}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{row.name || '--'}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">{currentUsername || '--'}</TableCell>
-                      <TableCell className="border border-[#60A5FA] align-middle">
-                        <div className="mx-auto flex min-w-[200px] max-w-lg gap-2">
-                          <div className="relative flex-1">
-                            <Input
-                              placeholder={canUpdatePassword ? 'New password' : 'Unavailable'}
-                              type={pwdVisible[credentialKey] ? 'text' : 'password'}
-                              autoComplete="new-password"
-                              value={pwdDrafts[credentialKey] || ''}
-                              onChange={(e) => onDraftChange(credentialKey, e.target.value)}
-                              className="text-sm pr-8"
-                              disabled={!canUpdatePassword}
-                            />
-                            {canUpdatePassword && (
-                              <button
-                                type="button"
-                                onClick={() => setPwdVisible((prev) => ({ ...prev, [credentialKey]: !prev[credentialKey] }))}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                tabIndex={-1}
-                              >
-                                {pwdVisible[credentialKey] ? <EyeOff size={15} /> : <Eye size={15} />}
-                              </button>
-                            )}
-                          </div>
-                          <Button
-                            disabled={!canUpdatePassword}
-                            className={updateButtonClass(hasPasswordDraft)}
-                            onClick={() => updatePassword(row.scope, row.id)}
-                          >
-                            Update
-                          </Button>
-                        </div>
-                      </TableCell>
+                      <TableCell className="border border-[#60A5FA] text-center align-middle whitespace-nowrap">{row.phone || '--'}</TableCell>
                       <TableCell className="border border-[#60A5FA] text-center align-middle">
                         <Button
                           variant="outline"

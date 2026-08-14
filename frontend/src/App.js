@@ -113,8 +113,8 @@ const StationPoliceRoute = ({ children }) => {
 };
 
 const ProfileRoute = ({ children }) => {
-  const { user, loading, isAdmin } = useAuth();
-  const effectiveIsAdmin = isAdmin || (typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true');
+  const { user, loading, isAdmin, token } = useAuth();
+  const effectiveIsAdmin = Boolean(isAdmin && token);
 
   if (loading) {
     return (
@@ -145,8 +145,8 @@ const ScrollManager = () => {
 };
 
 const AppContent = () => {
-  const { isAdmin } = useAuth();
-  const effectiveIsAdmin = isAdmin || (typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true');
+  const { isAdmin, token } = useAuth();
+  const effectiveIsAdmin = Boolean(isAdmin && token);
 
   return (
     <div className="App" style={{maxWidth: '100vw'}}>

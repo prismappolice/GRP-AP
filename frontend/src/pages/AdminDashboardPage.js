@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
 import { MapPin, Image, Newspaper, HelpCircle, FileText, UserX, ShieldCheck } from 'lucide-react';
 import api from '@/lib/api';
+import { LastLoginNotice } from '@/components/LastLoginNotice';
 // import removed: getAdminHierarchyCounts
 
 const adminServices = [
@@ -59,6 +60,9 @@ const adminServices = [
 ];
 
 const AdminDashboardPage = () => {
+  const [lastLoginAt, setLastLoginAt] = useState(() => (
+    typeof window !== 'undefined' ? localStorage.getItem('admin_last_login_at') || '' : ''
+  ));
   const [counts, setCounts] = useState({
     gallery: 0,
     policeUsers: 0,
@@ -69,6 +73,17 @@ const AdminDashboardPage = () => {
     unidentifiedBodies: 0,
     auditLogs: 0,
   });
+
+  useEffect(() => {
+    const syncLastLogin = () => setLastLoginAt(localStorage.getItem('admin_last_login_at') || '');
+    syncLastLogin();
+    window.addEventListener('storage', syncLastLogin);
+    window.addEventListener('grp-auth-changed', syncLastLogin);
+    return () => {
+      window.removeEventListener('storage', syncLastLogin);
+      window.removeEventListener('grp-auth-changed', syncLastLogin);
+    };
+  }, []);
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -132,6 +147,7 @@ const AdminDashboardPage = () => {
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#D97706] mb-2">ADMIN DASHBOARD</p>
             <h1 className="text-4xl sm:text-5xl font-extrabold heading-font text-[#0F172A]">Admin Dashboard</h1>
             <p className="text-lg text-[#475569] mt-4">Manage users, gallery content, and station hierarchy credentials.</p>
+            <LastLoginNotice value={lastLoginAt} className="mt-5 justify-center" />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">

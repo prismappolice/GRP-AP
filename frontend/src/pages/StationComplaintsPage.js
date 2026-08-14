@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, ArrowUpDown, Building2, ChevronDown, Download, Eye, FileText, RefreshCw, Search, X, Check, Clock, AlertCircle, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { stationAPI, normalizeMediaUrl } from '@/lib/api';
+import { getAuthToken, stationAPI, normalizeMediaUrl } from '@/lib/api';
+import { sanitizeSpreadsheetRows, sanitizeWorksheetCells } from '@/lib/csv';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 
 const STATUS_COLORS = {
@@ -19,6 +20,15 @@ const STATUS_COLORS = {
   approved: 'bg-emerald-100 text-emerald-800',
   rejected: 'bg-red-100 text-red-800',
   closed: 'bg-gray-100 text-gray-700',
+};
+const FINAL_STATUSES = ['approved', 'resolved', 'closed', 'rejected'];
+
+const getErrorDetail = (error, fallback = 'Action failed. Please try again.') => {
+  const detail = error?.response?.data?.detail;
+  if (!detail) return fallback;
+  if (typeof detail === 'string') return detail;
+  if (typeof detail === 'object' && detail.message) return detail.message;
+  return fallback;
 };
 
 function ActionPortalDropdown({ options, onSelect, onClose, anchorRef }) {
@@ -266,10 +276,16 @@ async function downloadComplaintPDF(c, index) {
   const isPdfUrl = (u) => /\.pdf$/i.test(u || '');
   const isVideoUrl = (u) => /\.(mp4|webm|ogg|mov|avi)$/i.test(u || '');
   const videoUrls = [];
+  const authHeaders = getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {};
   for (const docUrl of parsedDocs) {
     const normalized = (() => { try { const p = new URL(normalizeMediaUrl(docUrl)); return p.pathname + p.search; } catch { return normalizeMediaUrl(docUrl); } })();
     try {
       if (isImgUrl(docUrl)) {
+        const blob = await fetch(normalized, { headers: authHeaders }).then((resp) => {
+          if (!resp.ok) throw new Error('Unable to load protected document');
+          return resp.blob();
+        });
+        const blobUrl = URL.createObjectURL(blob);
         const bytes = await new Promise((resolve, reject) => {
           const img = new Image();
           img.crossOrigin = 'anonymous';
@@ -281,8 +297,9 @@ async function downloadComplaintPDF(c, index) {
             canvas.toBlob(async (blob) => { try { resolve(await blob.arrayBuffer()); } catch (e) { reject(e); } }, 'image/png');
           };
           img.onerror = reject;
-          img.src = normalized;
+          img.src = blobUrl;
         });
+        URL.revokeObjectURL(blobUrl);
         const embeddedImg = await pdfDoc.embedPng(bytes);
         const A4W = 595, A4H = 842;
         const scale = Math.min(A4W / embeddedImg.width, A4H / embeddedImg.height);
@@ -291,7 +308,7 @@ async function downloadComplaintPDF(c, index) {
         const imgPage = pdfDoc.addPage([A4W, A4H]);
         imgPage.drawImage(embeddedImg, { x: (A4W - imgW) / 2, y: (A4H - imgH) / 2, width: imgW, height: imgH });
       } else if (isPdfUrl(docUrl)) {
-        const resp = await fetch(normalized);
+        const resp = await fetch(normalized, { headers: authHeaders });
         const bytes = await resp.arrayBuffer();
         const srcDoc = await PDFDocument.load(bytes);
         const copied = await pdfDoc.copyPages(srcDoc, srcDoc.getPageIndices());
@@ -317,7 +334,7 @@ async function downloadComplaintPDF(c, index) {
   for (let i = 0; i < videoUrls.length; i++) {
     const { normalized, docUrl } = videoUrls[i];
     try {
-      const resp = await fetch(normalized);
+      const resp = await fetch(normalized, { headers: authHeaders });
       const vblob = await resp.blob();
       const vurl = URL.createObjectURL(vblob);
       const va = document.createElement('a');
@@ -342,7 +359,7 @@ function exportToExcel(filename, rows) {
     return obj;
   });
   const allLabels = ['S.No', ...STATION_EXPORT_COLS.map(h => h.label)];
-  const ws = XLSX.utils.json_to_sheet(data, { header: allLabels });
+  const ws = sanitizeWorksheetCells(XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: allLabels }));
   ws['!cols'] = allLabels.map(label => ({
     wch: Math.max(label.length, ...data.map(r => String(r[label] || '').length)) + 2
   }));
@@ -416,8 +433,8 @@ const StationComplaintsPage = () => {
       setActionLoading(true);
       const res = await stationAPI.updateStatus(complaintId, { status, rejection_reason: reason });
       setComplaints(prev => prev.map(c => c.id === complaintId ? res.data : c));
-    } catch {
-      alert('Action failed. Please try again.');
+    } catch (error) {
+      alert(getErrorDetail(error));
     } finally {
       setActionLoading(false);
     }
@@ -742,7 +759,7 @@ const StationComplaintsPage = () => {
                         </div>
                       </TableCell>
                       <TableCell className="border border-[#60A5FA] px-4 py-2 text-left min-w-[180px]">
-                        {!['approved', 'resolved', 'closed', 'rejected'].includes(String(c.status || '').toLowerCase()) && (
+                        {!FINAL_STATUSES.includes(String(c.status || '').toLowerCase()) ? (
                           <ActionCell
                             complaintId={c.id}
                             pendingStatus={pendingStatus}
@@ -758,6 +775,10 @@ const StationComplaintsPage = () => {
                               }
                             }}
                           />
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-[#F1F5F9] text-xs font-semibold text-[#475569]">
+                            Final
+                          </span>
                         )}
                       </TableCell>
                     </TableRow>

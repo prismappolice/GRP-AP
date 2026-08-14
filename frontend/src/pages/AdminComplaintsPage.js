@@ -8,14 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, X, FileText, Clock, AlertCircle, CheckCircle2, XCircle, Search, RefreshCw, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
 import api, { complaintsAPI, getAuthToken } from '@/lib/api';
+import { isSensitiveExportKey, sanitizeSpreadsheetRows, sanitizeWorksheetCells } from '@/lib/csv';
 import { getAllStations } from '@/lib/policeScope';
 import SupportingDocsModal from '@/components/SupportingDocsModal';
 import { useSearchParams } from 'react-router-dom';
 
 const AdminComplaintsPage = () => {
   const navigate = useNavigate();
-  const isAdmin = typeof window !== 'undefined' && localStorage.getItem('isAdmin') === 'true';
   const token = getAuthToken();
+  const isAdmin = Boolean(token && typeof window !== 'undefined' && sessionStorage.getItem('isAdmin') === 'true');
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -66,13 +67,19 @@ const AdminComplaintsPage = () => {
     setLoading(true);
     try {
       const res = await api.get('/complaints', { headers: { Authorization: `Bearer ${token}` } });
-      setComplaints(res.data);
+      setComplaints(Array.isArray(res.data) ? res.data.map(stripSensitiveComplaintFields) : []);
     } catch (err) {
       setError('Failed to fetch complaints');
     } finally {
       setLoading(false);
     }
   };
+
+  const stripSensitiveComplaintFields = (complaint) => (
+    Object.fromEntries(
+      Object.entries(complaint || {}).filter(([key]) => !isSensitiveExportKey(key))
+    )
+  );
 
   const handleDelete = async (id) => {
     setDeleteLoading(true);
@@ -180,7 +187,7 @@ const AdminComplaintsPage = () => {
         return obj;
       }, {})
     );
-    const ws = XLSX.utils.json_to_sheet(data, { header: headers.map(h => h.label) });
+    const ws = sanitizeWorksheetCells(XLSX.utils.json_to_sheet(sanitizeSpreadsheetRows(data), { header: headers.map(h => h.label) }));
     // Auto-width columns
     const colWidths = headers.map(h => ({
       wch: Math.max(h.label.length, ...data.map(r => String(r[h.label] || '').length)) + 2

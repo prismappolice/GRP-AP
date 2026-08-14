@@ -15,11 +15,19 @@ export const normalizeMediaUrl = (inputUrl) => {
   const cleanedUrl = String(inputUrl).trim();
   if (/^(blob:|data:)/i.test(cleanedUrl)) return cleanedUrl;
   if (/^https?:\/\//i.test(cleanedUrl)) return cleanedUrl;
+  const complaintDocumentMatch = cleanedUrl.match(/\/api\/complaint-documents\/.+$/i);
+  if (complaintDocumentMatch) {
+    return `${baseUrl}${complaintDocumentMatch[0]}`;
+  }
+  const legacyComplaintMatch = cleanedUrl.match(/\/complaint_uploads\/([^/?#]+).*$/i);
+  if (legacyComplaintMatch) {
+    return `${baseUrl}/api/complaint-documents/${legacyComplaintMatch[1]}`;
+  }
   const legacyNewsMatch = cleanedUrl.match(/\/gallery_uploads\/news\/(.+)$/i);
   if (legacyNewsMatch) {
     return `${baseUrl}/news_uploads/${legacyNewsMatch[1]}`;
   }
-  const match = cleanedUrl.match(/\/(gallery_uploads|news_uploads|unidentified_uploads|complaint_uploads)\/.+$/i);
+  const match = cleanedUrl.match(/\/(gallery_uploads|news_uploads|unidentified_uploads)\/.+$/i);
   if (match) {
     return `${baseUrl}${match[0]}`;
   }
@@ -31,15 +39,18 @@ let authToken = null;
 export const setAuthToken = (token) => {
   authToken = token;
   if (token) {
-    localStorage.setItem('grp_auth_token', token);
+    sessionStorage.setItem('grp_auth_token', token);
+    localStorage.removeItem('grp_auth_token');
   } else {
+    sessionStorage.removeItem('grp_auth_token');
     localStorage.removeItem('grp_auth_token');
   }
 };
 
 export const getAuthToken = () => {
   if (!authToken) {
-    authToken = localStorage.getItem('grp_auth_token');
+    authToken = sessionStorage.getItem('grp_auth_token');
+    localStorage.removeItem('grp_auth_token');
   }
   return authToken;
 };
@@ -76,6 +87,7 @@ api.interceptors.response.use(
       localStorage.removeItem('admin_last_login_at');
       localStorage.removeItem('admin_must_change_password');
       localStorage.removeItem('grp_login_time');
+      sessionStorage.clear();
       window.dispatchEvent(new Event('grp-auth-changed'));
       if (!window.location.pathname.includes('/admin-login')) {
         window.location.replace('/admin-login');
@@ -111,7 +123,6 @@ export const complaintsAPI = {
   }),
   getAll: () => api.get('/complaints'),
   getById: (id) => api.get(`/complaints/${id}`),
-  track: (trackingNumber) => api.get(`/complaints/track/${trackingNumber}`),
   update: (id, data) => api.patch(`/complaints/${id}`, data),
   assign: (id, station) => api.patch(`/complaints/${id}/assign`, { station }),
   updateStatus: (id, statusOrData, rejectionReason) => {
